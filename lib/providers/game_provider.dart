@@ -159,11 +159,14 @@ class GameNotifier extends Notifier<GameState> {
       currentPlayerIndex: 0,
       phase: GamePhase.roll,
       properties: GameData.initialProperties,
-      gameLogs: ['New Game Started with ${players.length} players! 🌴'],
+      gameLogs: ['Match started with ${players.length} players!'],
       message: '${players.first.name}\'s Turn to Roll!',
     );
 
-    _broadcastState();
+    if (_isHost) {
+      ref.read(multiplayerServiceProvider).onPlayerActionReceived = _handleRemotePlayerAction;
+      _broadcastState();
+    }
 
     if (players.first.type == PlayerType.ai) {
       _scheduleAiTurn();
@@ -178,13 +181,58 @@ class GameNotifier extends Notifier<GameState> {
         currentPlayerIndex: 0,
         phase: GamePhase.roll,
         properties: GameData.initialProperties,
-        gameLogs: ['Connected to Host! Match started! 🌴'],
+        gameLogs: ['Connected to Host! Match started!'],
         message: '${initialPlayers.first.name}\'s Turn to Roll!',
       );
     }
     ref.read(multiplayerServiceProvider).onStateSyncReceived = (data) {
       state = GameState.fromMap(data);
     };
+  }
+
+  void _handleRemotePlayerAction(Map<String, dynamic> payload) {
+    if (!_isHost) return;
+    final actionType = payload['type'] as String?;
+    final data = payload['data'] is Map ? Map<String, dynamic>.from(payload['data'] as Map) : <String, dynamic>{};
+    final senderPlayerId = data['playerId'] as String?;
+
+    if (senderPlayerId != null && senderPlayerId != state.currentPlayer.id) {
+      debugPrint('[GameNotifier] Ignored $actionType from $senderPlayerId (active: ${state.currentPlayer.id})');
+      return;
+    }
+
+    switch (actionType) {
+      case 'roll_dice':
+        _executeRollDice();
+        break;
+      case 'buy_property':
+        final propId = data['propertyId'] as String?;
+        if (propId != null) _executeBuyProperty(propId);
+        break;
+      case 'pass_property':
+        _executePassProperty();
+        break;
+      case 'upgrade_property':
+        final propId = data['propertyId'] as String?;
+        if (propId != null) _executeUpgradeProperty(propId);
+        break;
+      case 'toggle_mortgage':
+        final propId = data['propertyId'] as String?;
+        if (propId != null) _executeToggleMortgage(propId);
+        break;
+      case 'pay_jail_bail':
+        _executePayJailBail();
+        break;
+      case 'use_jail_card':
+        _executeUseJailCard();
+        break;
+      case 'end_turn':
+        _endTurn();
+        break;
+      case 'dismiss_event_card':
+        dismissEventCard();
+        break;
+    }
   }
 
   void _broadcastState() {
@@ -203,6 +251,12 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void dismissEventCard() {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('dismiss_event_card', {
+        'playerId': state.currentPlayer.id,
+      });
+      return;
+    }
     state = state.copyWith(clearActiveEventCard: true);
     if (state.phase == GamePhase.spaceAction) {
       state = state.copyWith(phase: GamePhase.turnEnd);
@@ -215,6 +269,16 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== DICE & MOVEMENT ====================
 
   void rollDice() {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('roll_dice', {
+        'playerId': state.currentPlayer.id,
+      });
+      return;
+    }
+    _executeRollDice();
+  }
+
+  void _executeRollDice() {
     if (state.phase != GamePhase.roll) return;
     try { ref.read(audioServiceProvider.notifier).playDiceRoll(); } catch (_) {}
     final current = state.currentPlayer;
@@ -305,6 +369,16 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void payJailBail() {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('pay_jail_bail', {
+        'playerId': state.currentPlayer.id,
+      });
+      return;
+    }
+    _executePayJailBail();
+  }
+
+  void _executePayJailBail() {
     final current = state.currentPlayer;
     if (!current.isInJail) return;
     const bailCost = 2500;
@@ -324,6 +398,16 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void useJailCard() {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('use_jail_card', {
+        'playerId': state.currentPlayer.id,
+      });
+      return;
+    }
+    _executeUseJailCard();
+  }
+
+  void _executeUseJailCard() {
     final current = state.currentPlayer;
     if (!current.isInJail || current.getOutOfJailCards <= 0) return;
     _addLog('${current.name} used a "Get Out of Jail Free" card!');
@@ -642,6 +726,17 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== PROPERTY ACTIONS ====================
 
   void buyProperty(String propertyId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('buy_property', {
+        'playerId': state.currentPlayer.id,
+        'propertyId': propertyId,
+      });
+      return;
+    }
+    _executeBuyProperty(propertyId);
+  }
+
+  void _executeBuyProperty(String propertyId) {
     final prop = state.properties[propertyId];
     final current = state.currentPlayer;
     if (prop == null || prop.ownerId != null) return;
@@ -664,7 +759,7 @@ class GameNotifier extends Notifier<GameState> {
         message: '${current.name} purchased ${prop.name} for ₹${prop.price}!',
       );
 
-      _addLog('${current.name} bought ${prop.name} for ₹${prop.price} 🏷️');
+      _addLog('${current.name} bought ${prop.name} for ₹${prop.price}');
 
       if (updatedPlayer.type == PlayerType.ai) {
         _scheduleAiTurnEnd();
@@ -673,6 +768,16 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void passProperty() {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('pass_property', {
+        'playerId': state.currentPlayer.id,
+      });
+      return;
+    }
+    _executePassProperty();
+  }
+
+  void _executePassProperty() {
     final current = state.currentPlayer;
     _addLog('${current.name} passed on buying ${state.inspectedProperty?.name ?? "property"}');
     state = state.copyWith(
@@ -686,6 +791,17 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void upgradeProperty(String propertyId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('upgrade_property', {
+        'playerId': state.currentPlayer.id,
+        'propertyId': propertyId,
+      });
+      return;
+    }
+    _executeUpgradeProperty(propertyId);
+  }
+
+  void _executeUpgradeProperty(String propertyId) {
     final prop = state.properties[propertyId];
     if (prop == null || prop.ownerId == null) return;
     final owner = state.players.firstWhere((p) => p.id == prop.ownerId);
@@ -699,7 +815,7 @@ class GameNotifier extends Notifier<GameState> {
       _updatePlayer(updatedOwner);
       try { ref.read(audioServiceProvider.notifier).playUpgrade(); } catch (_) {}
 
-      final buildingType = newLevel == 5 ? 'Luxury Resort 🏨' : 'Cottage ($newLevel/4) 🏠';
+      final buildingType = newLevel == 5 ? 'Luxury Resort' : 'Cottage ($newLevel/4)';
       _addLog('${owner.name} upgraded ${prop.name} to $buildingType for ₹${prop.upgradeCost}');
 
       state = state.copyWith(
@@ -710,6 +826,17 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void toggleMortgage(String propertyId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('toggle_mortgage', {
+        'playerId': state.currentPlayer.id,
+        'propertyId': propertyId,
+      });
+      return;
+    }
+    _executeToggleMortgage(propertyId);
+  }
+
+  void _executeToggleMortgage(String propertyId) {
     final prop = state.properties[propertyId];
     if (prop == null || prop.ownerId == null) return;
     final owner = state.players.firstWhere((p) => p.id == prop.ownerId);
@@ -911,6 +1038,12 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== TURN PROGRESSION ====================
 
   void endTurn() {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('end_turn', {
+        'playerId': state.currentPlayer.id,
+      });
+      return;
+    }
     _endTurn();
   }
 

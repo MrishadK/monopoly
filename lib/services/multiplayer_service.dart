@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/public_room.dart';
 
 final multiplayerServiceProvider = Provider((ref) => MultiplayerService());
 
@@ -14,6 +16,11 @@ class MultiplayerService {
   }
 
   RealtimeChannel? _roomChannel;
+  RealtimeChannel? _discoveryChannel;
+  Timer? _pruneTimer;
+  final Map<String, PublicRoom> _activeRooms = {};
+  void Function(List<PublicRoom>)? _onRoomsUpdated;
+
   bool get isConnected => _roomChannel != null;
 
   void Function(Map<String, dynamic>)? onStateSyncReceived;
@@ -23,11 +30,113 @@ class MultiplayerService {
   void Function(Map<String, dynamic>)? onLobbyLeaveReceived;
   void Function(Map<String, dynamic>)? onGameStartReceived;
 
+  // ==================== PUBLIC ROOM DISCOVERY ====================
+
+  Future<void> startRoomDiscovery(void Function(List<PublicRoom>) callback) async {
+    _onRoomsUpdated = callback;
+    final client = _client;
+    if (client == null) return;
+
+    if (_discoveryChannel != null) {
+      try {
+        await _discoveryChannel!.unsubscribe();
+      } catch (_) {}
+      _discoveryChannel = null;
+    }
+
+    _discoveryChannel = client.channel('kuthaka_discovery');
+
+    _discoveryChannel!
+      .onBroadcast(event: 'room_heartbeat', callback: (payload) {
+        try {
+          final room = PublicRoom.fromMap(Map<String, dynamic>.from(payload));
+          if (room.roomId.isNotEmpty) {
+            _activeRooms[room.roomId] = room;
+            _notifyRooms();
+          }
+        } catch (e) {
+          debugPrint('[MultiplayerService] Discovery parse error: $e');
+        }
+      })
+      .onBroadcast(event: 'room_closed', callback: (payload) {
+        final roomId = payload['roomId']?.toString();
+        if (roomId != null) {
+          _activeRooms.remove(roomId);
+          _notifyRooms();
+        }
+      });
+
+    _discoveryChannel!.subscribe((status, [error]) {
+      debugPrint('[MultiplayerService] Discovery status: $status');
+    });
+
+    _pruneTimer?.cancel();
+    _pruneTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      final now = DateTime.now();
+      final beforeCount = _activeRooms.length;
+      _activeRooms.removeWhere((_, room) => now.difference(room.lastSeen).inSeconds > 10);
+      if (_activeRooms.length != beforeCount) {
+        _notifyRooms();
+      }
+    });
+  }
+
+  void _notifyRooms() {
+    if (_onRoomsUpdated != null) {
+      final sorted = _activeRooms.values.toList()
+        ..sort((a, b) => b.lastSeen.compareTo(a.lastSeen));
+      _onRoomsUpdated!(sorted);
+    }
+  }
+
+  Future<void> stopRoomDiscovery() async {
+    _pruneTimer?.cancel();
+    _pruneTimer = null;
+    _onRoomsUpdated = null;
+    if (_discoveryChannel != null) {
+      try {
+        await _discoveryChannel!.unsubscribe();
+      } catch (_) {}
+      _discoveryChannel = null;
+    }
+  }
+
+  void broadcastRoomHeartbeat({
+    required String roomId,
+    required String hostName,
+    required int playerCount,
+    int startingCash = 150000,
+  }) {
+    if (_discoveryChannel != null) {
+      _discoveryChannel!.sendBroadcastMessage(
+        event: 'room_heartbeat',
+        payload: {
+          'roomId': roomId,
+          'hostName': hostName,
+          'playerCount': playerCount,
+          'maxPlayers': 4,
+          'startingCash': startingCash,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+    }
+  }
+
+  void broadcastRoomClosed(String roomId) {
+    if (_discoveryChannel != null) {
+      _discoveryChannel!.sendBroadcastMessage(
+        event: 'room_closed',
+        payload: {'roomId': roomId},
+      );
+    }
+  }
+
+  // ==================== ROOM HOSTING & JOINING ====================
+
   Future<void> hostRoom(String roomId) async {
     final client = _client;
     if (client == null) throw Exception("Supabase not configured");
 
-    // Clean up any existing channel
     await leaveRoom();
 
     _roomChannel = client.channel('kuthaka_room_$roomId');
@@ -58,7 +167,6 @@ class MultiplayerService {
     final client = _client;
     if (client == null) throw Exception("Supabase not configured");
 
-    // Clean up any existing channel
     await leaveRoom();
 
     _roomChannel = client.channel('kuthaka_room_$roomId');
@@ -89,6 +197,8 @@ class MultiplayerService {
       debugPrint('[MultiplayerService] Guest room status: $status');
     });
   }
+
+  // ==================== MESSAGING ====================
 
   void broadcastLobbySync(Map<String, dynamic> lobbyData) {
     if (_roomChannel != null) {

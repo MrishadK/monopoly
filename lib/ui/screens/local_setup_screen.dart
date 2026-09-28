@@ -160,9 +160,10 @@ class _LocalSetupScreenState extends ConsumerState<LocalSetupScreen> {
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: isSelected ? Colors.white : Colors.transparent),
                           ),
-                          child: Text(
-                            Player(id: '', name: '', type: PlayerType.human, token: t, color: Colors.white).tokenEmoji,
-                            style: const TextStyle(fontSize: 22),
+                          child: Icon(
+                            Player(id: '', name: '', type: PlayerType.human, token: t, color: Colors.white).tokenIcon,
+                            size: 22,
+                            color: isSelected ? Colors.black87 : Colors.white,
                           ),
                         ),
                       );
@@ -298,7 +299,7 @@ class _LocalSetupScreenState extends ConsumerState<LocalSetupScreen> {
                       leading: CircleAvatar(
                         radius: 24,
                         backgroundColor: player.color,
-                        child: Text(player.tokenEmoji, style: const TextStyle(fontSize: 22)),
+                        child: Icon(player.tokenIcon, size: 22, color: Colors.white),
                       ),
                       title: Row(
                         children: [

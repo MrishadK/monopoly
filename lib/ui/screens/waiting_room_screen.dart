@@ -591,7 +591,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                               CircleAvatar(
                                 radius: 24,
                                 backgroundColor: p.color.withValues(alpha: 0.25),
-                                child: Text(p.tokenEmoji, style: const TextStyle(fontSize: 24)),
+                                child: Icon(p.tokenIcon, size: 24, color: Colors.white),
                               ),
                               const SizedBox(width: 14),
                               Expanded(

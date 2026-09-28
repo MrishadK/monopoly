@@ -5,6 +5,8 @@ import '../../game/kuthaka_game.dart';
 import '../../providers/game_provider.dart';
 import '../../models/player.dart';
 import '../../services/voice_stream_service.dart';
+import '../../services/user_profile_service.dart';
+import '../../services/multiplayer_service.dart';
 import 'portfolio_sheet.dart';
 import 'trade_dialog.dart';
 import 'game_menu_dialog.dart';
@@ -345,6 +347,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   Widget _buildMainActionButton(BuildContext context, GameState gameState, Player current) {
+    final myProfile = ref.watch(userProfileProvider);
+    final multiplayer = ref.watch(multiplayerServiceProvider);
+    final isOnline = multiplayer.isConnected;
+    final isMyTurn = !isOnline || current.id == myProfile.id;
+
     if (current.type == PlayerType.ai) {
       return Container(
         height: 44,
@@ -365,7 +372,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             ),
             const SizedBox(width: 10),
             Text(
-              '${current.name} is thinking...',
+              '${current.name} (AI) is thinking...',
               style: GoogleFonts.outfit(color: const Color(0xFF334155), fontSize: 13, fontWeight: FontWeight.bold),
             ),
           ],
@@ -373,7 +380,42 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       );
     }
 
-    // Human Player Turn
+    // In online game, if it is NOT the local player's turn:
+    if (!isMyTurn) {
+      return Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(23),
+          border: Border.all(color: current.color, width: 1.5),
+          boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: current.color),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              gameState.phase == GamePhase.roll
+                  ? "Waiting for ${current.name} to roll..."
+                  : "Waiting for ${current.name}'s move...",
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF0F172A),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Active Human Player Turn
     if (gameState.phase == GamePhase.roll) {
       if (current.isInJail) {
         return Container(
@@ -437,7 +479,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               const Icon(Icons.casino_rounded, color: Colors.black87, size: 22),
               const SizedBox(width: 10),
               Text(
-                'ROLL DICE',
+                !isOnline ? '${current.name.toUpperCase()} - ROLL' : 'ROLL DICE',
                 style: GoogleFonts.outfit(
                   color: Colors.black87,
                   fontSize: 18,

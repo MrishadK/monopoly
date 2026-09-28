@@ -112,7 +112,7 @@ class HomeScreen extends ConsumerWidget {
                               CircleAvatar(
                                 radius: 14,
                                 backgroundColor: profile.color,
-                                child: Text(profile.toPlayer().tokenEmoji, style: const TextStyle(fontSize: 14)),
+                                child: Icon(profile.toPlayer().tokenIcon, size: 14, color: Colors.white),
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -154,7 +154,7 @@ class HomeScreen extends ConsumerWidget {
                           border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
                         ),
                         child: Text(
-                          '👑 GOD\'S OWN BOARD GAME',
+                          'GOD\'S OWN BOARD GAME',
                           style: GoogleFonts.outfit(
                             color: const Color(0xFFFFD54F),
                             fontSize: 11,
@@ -214,13 +214,13 @@ class HomeScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
-                          Text('⛵', style: TextStyle(fontSize: 22)),
-                          SizedBox(width: 14),
-                          Text('🐘', style: TextStyle(fontSize: 22)),
-                          SizedBox(width: 14),
-                          Text('🌴', style: TextStyle(fontSize: 22)),
-                          SizedBox(width: 14),
-                          Text('🪔', style: TextStyle(fontSize: 22)),
+                          Icon(Icons.sailing_rounded, color: Color(0xFFFFD54F), size: 22),
+                          SizedBox(width: 16),
+                          Icon(Icons.pets_rounded, color: Color(0xFFFFD54F), size: 22),
+                          SizedBox(width: 16),
+                          Icon(Icons.forest_rounded, color: Color(0xFFFFD54F), size: 22),
+                          SizedBox(width: 16),
+                          Icon(Icons.local_fire_department_rounded, color: Color(0xFFFFD54F), size: 22),
                         ],
                       ),
                       const SizedBox(height: 36),

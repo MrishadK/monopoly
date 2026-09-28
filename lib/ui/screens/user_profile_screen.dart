@@ -146,9 +146,10 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     child: CircleAvatar(
                       radius: 46,
                       backgroundColor: _selectedColor.withValues(alpha: 0.25),
-                      child: Text(
-                        tempPlayer.tokenEmoji,
-                        style: const TextStyle(fontSize: 48),
+                      child: Icon(
+                        tempPlayer.tokenIcon,
+                        size: 48,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -290,9 +291,10 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                       : null,
                                 ),
                                 child: Center(
-                                  child: Text(
-                                    dummy.tokenEmoji,
-                                    style: TextStyle(fontSize: isSelected ? 30 : 24),
+                                  child: Icon(
+                                    dummy.tokenIcon,
+                                    size: isSelected ? 30 : 24,
+                                    color: isSelected ? Colors.white : Colors.white70,
                                   ),
                                 ),
                               ),
