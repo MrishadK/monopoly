@@ -54,6 +54,7 @@ class GameMenuDialog extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: const [
                             Icon(Icons.music_note_rounded, color: Color(0xFF0F172A), size: 20),
                             SizedBox(width: 8),
@@ -85,6 +86,7 @@ class GameMenuDialog extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: const [
                             Icon(Icons.volume_up_rounded, color: Color(0xFF0F172A), size: 20),
                             SizedBox(width: 8),
@@ -129,6 +131,7 @@ class GameMenuDialog extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: const [
                             Icon(Icons.mic_rounded, color: Color(0xFF0F172A), size: 18),
                             SizedBox(width: 8),

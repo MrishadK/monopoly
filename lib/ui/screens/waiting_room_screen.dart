@@ -659,7 +659,8 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     itemBuilder: (context, index) {
                       if (index < _roomPlayers.length) {
                         final p = _roomPlayers[index];
-                        final isHostSlot = index == 0;
+                        // The host is always at index 0, EXCEPT if we are a guest who hasn't received sync yet
+                        final isHostSlot = index == 0 && (widget.isHost || _roomPlayers.length > 1);
                         final isMe = p.id == widget.myPlayer.id;
 
                         return Container(

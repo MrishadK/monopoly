@@ -12,6 +12,7 @@ import '../overlays/event_card_overlay.dart';
 import '../overlays/bankruptcy_overlay.dart';
 import '../overlays/game_over_overlay.dart';
 import '../overlays/auction_overlay.dart';
+import '../widgets/banner_ad_widget.dart';
 
 class GameScreen extends ConsumerWidget {
   final String? roomId;
@@ -81,17 +82,24 @@ class GameScreen extends ConsumerWidget {
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F4EE),
         body: SafeArea(
-          child: GameWidget(
-            game: KuthakaGame(ref),
-            overlayBuilderMap: {
-              'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
-              'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),
-              'event_card': (context, KuthakaGame game) => const EventCardOverlay(),
-              'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
-              'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
-              'auction': (context, KuthakaGame game) => const AuctionOverlay(),
-            },
-            initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction'],
+          child: Column(
+            children: [
+              Expanded(
+                child: GameWidget(
+                  game: KuthakaGame(ref),
+                  overlayBuilderMap: {
+                    'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
+                    'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),
+                    'event_card': (context, KuthakaGame game) => const EventCardOverlay(),
+                    'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
+                    'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
+                    'auction': (context, KuthakaGame game) => const AuctionOverlay(),
+                  },
+                  initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction'],
+                ),
+              ),
+              const BannerAdWidget(),
+            ],
           ),
         ),
       ),
