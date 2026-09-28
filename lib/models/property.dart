@@ -55,7 +55,7 @@ class Property {
       final ownedCount = allProperties.values
           .where((p) => p.group == PropertyGroup.utility && p.ownerId == ownerId && !p.isMortgaged)
           .length;
-      return ownedCount >= 2 ? diceTotal * 1000 : diceTotal * 400;
+      return ownedCount >= 2 ? diceTotal * 10 : diceTotal * 4;
     }
 
     if (isTransport) {
@@ -63,11 +63,11 @@ class Property {
           .where((p) => p.group == PropertyGroup.transport && p.ownerId == ownerId && !p.isMortgaged)
           .length;
       switch (ownedCount) {
-        case 1: return 2500;
-        case 2: return 5000;
-        case 3: return 10000;
-        case 4: return 20000;
-        default: return 2500;
+        case 1: return 25;
+        case 2: return 50;
+        case 3: return 100;
+        case 4: return 200;
+        default: return 25;
       }
     }
 

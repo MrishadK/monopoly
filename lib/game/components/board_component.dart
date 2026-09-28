@@ -371,7 +371,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       rect: rect,
       index: index,
       title: prop.name,
-      priceText: '₹${(prop.price / 1000).toStringAsFixed(0)}K',
+      priceText: '₹${prop.price}',
     );
   }
 
@@ -425,7 +425,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
 
     switch (space.type) {
       case SpaceType.railroad:
-        sub = '₹20K';
+        sub = '₹200';
         if (space.name.contains('Metro')) {
           drawIcon = () => _drawMetroIcon(canvas, rect.center);
         } else if (space.name.contains('Airport')) {
@@ -437,7 +437,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
         }
         break;
       case SpaceType.utility:
-        sub = '₹15K';
+        sub = '₹150';
         if (space.name.contains('KSEB')) {
           drawIcon = () => _drawLightningIcon(canvas, rect.center);
         } else {
@@ -453,7 +453,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
         drawIcon = () => _drawLampIcon(canvas, rect.center);
         break;
       case SpaceType.tax:
-        sub = '₹${space.feeAmount ?? 1000}';
+        sub = '₹${space.feeAmount ?? 100}';
         drawIcon = () => _drawTaxIcon(canvas, rect.center);
         break;
       default:
@@ -741,7 +741,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
           style: TextStyle(color: Color(0xFF2E7D32), fontSize: 7, fontWeight: FontWeight.bold),
         ),
         TextSpan(
-          text: 'COLLECT ₹20K',
+          text: 'COLLECT ₹200',
           style: TextStyle(color: Color(0xFFE65100), fontSize: 6.8, fontWeight: FontWeight.w900),
         ),
       ],

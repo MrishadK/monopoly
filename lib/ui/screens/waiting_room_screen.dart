@@ -20,7 +20,7 @@ class WaitingRoomScreen extends ConsumerStatefulWidget {
     required this.roomId,
     required this.isHost,
     required this.myPlayer,
-    this.startingCash = 150000,
+    this.startingCash = 1000,
   });
 
   @override
@@ -33,11 +33,14 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
   Timer? _heartbeatTimer;
 
   static const List<String> _botNames = [
-    'Nihal (Bot)',
-    'Appu (Bot)',
-    'Sasi (Bot)',
-    'Jayan (Bot)',
-    'Balan (Bot)',
+    'Aadu Thoma',
+    'Ranga Annan',
+    'Dasamoolam Damu',
+    'Shaji Pappan',
+    'Manavalan',
+    'Bilal John',
+    'Neelakandan',
+    'CID Moosa',
   ];
 
   static const List<Color> _botPalette = [
@@ -101,6 +104,66 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
       // Initial send
       multiplayer.sendLobbyJoin({'player': widget.myPlayer.toMap()});
 
+      // Guest listens for host leaving -> auto kick with message
+      multiplayer.onHostLeftReceived = (payload) {
+        if (!mounted) return;
+        _heartbeatTimer?.cancel();
+        ref.read(multiplayerServiceProvider).leaveRoom();
+        ref.read(voiceStreamServiceProvider.notifier).disconnectVoice();
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.door_back_door_outlined, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Host left the room. The match lobby has been closed.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      };
+
+      // Guest listens for being kicked individually
+      multiplayer.onPlayerKickedReceived = (payload) {
+        final kickedId = payload['playerId']?.toString();
+        if (kickedId == widget.myPlayer.id && mounted) {
+          _heartbeatTimer?.cancel();
+          ref.read(multiplayerServiceProvider).leaveRoom();
+          ref.read(voiceStreamServiceProvider.notifier).disconnectVoice();
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.person_remove_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'You were removed from the room by the host.',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      };
+
       // Guest listens for lobby state sync from host
       multiplayer.onLobbySyncReceived = (payload) {
         final rawList = payload['players'] as List?;
@@ -143,7 +206,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     _heartbeatTimer?.cancel();
     if (widget.isHost) {
       try {
-        ref.read(multiplayerServiceProvider).broadcastRoomClosed(widget.roomId);
+        ref.read(multiplayerServiceProvider).broadcastHostLeft(widget.roomId);
       } catch (_) {}
     }
     super.dispose();
@@ -289,9 +352,11 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
   void _removePlayer(int index) {
     if (index == 0) return; // Cannot kick host
     HapticFeedback.mediumImpact();
+    final removed = _roomPlayers[index];
     setState(() {
       _roomPlayers.removeAt(index);
     });
+    ref.read(multiplayerServiceProvider).sendPlayerKicked(removed.id);
     _broadcastCurrentLobby();
   }
 
@@ -331,7 +396,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
 
   void _handleExit() {
     if (widget.isHost) {
-      ref.read(multiplayerServiceProvider).broadcastRoomClosed(widget.roomId);
+      ref.read(multiplayerServiceProvider).broadcastHostLeft(widget.roomId);
     } else {
       ref.read(multiplayerServiceProvider).sendLobbyLeave(widget.myPlayer.id);
     }

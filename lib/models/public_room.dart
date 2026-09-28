@@ -11,7 +11,7 @@ class PublicRoom {
     required this.hostName,
     required this.playerCount,
     this.maxPlayers = 4,
-    this.startingCash = 150000,
+    this.startingCash = 1000,
     required this.lastSeen,
   });
 
@@ -29,7 +29,7 @@ class PublicRoom {
     hostName: map['hostName']?.toString() ?? 'Player',
     playerCount: map['playerCount'] is int ? map['playerCount'] as int : 1,
     maxPlayers: map['maxPlayers'] is int ? map['maxPlayers'] as int : 4,
-    startingCash: map['startingCash'] is int ? map['startingCash'] as int : 150000,
+    startingCash: map['startingCash'] is int ? map['startingCash'] as int : 1000,
     lastSeen: map['timestamp'] != null 
         ? DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int)
         : DateTime.now(),

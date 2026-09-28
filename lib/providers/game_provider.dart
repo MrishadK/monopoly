@@ -134,20 +134,20 @@ class GameNotifier extends Notifier<GameState> {
       players: [
         const Player(
           id: 'p1',
-          name: 'Arun',
+          name: 'Aadu Thoma',
           type: PlayerType.human,
           token: PlayerToken.houseboat,
           color: Color(0xFFE91E63),
-          cash: 150000,
+          cash: 1000,
         ),
         const Player(
           id: 'p2',
-          name: 'Nihal (Bot)',
+          name: 'Ranga Annan (Bot)',
           type: PlayerType.ai,
           token: PlayerToken.coconut,
           color: Color(0xFF2196F3),
           aiPersonality: AiPersonality.conservative,
-          cash: 150000,
+          cash: 1000,
         ),
       ],
       currentPlayerIndex: 0,
@@ -388,9 +388,9 @@ class GameNotifier extends Notifier<GameState> {
         int turns = current.turnsInJail + 1;
         if (turns >= 3) {
           // Forced bail
-          _addLog('${current.name} served 3 turns. Paid ₹2,500 fine and is freed.');
+          _addLog('${current.name} served 3 turns. Paid ₹50 fine and is freed.');
           final updated = current.copyWith(
-            cash: max(0, current.cash - 2500),
+            cash: max(0, current.cash - 50),
             isInJail: false,
             turnsInJail: 0,
           );
@@ -400,7 +400,7 @@ class GameNotifier extends Notifier<GameState> {
             isDoubles: false,
             isRollingDice: false,
             phase: GamePhase.moving,
-            message: '${current.name} paid ₹2,500 fine and was released.',
+            message: '${current.name} paid ₹50 fine and was released.',
           );
           _movePlayerStepwise(d1 + d2);
         } else {
@@ -435,7 +435,7 @@ class GameNotifier extends Notifier<GameState> {
   void _executePayJailBail() {
     final current = state.currentPlayer;
     if (!current.isInJail) return;
-    const bailCost = 2500;
+    const bailCost = 50;
     if (current.cash >= bailCost) {
       _addLog('${current.name} paid ₹$bailCost fine to leave Lockup.');
       final updated = current.copyWith(
@@ -485,8 +485,8 @@ class GameNotifier extends Notifier<GameState> {
 
     int newCash = current.cash;
     if (passedStart) {
-      newCash += 20000;
-      _addLog('${current.name} passed Naattile Thudakkam! Collected ₹20,000. 💰');
+      newCash += 200;
+      _addLog('${current.name} passed Naattile Thudakkam! Collected ₹200. 💰');
     }
 
     _updatePlayer(current.copyWith(position: targetPos, cash: newCash));
@@ -548,7 +548,7 @@ class GameNotifier extends Notifier<GameState> {
         break;
 
       case SpaceType.tax:
-        final tax = space.feeAmount ?? 1000;
+        final tax = space.feeAmount ?? 100;
         _payTax(tax, space.name);
         break;
 
@@ -636,13 +636,13 @@ class GameNotifier extends Notifier<GameState> {
     final current = state.currentPlayer;
     switch (card.type) {
       case EventCardType.moneyReward:
-        final reward = card.amount ?? 2000;
+        final reward = card.amount ?? 20;
         _updatePlayer(current.copyWith(cash: current.cash + reward));
         _addLog('${current.name} gained ₹$reward');
         break;
 
       case EventCardType.moneyPenalty:
-        final penalty = card.amount ?? 1500;
+        final penalty = card.amount ?? 20;
         if (current.cash >= penalty) {
           _updatePlayer(current.copyWith(cash: current.cash - penalty));
           _addLog('${current.name} paid ₹$penalty');
@@ -655,8 +655,8 @@ class GameNotifier extends Notifier<GameState> {
         final dest = card.destinationIndex ?? 0;
         int cash = current.cash;
         if (dest < current.position && dest != 10) {
-          cash += 20000;
-          _addLog('${current.name} passed Start! +₹20,000');
+          cash += 200;
+          _addLog('${current.name} passed Start! +₹200');
         }
         _updatePlayer(current.copyWith(position: dest, cash: cash));
         _addLog('${current.name} moved to ${GameData.spaces[dest].name}');
@@ -684,7 +684,7 @@ class GameNotifier extends Notifier<GameState> {
             }
           }
         }
-        final totalFee = (houses * (card.houseFee ?? 2500)) + (resorts * (card.resortFee ?? 10000));
+        final totalFee = (houses * (card.houseFee ?? 25)) + (resorts * (card.resortFee ?? 100));
         _addLog('${current.name} owes ₹$totalFee for repairs ($houses houses, $resorts resorts)');
         if (current.cash >= totalFee) {
           _updatePlayer(current.copyWith(cash: current.cash - totalFee));
@@ -1012,7 +1012,7 @@ class GameNotifier extends Notifier<GameState> {
 
     // If early game or wealthy, pay bail
     final totalResorts = state.properties.values.where((p) => p.currentLevel >= 4).length;
-    if (ai.cash > 20000 && totalResorts == 0) {
+    if (ai.cash > 200 && totalResorts == 0) {
       payJailBail();
       Future.delayed(const Duration(milliseconds: 800), rollDice);
     } else {
@@ -1025,20 +1025,20 @@ class GameNotifier extends Notifier<GameState> {
     final ai = state.currentPlayer;
     final personality = ai.aiPersonality ?? AiPersonality.conservative;
 
-    int reserveCash = 25000;
+    int reserveCash = 250;
     switch (personality) {
       case AiPersonality.aggressive:
       case AiPersonality.riskTaker:
-        reserveCash = 8000;
+        reserveCash = 80;
         break;
       case AiPersonality.investor:
-        reserveCash = 18000;
+        reserveCash = 180;
         break;
       case AiPersonality.trader:
-        reserveCash = 15000;
+        reserveCash = 150;
         break;
       case AiPersonality.conservative:
-        reserveCash = 35000;
+        reserveCash = 350;
         break;
     }
 
@@ -1049,7 +1049,7 @@ class GameNotifier extends Notifier<GameState> {
     final isCompleting = aiOwnedInGroup == totalInGroup - 1;
 
     bool shouldBuy = false;
-    if (isCompleting && ai.cash >= prop.price + 2000) {
+    if (isCompleting && ai.cash >= prop.price + 20) {
       // Completing monopoly is top priority!
       shouldBuy = true;
     } else if (prop.isTransport || prop.isUtility) {
@@ -1073,7 +1073,7 @@ class GameNotifier extends Notifier<GameState> {
     for (final propId in ai.ownedPropertyIds) {
       final prop = state.properties[propId];
       if (prop != null && prop.isBuildable && prop.isMonopoly(state.properties)) {
-        while (prop.canUpgrade(state.properties, ai.cash) && ai.cash > prop.upgradeCost + 15000) {
+        while (prop.canUpgrade(state.properties, ai.cash) && ai.cash > prop.upgradeCost + 150) {
           upgradeProperty(prop.id);
         }
       }

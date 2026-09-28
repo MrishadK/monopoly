@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../providers/game_provider.dart';
 import '../../services/audio_service.dart';
 import '../../services/voice_stream_service.dart';
+import '../../services/multiplayer_service.dart';
 import '../screens/home_screen.dart';
 
 class GameMenuDialog extends ConsumerWidget {
@@ -235,6 +236,12 @@ class GameMenuDialog extends ConsumerWidget {
                 isDestructive: true,
                 onTap: () {
                   Navigator.pop(context);
+                  final mp = ref.read(multiplayerServiceProvider);
+                  if (mp.activeRoomId != null) {
+                    mp.broadcastHostLeft(mp.activeRoomId!);
+                    mp.leaveRoom();
+                  }
+                  ref.read(voiceStreamServiceProvider.notifier).disconnectVoice();
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(builder: (_) => const HomeScreen()),

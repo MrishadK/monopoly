@@ -21,7 +21,7 @@ class KeralaTycoon {
     required this.rank,
   });
 
-  int get netWorth => 150000 + (totalXp * 1500);
+  int get netWorth => 1000 + (totalXp * 15);
 }
 
 final leaderboardServiceProvider = Provider((ref) => LeaderboardService());

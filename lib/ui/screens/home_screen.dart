@@ -15,15 +15,15 @@ class HomeScreen extends ConsumerWidget {
 
   void _startQuickPlay(BuildContext context, WidgetRef ref) {
     final profile = ref.read(userProfileProvider);
-    final human = profile.toPlayer(cash: 150000);
+    final human = profile.toPlayer(cash: 1000);
     const bot = Player(
       id: 'p2',
-      name: 'Nihal (Bot)',
+      name: 'Aadu Thoma',
       type: PlayerType.ai,
       token: PlayerToken.coconut,
-      color: Color(0xFF2196F3),
+      color: Color(0xFF0284C7),
       aiPersonality: AiPersonality.conservative,
-      cash: 150000,
+      cash: 1000,
     );
 
     ref.read(gameProvider.notifier).initializeGame([human, bot]);
@@ -210,7 +210,7 @@ class HomeScreen extends ConsumerWidget {
                 _buildMenuBtn(
                   context,
                   title: 'QUICK PLAY',
-                  subtitle: 'Play as ${profile.name} vs Nihal (Bot)',
+                  subtitle: 'Play as ${profile.name} vs Aadu Thoma',
                   icon: Icons.play_arrow_rounded,
                   isPrimary: true,
                   onTap: () => _startQuickPlay(context, ref),
@@ -384,11 +384,11 @@ class HomeScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _guideSection(Icons.flag_rounded, 'The Objective', 'Bankrupt your fellow players and become the supreme real estate tycoon across God\'s Own Country.'),
-                _guideSection(Icons.casino_rounded, 'Starting Out', 'All players begin at "Naattile Thudakkam" with ₹1,50,000 cash. Passing Start awards ₹20,000.'),
+                _guideSection(Icons.casino_rounded, 'Starting Out', 'All players begin at "Naattile Thudakkam" with ₹1,000 cash. Passing Start awards ₹200.'),
                 _guideSection(Icons.star_rounded, 'Monopolies', 'Acquire all lands in a color group (e.g. Kozhikode, Kochi, Munnar) to DOUBLE the base rent!'),
                 _guideSection(Icons.cottage_rounded, 'Cottages & Resorts', 'Once you hold a monopoly, build up to 4 traditional Cottages, then upgrade to a luxury Resort for massive rent payouts!'),
                 _guideSection(Icons.directions_bus_rounded, 'Transports & Utilities', 'Own KSRTC Stand, Kochi Metro, Ferry, and Airport for scaling travel fares. Utilities (KSEB, Water) charge based on dice rolls.'),
-                _guideSection(Icons.local_police_rounded, 'Police Lockup', 'Landing on the Police Station sends you to Lockup at the Hospital. Pay ₹2,500 fine, use a card, or roll doubles to get out!'),
+                _guideSection(Icons.local_police_rounded, 'Police Lockup', 'Landing on the Police Station sends you to Lockup at the Hospital. Pay ₹50 fine, use a card, or roll doubles to get out!'),
               ],
             ),
           ),

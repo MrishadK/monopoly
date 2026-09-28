@@ -11,6 +11,7 @@ import 'portfolio_sheet.dart';
 import 'trade_dialog.dart';
 import 'game_menu_dialog.dart';
 import '../widgets/dice_widget.dart';
+import '../screens/home_screen.dart';
 
 class HudOverlay extends ConsumerStatefulWidget {
   final KuthakaGame game;
@@ -30,6 +31,49 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final players = ref.read(gameProvider).players;
       final human = players.firstWhere((p) => p.type == PlayerType.human, orElse: () => players.first);
       ref.read(voiceStreamServiceProvider.notifier).connectToVoiceRoom('kuthaka_live', human.id, human.name);
+
+      // Listen for host leaving during active online game
+      ref.read(multiplayerServiceProvider).onHostLeftReceived = (payload) {
+        if (!mounted) return;
+        ref.read(multiplayerServiceProvider).leaveRoom();
+        ref.read(voiceStreamServiceProvider.notifier).disconnectVoice();
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
+                SizedBox(width: 8),
+                Text('Host Left', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: const Text(
+              'The host has left the match. The room has been deleted.',
+              style: TextStyle(color: Color(0xFF475569)),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF047857),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    (route) => false,
+                  );
+                },
+                child: const Text('Return to Home'),
+              ),
+            ],
+          ),
+        );
+      };
     });
   }
 

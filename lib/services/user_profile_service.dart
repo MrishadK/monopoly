@@ -35,7 +35,7 @@ class UserProfile {
     );
   }
 
-  Player toPlayer({int cash = 150000}) {
+  Player toPlayer({int cash = 1000}) {
     return Player(
       id: id,
       name: name,
@@ -55,22 +55,39 @@ class UserProfileNotifier extends Notifier<UserProfile> {
   static const String _keyConfigured = 'kuthaka_user_configured';
 
   static const List<String> keralaNames = [
-    'Arun',
-    'Rahul',
-    'Nihal',
-    'Meera',
-    'Faizal',
-    'Dulquer',
-    'Anjali',
-    'Appu',
-    'Unni',
-    'Kavya',
-    'Mammootty',
-    'Mohanlal',
-    'Reshma',
-    'Jithesh',
-    'Sneha',
-    'Midhun',
+    'Aadu Thoma',
+    'Ranga Annan',
+    'Dasamoolam Damu',
+    'Manavalan',
+    'Shaji Pappan',
+    'Bilal John',
+    'Neelakandan',
+    'Ambaan',
+    'John Honai',
+    'Ramanan',
+    'CID Moosa',
+    'Sethurama Iyer',
+    'Minnal Murali',
+    'Georgekutty',
+    'Gafoorkka',
+    'Arakkal Abu',
+    'Dude',
+    'Dasan',
+    'Vijayan',
+    'Appukuttan',
+    'Thomaskutty',
+    'Gangadharan',
+    'Peethambaran',
+    'Jagannathan',
+    'Induchoodan',
+    'Puli Murugan',
+    'Michael Anjootti',
+    'Dr Sunny',
+    'Faizi',
+    'Vincent Gomez',
+    'Keerikkadan Jose',
+    'Kadavul Antony',
+    'Ananthan Nambiar',
   ];
 
   static const List<Color> palette = [

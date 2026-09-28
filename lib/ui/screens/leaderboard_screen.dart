@@ -176,7 +176,7 @@ class LeaderboardScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '₹1,50,000',
+                          '₹1,000',
                           style: GoogleFonts.outfit(
                             color: const Color(0xFF047857),
                             fontWeight: FontWeight.w900,

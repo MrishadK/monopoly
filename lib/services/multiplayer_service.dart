@@ -30,6 +30,8 @@ class MultiplayerService {
   void Function(Map<String, dynamic>)? onLobbyJoinReceived;
   void Function(Map<String, dynamic>)? onLobbyLeaveReceived;
   void Function(Map<String, dynamic>)? onGameStartReceived;
+  void Function(Map<String, dynamic>)? onHostLeftReceived;
+  void Function(Map<String, dynamic>)? onPlayerKickedReceived;
 
   // ==================== PUBLIC ROOM DISCOVERY ====================
 
@@ -84,7 +86,7 @@ class MultiplayerService {
               hostName: row['host_name']?.toString() ?? 'Host',
               playerCount: row['player_count'] is int ? row['player_count'] as int : 1,
               maxPlayers: row['max_players'] is int ? row['max_players'] as int : 4,
-              startingCash: row['starting_cash'] is int ? row['starting_cash'] as int : 150000,
+              startingCash: row['starting_cash'] is int ? row['starting_cash'] as int : 1000,
               lastSeen: DateTime.now(),
             );
           }
@@ -129,7 +131,7 @@ class MultiplayerService {
     required String roomId,
     required String hostName,
     required int playerCount,
-    int startingCash = 150000,
+    int startingCash = 1000,
   }) {
     if (_discoveryChannel != null) {
       _discoveryChannel!.sendBroadcastMessage(
@@ -163,20 +165,57 @@ class MultiplayerService {
     }
   }
 
-  void broadcastRoomClosed(String roomId) {
-    if (_discoveryChannel != null) {
-      _discoveryChannel!.sendBroadcastMessage(
-        event: 'room_closed',
-        payload: {'roomId': roomId},
-      );
+  Future<void> broadcastHostLeft(String roomId) async {
+    // 1. Immediately broadcast host_left to the room channel so all connected players are kicked
+    if (_roomChannel != null) {
+      try {
+        await _roomChannel!.sendBroadcastMessage(
+          event: 'host_left',
+          payload: {
+            'roomId': roomId,
+            'message': 'Host left the room',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          },
+        );
+      } catch (e) {
+        debugPrint('[MultiplayerService] broadcast host_left error: $e');
+      }
     }
 
+    // 2. Alert discovery channel to remove room from browser
+    if (_discoveryChannel != null) {
+      try {
+        await _discoveryChannel!.sendBroadcastMessage(
+          event: 'room_closed',
+          payload: {'roomId': roomId},
+        );
+      } catch (_) {}
+    }
+
+    _activeRooms.remove(roomId);
+    _notifyRooms();
+
+    // 3. Automatically and permanently DELETE room from Supabase database
     final client = _client;
     if (client != null) {
-      client.from('game_rooms').update({
-        'status': 'closed',
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('room_id', roomId).then((_) {}).catchError((_) {});
+      try {
+        await client.from('game_rooms').delete().eq('room_id', roomId);
+      } catch (err) {
+        debugPrint('[MultiplayerService] game_rooms delete error: $err');
+      }
+    }
+  }
+
+  void broadcastRoomClosed(String roomId) {
+    broadcastHostLeft(roomId);
+  }
+
+  void sendPlayerKicked(String playerId) {
+    if (_roomChannel != null) {
+      _roomChannel!.sendBroadcastMessage(
+        event: 'player_kicked',
+        payload: {'playerId': playerId},
+      );
     }
   }
 
@@ -192,6 +231,11 @@ class MultiplayerService {
     _roomChannel = client.channel('kuthaka_room_$roomId');
 
     _roomChannel!
+      .onBroadcast(event: 'host_left', callback: (payload) {
+        if (onHostLeftReceived != null) {
+          onHostLeftReceived!(payload);
+        }
+      })
       .onBroadcast(event: 'lobby_join', callback: (payload) {
         if (onLobbyJoinReceived != null) {
           onLobbyJoinReceived!(payload);
@@ -223,6 +267,16 @@ class MultiplayerService {
     _roomChannel = client.channel('kuthaka_room_$roomId');
 
     _roomChannel!
+      .onBroadcast(event: 'host_left', callback: (payload) {
+        if (onHostLeftReceived != null) {
+          onHostLeftReceived!(payload);
+        }
+      })
+      .onBroadcast(event: 'player_kicked', callback: (payload) {
+        if (onPlayerKickedReceived != null) {
+          onPlayerKickedReceived!(payload);
+        }
+      })
       .onBroadcast(event: 'lobby_sync', callback: (payload) {
         if (onLobbySyncReceived != null) {
           onLobbySyncReceived!(payload);
@@ -321,6 +375,8 @@ class MultiplayerService {
     onLobbyJoinReceived = null;
     onLobbyLeaveReceived = null;
     onGameStartReceived = null;
+    onHostLeftReceived = null;
+    onPlayerKickedReceived = null;
     activeRoomId = null;
   }
 }

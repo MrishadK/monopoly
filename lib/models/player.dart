@@ -43,7 +43,7 @@ class Player {
     required this.token,
     required this.color,
     this.aiPersonality,
-    this.cash = 150000,
+    this.cash = 1000,
     this.position = 0,
     this.isBankrupt = false,
     this.isInJail = false,
@@ -167,7 +167,7 @@ class Player {
       aiPersonality: map['aiPersonality'] != null 
           ? AiPersonality.values.firstWhere((e) => e.name == map['aiPersonality'], orElse: () => AiPersonality.conservative)
           : null,
-      cash: map['cash'] ?? 150000,
+      cash: map['cash'] ?? 1000,
       position: map['position'] ?? 0,
       isBankrupt: map['isBankrupt'] ?? false,
       isInJail: map['isInJail'] ?? false,

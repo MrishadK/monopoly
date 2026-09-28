@@ -19,7 +19,7 @@ class LobbyScreen extends ConsumerStatefulWidget {
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   final TextEditingController _roomController = TextEditingController();
-  int _startingCash = 150000;
+  int _startingCash = 1000;
   bool _isLoadingHost = false;
   bool _isLoadingJoin = false;
   String _error = '';
@@ -535,11 +535,11 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                _cashOptionChip(100000, '₹1.0 Lakh'),
+                                _cashOptionChip(1000, '₹1,000'),
                                 const SizedBox(width: 8),
-                                _cashOptionChip(150000, '₹1.5 Lakh'),
+                                _cashOptionChip(1500, '₹1,500'),
                                 const SizedBox(width: 8),
-                                _cashOptionChip(200000, '₹2.0 Lakh'),
+                                _cashOptionChip(2500, '₹2,500'),
                               ],
                             ),
                             const SizedBox(height: 18),

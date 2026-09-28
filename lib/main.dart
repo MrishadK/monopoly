@@ -32,9 +32,10 @@ class KuthakaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: const Color(0xFF00695C), // Kerala Green
-        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        colorSchemeSeed: const Color(0xFF047857), // Kerala Emerald Green
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme),
       ),
       home: const HomeScreen(),
     );
