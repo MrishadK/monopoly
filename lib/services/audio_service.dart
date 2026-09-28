@@ -124,6 +124,15 @@ class AudioNotifier extends Notifier<AudioState> {
     HapticFeedback.vibrate();
     SystemSound.play(SystemSoundType.alert);
   }
+
+  void playBankruptcy() {
+    if (!state.isSfxEnabled) return;
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.alert);
+    Future.delayed(const Duration(milliseconds: 200), () {
+      HapticFeedback.heavyImpact();
+    });
+  }
 }
 
 final audioServiceProvider = NotifierProvider<AudioNotifier, AudioState>(() {

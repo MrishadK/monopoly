@@ -217,6 +217,19 @@ class GameMenuDialog extends ConsumerWidget {
 
               _menuItem(
                 context,
+                icon: Icons.gavel_rounded,
+                title: 'Declare Bankruptcy / Surrender',
+                isDestructive: true,
+                onTap: () {
+                  Navigator.pop(context);
+                  final current = ref.read(gameProvider).currentPlayer;
+                  ref.read(gameProvider.notifier).surrenderPlayer(current.id);
+                },
+              ),
+              const SizedBox(height: 8),
+
+              _menuItem(
+                context,
                 icon: Icons.exit_to_app_rounded,
                 title: 'Exit to Main Menu',
                 isDestructive: true,

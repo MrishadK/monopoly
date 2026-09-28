@@ -6,6 +6,7 @@ import '../models/property.dart';
 import '../models/board_space.dart';
 import '../models/event_card.dart';
 import '../models/trade_offer.dart';
+import '../models/bankruptcy_record.dart';
 import '../data/game_data.dart';
 import '../services/multiplayer_service.dart';
 import '../services/audio_service.dart';
@@ -23,6 +24,7 @@ class GameState {
   final String? message;
   final EventCard? activeEventCard;
   final Property? inspectedProperty;
+  final BankruptcyRecord? activeBankruptcyRecord;
   final List<String> gameLogs;
   final bool isAiThinking;
 
@@ -37,6 +39,7 @@ class GameState {
     this.message,
     this.activeEventCard,
     this.inspectedProperty,
+    this.activeBankruptcyRecord,
     this.gameLogs = const [],
     this.isAiThinking = false,
   });
@@ -57,6 +60,8 @@ class GameState {
     bool clearActiveEventCard = false,
     Property? inspectedProperty,
     bool clearInspectedProperty = false,
+    BankruptcyRecord? activeBankruptcyRecord,
+    bool clearBankruptcyRecord = false,
     List<String>? gameLogs,
     bool? isAiThinking,
   }) {
@@ -71,6 +76,7 @@ class GameState {
       message: message,
       activeEventCard: clearActiveEventCard ? null : (activeEventCard ?? this.activeEventCard),
       inspectedProperty: clearInspectedProperty ? null : (inspectedProperty ?? this.inspectedProperty),
+      activeBankruptcyRecord: clearBankruptcyRecord ? null : (activeBankruptcyRecord ?? this.activeBankruptcyRecord),
       gameLogs: gameLogs ?? this.gameLogs,
       isAiThinking: isAiThinking ?? this.isAiThinking,
     );
@@ -86,6 +92,7 @@ class GameState {
       'isDoubles': isDoubles,
       'consecutiveDoubles': consecutiveDoubles,
       'message': message,
+      'activeBankruptcyRecord': activeBankruptcyRecord?.toMap(),
       'gameLogs': gameLogs,
     };
   }
@@ -100,6 +107,9 @@ class GameState {
       isDoubles: map['isDoubles'] ?? false,
       consecutiveDoubles: map['consecutiveDoubles'] ?? 0,
       message: map['message'],
+      activeBankruptcyRecord: map['activeBankruptcyRecord'] != null
+          ? BankruptcyRecord.fromMap(Map<String, dynamic>.from(map['activeBankruptcyRecord']))
+          : null,
       gameLogs: List<String>.from(map['gameLogs'] ?? []),
     );
   }
@@ -231,6 +241,13 @@ class GameNotifier extends Notifier<GameState> {
         break;
       case 'dismiss_event_card':
         dismissEventCard();
+        break;
+      case 'dismiss_bankruptcy':
+        dismissBankruptcy();
+        break;
+      case 'surrender_player':
+        final pId = data['playerId'] as String?;
+        if (pId != null) surrenderPlayer(pId);
         break;
     }
   }
@@ -1112,7 +1129,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _declareBankrupt(Player player, {String? creditorId}) {
-    _addLog('💀 ${player.name} went BANKRUPT!');
+    _addLog('${player.name} went bankrupt and surrendered all assets.');
 
     final newProps = Map<String, Property>.from(state.properties);
     final newPlayers = List<Player>.from(state.players);
@@ -1141,6 +1158,20 @@ class GameNotifier extends Notifier<GameState> {
       }
     }
 
+    final creditor = creditorId != null
+        ? newPlayers.cast<Player?>().firstWhere((p) => p?.id == creditorId, orElse: () => null)
+        : null;
+
+    final bankruptcyRecord = BankruptcyRecord(
+      bankruptPlayerName: player.name,
+      bankruptPlayerId: player.id,
+      playerColorValue: player.color.toARGB32(),
+      playerTokenIndex: player.token.index,
+      creditorName: creditor?.name,
+      propertiesForfeited: player.ownedPropertyIds.length,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+
     newPlayers[playerIdx] = player.copyWith(
       isBankrupt: true,
       cash: 0,
@@ -1151,20 +1182,47 @@ class GameNotifier extends Notifier<GameState> {
     final active = newPlayers.where((p) => !p.isBankrupt).toList();
     if (active.length <= 1) {
       final winner = active.isNotEmpty ? active.first : player;
-      _addLog('🏆 VICTORY! ${winner.name} won Kuthaka!');
+      _addLog('VICTORY! ${winner.name} won Kuthaka!');
       try { ref.read(audioServiceProvider.notifier).playVictory(); } catch (_) {}
       state = state.copyWith(
         players: newPlayers,
         properties: newProps,
         phase: GamePhase.gameOver,
-        message: '🏆 ${winner.name} Wins Kuthaka!',
+        activeBankruptcyRecord: bankruptcyRecord,
+        message: '${winner.name} Wins Kuthaka!',
       );
     } else {
       state = state.copyWith(
         players: newPlayers,
         properties: newProps,
+        activeBankruptcyRecord: bankruptcyRecord,
         message: '${player.name} is bankrupt!',
       );
+    }
+  }
+
+  void surrenderPlayer(String playerId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('surrender_player', {
+        'playerId': playerId,
+      });
+      return;
+    }
+    final player = state.players.cast<Player?>().firstWhere((p) => p?.id == playerId, orElse: () => null);
+    if (player != null && !player.isBankrupt) {
+      _declareBankrupt(player);
+    }
+  }
+
+  void dismissBankruptcy() {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('dismiss_bankruptcy', {
+        'playerId': state.currentPlayer.id,
+      });
+      return;
+    }
+    state = state.copyWith(clearBankruptcyRecord: true);
+    if (state.phase != GamePhase.gameOver) {
       _endTurn();
     }
   }

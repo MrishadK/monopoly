@@ -5,6 +5,21 @@ enum PlayerType { human, ai }
 enum AiPersonality { conservative, aggressive, trader, investor, riskTaker }
 enum PlayerToken { coconut, houseboat, elephant, chayaGlass, ksrtcBus, fishingBoat, coconutTree, nilavilakku }
 
+extension PlayerTokenIconExt on PlayerToken {
+  IconData get icon {
+    switch (this) {
+      case PlayerToken.coconut: return Icons.spa_rounded;
+      case PlayerToken.houseboat: return Icons.sailing_rounded;
+      case PlayerToken.elephant: return Icons.pets_rounded;
+      case PlayerToken.chayaGlass: return Icons.local_cafe_rounded;
+      case PlayerToken.ksrtcBus: return Icons.directions_bus_rounded;
+      case PlayerToken.fishingBoat: return Icons.kayaking_rounded;
+      case PlayerToken.coconutTree: return Icons.forest_rounded;
+      case PlayerToken.nilavilakku: return Icons.local_fire_department_rounded;
+    }
+  }
+}
+
 class Player {
   final String id;
   final String name;
