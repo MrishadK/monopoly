@@ -11,7 +11,7 @@ import '../overlays/property_card_overlay.dart';
 import '../overlays/event_card_overlay.dart';
 import '../overlays/bankruptcy_overlay.dart';
 import '../overlays/game_over_overlay.dart';
-import '../overlays/dice_roll_overlay.dart';
+import '../overlays/auction_overlay.dart';
 
 class GameScreen extends ConsumerWidget {
   final String? roomId;
@@ -85,13 +85,13 @@ class GameScreen extends ConsumerWidget {
             game: KuthakaGame(ref),
             overlayBuilderMap: {
               'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
-              'dice_roll': (context, KuthakaGame game) => const DiceRollOverlay(),
               'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),
               'event_card': (context, KuthakaGame game) => const EventCardOverlay(),
               'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
               'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
+              'auction': (context, KuthakaGame game) => const AuctionOverlay(),
             },
-            initialActiveOverlays: const ['hud', 'dice_roll', 'property_card', 'event_card', 'bankruptcy', 'game_over'],
+            initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction'],
           ),
         ),
       ),

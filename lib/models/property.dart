@@ -62,13 +62,10 @@ class Property {
       final ownedCount = allProperties.values
           .where((p) => p.group == PropertyGroup.transport && p.ownerId == ownerId && !p.isMortgaged)
           .length;
-      switch (ownedCount) {
-        case 1: return 25;
-        case 2: return 50;
-        case 3: return 100;
-        case 4: return 200;
-        default: return 25;
+      if (ownedCount >= 1 && ownedCount <= rent.length) {
+        return rent[ownedCount - 1];
       }
+      return rent.isNotEmpty ? rent[0] : 15;
     }
 
     // Street property
@@ -112,6 +109,7 @@ class Property {
     int? upgradeCost,
     int? mortgageValue,
     String? ownerId,
+    bool clearOwner = false,
     int? currentLevel,
     bool? isMortgaged,
   }) {
@@ -123,7 +121,7 @@ class Property {
       rent: rent ?? this.rent,
       upgradeCost: upgradeCost ?? this.upgradeCost,
       mortgageValue: mortgageValue ?? this.mortgageValue,
-      ownerId: ownerId ?? this.ownerId,
+      ownerId: clearOwner ? null : (ownerId ?? this.ownerId),
       currentLevel: currentLevel ?? this.currentLevel,
       isMortgaged: isMortgaged ?? this.isMortgaged,
     );

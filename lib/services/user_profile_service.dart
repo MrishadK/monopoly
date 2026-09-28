@@ -10,6 +10,7 @@ class UserProfile {
   final PlayerToken token;
   final Color color;
   final bool isConfigured;
+  final bool isCustom;
 
   const UserProfile({
     required this.id,
@@ -17,6 +18,7 @@ class UserProfile {
     required this.token,
     required this.color,
     this.isConfigured = false,
+    this.isCustom = false,
   });
 
   UserProfile copyWith({
@@ -25,6 +27,7 @@ class UserProfile {
     PlayerToken? token,
     Color? color,
     bool? isConfigured,
+    bool? isCustom,
   }) {
     return UserProfile(
       id: id ?? this.id,
@@ -32,6 +35,7 @@ class UserProfile {
       token: token ?? this.token,
       color: color ?? this.color,
       isConfigured: isConfigured ?? this.isConfigured,
+      isCustom: isCustom ?? this.isCustom,
     );
   }
 
@@ -53,41 +57,78 @@ class UserProfileNotifier extends Notifier<UserProfile> {
   static const String _keyColor = 'kuthaka_user_color';
   static const String _keyId = 'kuthaka_user_id';
   static const String _keyConfigured = 'kuthaka_user_configured';
+  static const String _keyIsCustom = 'kuthaka_user_is_custom';
 
   static const List<String> keralaNames = [
-    'Aadu Thoma',
-    'Ranga Annan',
-    'Dasamoolam Damu',
-    'Manavalan',
-    'Shaji Pappan',
-    'Bilal John',
-    'Neelakandan',
-    'Ambaan',
-    'John Honai',
-    'Ramanan',
-    'CID Moosa',
-    'Sethurama Iyer',
-    'Minnal Murali',
-    'Georgekutty',
-    'Gafoorkka',
-    'Arakkal Abu',
-    'Dude',
     'Dasan',
     'Vijayan',
-    'Appukuttan',
-    'Thomaskutty',
-    'Gangadharan',
-    'Peethambaran',
-    'Jagannathan',
+    'Aadu Thoma',
+    'Mangalassery Neelakandan',
     'Induchoodan',
-    'Puli Murugan',
-    'Michael Anjootti',
-    'Dr Sunny',
-    'Faizi',
-    'Vincent Gomez',
-    'Keerikkadan Jose',
-    'Kadavul Antony',
-    'Ananthan Nambiar',
+    'Poovalli Induchoodan',
+    'Narasimham',
+    'Chacko',
+    'Georgekutty',
+    'Drishyam George',
+    'Sagar Alias Jacky',
+    'Devanarayanan',
+    'Maanikyan',
+    'Kunjumon',
+    'Kuttan',
+    'Unnikuttan',
+    'Muthu',
+    'Achuthan',
+    'Kannan',
+    'Balan',
+    'Gopalakrishnan',
+    'Ramji Rao',
+    'Mannar Mathai',
+    'Gopu',
+    'Akkare Ninnoru Maran',
+    'C.I. D. Unnikrishnan',
+    'C.I.D. Moosa',
+    'Meesha Madhavan',
+    'Madhavan',
+    'Ramanan',
+    'Sethu',
+    'Dasappan',
+    'Pavanayi',
+    'Vijayaraghavan',
+    'Captain Raju',
+    'Thomman',
+    'Kunjikkoonan',
+    'Chinthamani',
+    'Arakkal Abu',
+    'Peruchazhi',
+    'Jagannathan',
+    'Achu',
+    'Appukuttan',
+    'Ayyappan',
+    'Kunjunni',
+    'Kuttan Pillai',
+    'Balachandran',
+    'Pranchiyettan',
+    'Kariyachan',
+    'Pappu',
+    'Kottayam Kunjachan',
+    'Malabar Majeed',
+    'Velayudhan',
+    'Paleri Manikyam',
+    'Murali',
+    'Murugan',
+    'Shaji',
+    'Rasool',
+    'Kareem',
+    'Pottan',
+    'Pachu',
+    'Aadu',
+    'Kattalan Jose',
+    'Kunjikka',
+    'Sudhi',
+    'Shankaran',
+    'Krishnan',
+    'Soman',
+    'Balakrishnan',
   ];
 
   static const List<Color> palette = [
@@ -131,6 +172,7 @@ class UserProfileNotifier extends Notifier<UserProfile> {
       final savedToken = (tokenIndex >= 0 && tokenIndex < PlayerToken.values.length)
           ? PlayerToken.values[tokenIndex]
           : PlayerToken.houseboat;
+      final savedIsCustom = prefs.getBool(_keyIsCustom) ?? !keralaNames.contains(savedName);
 
       state = UserProfile(
         id: savedId,
@@ -138,6 +180,7 @@ class UserProfileNotifier extends Notifier<UserProfile> {
         token: savedToken,
         color: Color(colorValue),
         isConfigured: true,
+        isCustom: savedIsCustom,
       );
     } catch (_) {
       // Fallback to in-memory state
@@ -148,13 +191,16 @@ class UserProfileNotifier extends Notifier<UserProfile> {
     required String name,
     required PlayerToken token,
     required Color color,
+    bool? isCustom,
   }) async {
     final cleanName = name.trim().isNotEmpty ? name.trim() : 'Player';
+    final customFlag = isCustom ?? (!keralaNames.contains(cleanName));
     state = state.copyWith(
       name: cleanName,
       token: token,
       color: color,
       isConfigured: true,
+      isCustom: customFlag,
     );
 
     try {
@@ -164,6 +210,7 @@ class UserProfileNotifier extends Notifier<UserProfile> {
       await prefs.setInt(_keyToken, token.index);
       await prefs.setInt(_keyColor, color.toARGB32());
       await prefs.setBool(_keyConfigured, true);
+      await prefs.setBool(_keyIsCustom, customFlag);
     } catch (_) {
       // Ignore disk error, state is updated
     }
@@ -178,6 +225,7 @@ class UserProfileNotifier extends Notifier<UserProfile> {
       name: randomName,
       token: randomToken,
       color: randomColor,
+      isCustom: false,
     );
   }
 }

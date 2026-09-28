@@ -45,7 +45,7 @@ class PlayerTokenComponent extends PositionComponent {
     super.update(dt);
 
     if (_isMoving) {
-      double speed = 6.0; // steps per second
+      double speed = 2.8; // Reduced steps per second for clear, smooth jumping animation
       double step = speed * dt;
       if (_currentTile < _targetTile) {
         _currentTile += step;
@@ -56,7 +56,7 @@ class PlayerTokenComponent extends PositionComponent {
         } else {
           // Compute hop arc for each tile step
           double subProgress = _currentTile % 1.0;
-          _hopAltitude = sin(subProgress * pi) * 20.0;
+          _hopAltitude = sin(subProgress * pi) * 16.0;
         }
       } else {
         _isMoving = false;

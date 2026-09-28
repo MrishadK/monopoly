@@ -39,9 +39,7 @@ class AudioNotifier extends Notifier<AudioState> {
 
   @override
   AudioState build() {
-    ref.onDispose(() {
-      _loFiPulseTimer?.cancel();
-    });
+    startLoFiAmbient();
     return const AudioState();
   }
 

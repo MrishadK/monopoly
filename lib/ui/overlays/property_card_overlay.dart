@@ -166,8 +166,8 @@ class PropertyCardOverlay extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         child: Text(
                           prop.isTransport
-                              ? 'Transport Scale:\n1 Station: ₹25  •  2: ₹50\n3: ₹100  •  4: ₹200'
-                              : 'Utility Scale:\n1 Utility: 4x Dice Roll\n2 Utilities: 10x Dice Roll',
+                              ? 'Transport Fare Scale:\n1 Transport: ₹15  •  2: ₹35\n3: ₹70  •  4: ₹135'
+                              : 'Kerala Utility Tariff:\n1 Utility: 4× Dice Total (₹8 - ₹48)\n2 Utilities: 10× Dice Total (₹20 - ₹120)',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.outfit(color: const Color(0xFF334155), fontSize: 13, height: 1.4),
                         ),
@@ -470,10 +470,7 @@ class PropertyCardOverlay extends ConsumerWidget {
   }
 
   int _getPropertySpaceIndex(String propId) {
-    for (final space in GameData.spaces) {
-      if (space.propertyId == propId) return space.index;
-    }
-    return -1;
+    return GameData.spaces.indexWhere((s) => s.propertyId == propId);
   }
 
   Color _getGroupColor(PropertyGroup group) {
