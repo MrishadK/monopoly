@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../providers/game_provider.dart';
 import '../../models/property.dart';
 import '../../models/player.dart';
+import '../../data/game_data.dart';
 
 class PropertyCardOverlay extends ConsumerWidget {
   const PropertyCardOverlay({super.key});
@@ -28,10 +29,17 @@ class PropertyCardOverlay extends ConsumerWidget {
 
     final groupColor = _getGroupColor(prop.group);
 
+    // Computed property states for action buttons
+    final canBuild = isOwnedByMe && prop.canUpgrade(gameState.properties, current.cash);
+    final canSell = isOwnedByMe && prop.currentLevel > 0;
+    final canMortgage = isOwnedByMe && !prop.isMortgaged && prop.currentLevel == 0;
+    final canRedeem = isOwnedByMe && prop.isMortgaged && current.cash >= prop.unmortgageCost;
+
     return Center(
       child: Container(
-        width: 320,
-        margin: const EdgeInsets.symmetric(horizontal: 20),
+        width: 330,
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -40,195 +48,386 @@ class PropertyCardOverlay extends ConsumerWidget {
             BoxShadow(color: Color(0x25000000), blurRadius: 25, offset: Offset(0, 8)),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header Color Strip
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: groupColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'KUTHAKA TITLE DEED',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white70,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    prop.name.toUpperCase(),
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Price Tag
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'PURCHASE PRICE',
-                        style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.bold),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header Color Strip
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: groupColor,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'KUTHAKA TITLE DEED',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
                       ),
-                      Text(
-                        '₹${prop.price}',
-                        style: GoogleFonts.outfit(
-                          color: const Color(0xFF047857),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      prop.name.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    // Current Level Badge
+                    if (isOwnedByMe && prop.isBuildable && prop.currentLevel > 0) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          prop.currentLevel == 5
+                              ? '🏨 LUXURY RESORT'
+                              : '🏠 ${prop.currentLevel} COTTAGE${prop.currentLevel > 1 ? "S" : ""}',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                  const Divider(color: Color(0xFFE2E8F0)),
-
-                  // Rent Table
-                  if (prop.isBuildable) ...[
-                    _rentRow('Base Rent', prop.rent[0], isBold: prop.currentLevel == 0 && !prop.isMonopoly(gameState.properties)),
-                    _rentRow('Monopoly (Color Group)', prop.rent[0] * 2, isBold: prop.currentLevel == 0 && prop.isMonopoly(gameState.properties)),
-                    _rentRow('With 1 Cottage', prop.rent[1], isBold: prop.currentLevel == 1),
-                    _rentRow('With 2 Cottages', prop.rent[2], isBold: prop.currentLevel == 2),
-                    _rentRow('With 3 Cottages', prop.rent[3], isBold: prop.currentLevel == 3),
-                    _rentRow('With 4 Cottages', prop.rent[4], isBold: prop.currentLevel == 4),
-                    _rentRow('With Luxury Resort', prop.rent[5], isBold: prop.currentLevel == 5, highlight: true),
-                    const Divider(color: Color(0xFFE2E8F0)),
-                    _rentRow('Cottage / Resort Upgrade', prop.upgradeCost),
-                    _rentRow('Mortgage Value', prop.mortgageValue),
-                  ] else ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Text(
-                        prop.isTransport
-                            ? 'Transport Scale:\n1 Station: ₹2,500  •  2: ₹5,000\n3: ₹10,000  •  4: ₹20,000'
-                            : 'Utility Scale:\n1 Utility: 400x Dice Roll\n2 Utilities: 1000x Dice Roll',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(color: const Color(0xFF334155), fontSize: 13, height: 1.4),
-                      ),
-                    ),
-                    const Divider(color: Color(0xFFE2E8F0)),
-                    _rentRow('Mortgage Value', prop.mortgageValue),
-                  ],
-
-                  const SizedBox(height: 12),
-
-                  // Ownership Tag
-                  if (owner != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: owner.color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: owner.color),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(owner.tokenIcon, size: 16, color: owner.color),
-                          const SizedBox(width: 8),
-                          Text(
-                            isOwnedByMe ? 'YOU OWN THIS PROPERTY' : 'OWNED BY ${owner.name.toUpperCase()}',
-                            style: GoogleFonts.outfit(
-                              color: const Color(0xFF0F172A),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  // Actions
-                  if (isLandedHere && isUnowned) ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF047857),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            onPressed: current.cash >= prop.price
-                                ? () => ref.read(gameProvider.notifier).buyProperty(prop.id)
-                                : null,
-                            child: Text(
-                              'BUY ₹${prop.price}',
-                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
+                    if (prop.isMortgaged) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '⚠️ MORTGAGED',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF0F172A),
-                              side: const BorderSide(color: Color(0xFFCBD5E1)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            onPressed: () => ref.read(gameProvider.notifier).passProperty(),
-                            child: Text('PASS', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Price Tag
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'PURCHASE PRICE',
+                          style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '₹${prop.price}',
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFF047857),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ],
                     ),
-                  ] else ...[
-                    Row(
-                      children: [
-                        if (isOwnedByMe && prop.canUpgrade(gameState.properties, current.cash)) ...[
+                    const Divider(color: Color(0xFFE2E8F0)),
+
+                    // Rent Table
+                    if (prop.isBuildable) ...[
+                      _rentRow('Base Rent', prop.rent[0], isBold: prop.currentLevel == 0 && !prop.isMonopoly(gameState.properties)),
+                      _rentRow('Monopoly (Color Group)', prop.rent[0] * 2, isBold: prop.currentLevel == 0 && prop.isMonopoly(gameState.properties)),
+                      _rentRow('With 1 Cottage', prop.rent[1], isBold: prop.currentLevel == 1),
+                      _rentRow('With 2 Cottages', prop.rent[2], isBold: prop.currentLevel == 2),
+                      _rentRow('With 3 Cottages', prop.rent[3], isBold: prop.currentLevel == 3),
+                      _rentRow('With 4 Cottages', prop.rent[4], isBold: prop.currentLevel == 4),
+                      _rentRow('With Luxury Resort', prop.rent[5], isBold: prop.currentLevel == 5, highlight: true),
+                      const Divider(color: Color(0xFFE2E8F0)),
+                      _rentRow('Cottage / Resort Upgrade', prop.upgradeCost),
+                      _rentRow('Mortgage Value', prop.mortgageValue),
+                    ] else ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(
+                          prop.isTransport
+                              ? 'Transport Scale:\n1 Station: ₹25  •  2: ₹50\n3: ₹100  •  4: ₹200'
+                              : 'Utility Scale:\n1 Utility: 4x Dice Roll\n2 Utilities: 10x Dice Roll',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.outfit(color: const Color(0xFF334155), fontSize: 13, height: 1.4),
+                        ),
+                      ),
+                      const Divider(color: Color(0xFFE2E8F0)),
+                      _rentRow('Mortgage Value', prop.mortgageValue),
+                    ],
+
+                    const SizedBox(height: 12),
+
+                    // Ownership Tag
+                    if (owner != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: owner.color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: owner.color),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(owner.tokenIcon, size: 16, color: owner.color),
+                            const SizedBox(width: 8),
+                            Text(
+                              isOwnedByMe ? 'YOU OWN THIS PROPERTY' : 'OWNED BY ${owner.name.toUpperCase()}',
+                              style: GoogleFonts.outfit(
+                                color: const Color(0xFF0F172A),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // ==================== ACTION BUTTONS ====================
+
+                    // CASE 1: Landed on UNOWNED property → Buy / Auction / Pass
+                    if (isLandedHere && isUnowned) ...[
+                      Row(
+                        children: [
                           Expanded(
-                            child: ElevatedButton(
+                            child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF047857),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                              onPressed: () => ref.read(gameProvider.notifier).upgradeProperty(prop.id),
-                              child: Text(
-                                prop.currentLevel == 4 ? '+ RESORT' : '+ COTTAGE',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                              onPressed: current.cash >= prop.price
+                                  ? () => ref.read(gameProvider.notifier).buyProperty(prop.id)
+                                  : null,
+                              icon: const Icon(Icons.shopping_cart_rounded, size: 16),
+                              label: Text(
+                                'BUY ₹${prop.price}',
+                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFD97706),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 11),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              onPressed: () {
+                                ref.read(gameProvider.notifier).startAuction(prop.id);
+                              },
+                              icon: const Icon(Icons.gavel_rounded, size: 16),
+                              label: Text(
+                                'AUCTION',
+                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F172A),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF0F172A),
+                                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                padding: const EdgeInsets.symmetric(vertical: 11),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              onPressed: () => ref.read(gameProvider.notifier).passProperty(),
+                              icon: const Icon(Icons.skip_next_rounded, size: 16),
+                              label: Text('PASS', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                             ),
-                            onPressed: () => ref.read(gameProvider.notifier).inspectProperty(null),
-                            child: const Text('CLOSE', style: TextStyle(fontWeight: FontWeight.bold)),
                           ),
+                        ],
+                      ),
+                    ]
+
+                    // CASE 2: Owned by current player → Build/Sell/Mortgage/Redeem actions
+                    else if (isOwnedByMe) ...[
+                      // Property Management Actions Grid
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                      ],
-                    ),
+                        child: Column(
+                          children: [
+                            Text(
+                              'PROPERTY ACTIONS',
+                              style: GoogleFonts.outfit(
+                                color: const Color(0xFF64748B),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                // BUILD (Upgrade)
+                                Expanded(
+                                  child: _actionButton(
+                                    icon: Icons.add_home_rounded,
+                                    label: prop.currentLevel == 4 ? 'RESORT' : 'BUILD',
+                                    sublabel: '₹${prop.upgradeCost}',
+                                    color: const Color(0xFF047857),
+                                    enabled: canBuild,
+                                    onTap: () => ref.read(gameProvider.notifier).upgradeProperty(prop.id),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // SELL (Downgrade)
+                                Expanded(
+                                  child: _actionButton(
+                                    icon: Icons.sell_rounded,
+                                    label: 'SELL',
+                                    sublabel: canSell ? '+ ₹${prop.upgradeCost ~/ 2}' : '—',
+                                    color: const Color(0xFFDC2626),
+                                    enabled: canSell,
+                                    onTap: () => ref.read(gameProvider.notifier).sellBuilding(prop.id),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // MORTGAGE
+                                Expanded(
+                                  child: _actionButton(
+                                    icon: Icons.account_balance_rounded,
+                                    label: 'MORTGAGE',
+                                    sublabel: canMortgage ? '+ ₹${prop.mortgageValue}' : '—',
+                                    color: const Color(0xFFD97706),
+                                    enabled: canMortgage,
+                                    onTap: () => ref.read(gameProvider.notifier).toggleMortgage(prop.id),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // REDEEM (Unmortgage)
+                                Expanded(
+                                  child: _actionButton(
+                                    icon: Icons.replay_rounded,
+                                    label: 'REDEEM',
+                                    sublabel: prop.isMortgaged ? '₹${prop.unmortgageCost}' : '—',
+                                    color: const Color(0xFF1565C0),
+                                    enabled: canRedeem,
+                                    onTap: () => ref.read(gameProvider.notifier).toggleMortgage(prop.id),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          onPressed: () => ref.read(gameProvider.notifier).inspectProperty(null),
+                          child: Text('CLOSE', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                        ),
+                      ),
+                    ]
+
+                    // CASE 3: Owned by someone else or browsing → Close only
+                    else ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          onPressed: () => ref.read(gameProvider.notifier).inspectProperty(null),
+                          child: const Text('CLOSE', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionButton({
+    required IconData icon,
+    required String label,
+    required String sublabel,
+    required Color color,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.08) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: enabled ? color.withValues(alpha: 0.4) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: enabled ? color : const Color(0xFFCBD5E1)),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                color: enabled ? color : const Color(0xFFCBD5E1),
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+              ),
+            ),
+            Text(
+              sublabel,
+              style: GoogleFonts.outfit(
+                color: enabled ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -271,7 +470,10 @@ class PropertyCardOverlay extends ConsumerWidget {
   }
 
   int _getPropertySpaceIndex(String propId) {
-    return 0;
+    for (final space in GameData.spaces) {
+      if (space.propertyId == propId) return space.index;
+    }
+    return -1;
   }
 
   Color _getGroupColor(PropertyGroup group) {

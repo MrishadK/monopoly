@@ -10,6 +10,7 @@ import '../../services/multiplayer_service.dart';
 import 'portfolio_sheet.dart';
 import 'trade_dialog.dart';
 import 'game_menu_dialog.dart';
+import 'emoji_chat_overlay.dart';
 import '../widgets/dice_widget.dart';
 import '../screens/home_screen.dart';
 
@@ -85,6 +86,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
     return Stack(
       children: [
+        // ==================== FLOATING EMOJI DISPLAY ====================
+        const Positioned(
+          top: 200,
+          left: 0,
+          right: 0,
+          child: Center(child: EmojiFloatingDisplay()),
+        ),
+
         // ==================== TOP PLAYER STATUS BAR (2:N FRIENDS GRID) ====================
         Positioned(
           top: 6,
@@ -165,6 +174,17 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                       icon: Icons.history_edu_rounded,
                       title: 'Logs',
                       onTap: () => _showLogsDialog(context, gameState),
+                    ),
+                    _dockButton(
+                      icon: Icons.emoji_emotions_rounded,
+                      title: 'Emoji',
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          barrierColor: Colors.black26,
+                          builder: (_) => const Center(child: EmojiChatPanel()),
+                        );
+                      },
                     ),
                     _dockButton(
                       icon: Icons.settings_rounded,

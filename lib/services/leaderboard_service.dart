@@ -27,8 +27,13 @@ class KeralaTycoon {
 final leaderboardServiceProvider = Provider((ref) => LeaderboardService());
 
 final leaderboardFutureProvider = FutureProvider.autoDispose<List<KeralaTycoon>>((ref) async {
-  final service = ref.watch(leaderboardServiceProvider);
-  return service.fetchLeaderboard();
+  try {
+    final service = ref.watch(leaderboardServiceProvider);
+    return await service.fetchLeaderboard();
+  } catch (e) {
+    debugPrint('[leaderboardFutureProvider] error: $e');
+    return const <KeralaTycoon>[];
+  }
 });
 
 class LeaderboardService {
@@ -41,11 +46,9 @@ class LeaderboardService {
   }
 
   Future<List<KeralaTycoon>> fetchLeaderboard() async {
-    final client = _client;
-    if (client != null) {
-      try {
-
-
+    try {
+      final client = _client;
+      if (client != null) {
         final data = await client
             .from('user_xp')
             .select('id, display_name, total_xp, level, state, country')
@@ -73,9 +76,9 @@ class LeaderboardService {
             );
           }).toList();
         }
-      } catch (e) {
-        debugPrint('[LeaderboardService] Leaderboard fetch: $e');
       }
+    } catch (e) {
+      debugPrint('[LeaderboardService] Leaderboard fetch fallback: $e');
     }
 
     return const <KeralaTycoon>[];

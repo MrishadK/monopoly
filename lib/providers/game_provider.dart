@@ -257,6 +257,14 @@ class GameNotifier extends Notifier<GameState> {
         final pId = data['playerId'] as String?;
         if (pId != null) surrenderPlayer(pId);
         break;
+      case 'sell_building':
+        final propId = data['propertyId'] as String?;
+        if (propId != null) _executeSellBuilding(propId);
+        break;
+      case 'start_auction':
+        final propId = data['propertyId'] as String?;
+        if (propId != null) _executeStartAuction(propId);
+        break;
     }
   }
 
@@ -906,6 +914,156 @@ class GameNotifier extends Notifier<GameState> {
       _updatePlayer(owner.copyWith(cash: owner.cash - prop.unmortgageCost));
       _addLog('${owner.name} unmortgaged ${prop.name} (-₹${prop.unmortgageCost})');
       state = state.copyWith(properties: newProps);
+    }
+  }
+
+  // ==================== SELL BUILDING (DOWNGRADE) ====================
+
+  void sellBuilding(String propertyId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('sell_building', {
+        'playerId': state.currentPlayer.id,
+        'propertyId': propertyId,
+      });
+      return;
+    }
+    _executeSellBuilding(propertyId);
+  }
+
+  void _executeSellBuilding(String propertyId) {
+    final prop = state.properties[propertyId];
+    if (prop == null || prop.ownerId == null || prop.currentLevel <= 0) return;
+    final owner = state.players.firstWhere((p) => p.id == prop.ownerId);
+
+    // Check even building rule: can't sell if any group property has MORE buildings
+    final groupProps = state.properties.values.where((p) => p.group == prop.group);
+    for (final p in groupProps) {
+      if (p.id != prop.id && p.currentLevel > prop.currentLevel) return;
+    }
+
+    final refund = prop.upgradeCost ~/ 2;
+    final newLevel = prop.currentLevel - 1;
+    final newProps = Map<String, Property>.from(state.properties);
+    newProps[propertyId] = prop.copyWith(currentLevel: newLevel);
+
+    _updatePlayer(owner.copyWith(cash: owner.cash + refund));
+
+    final buildingType = prop.currentLevel == 5 ? 'Luxury Resort' : 'Cottage';
+    _addLog('${owner.name} sold $buildingType on ${prop.name} (+₹$refund)');
+
+    state = state.copyWith(
+      properties: newProps,
+      message: 'Sold $buildingType on ${prop.name} for ₹$refund',
+    );
+  }
+
+  // ==================== AUCTION SYSTEM ====================
+
+  void startAuction(String propertyId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('start_auction', {
+        'playerId': state.currentPlayer.id,
+        'propertyId': propertyId,
+      });
+      return;
+    }
+    _executeStartAuction(propertyId);
+  }
+
+  void _executeStartAuction(String propertyId) {
+    final prop = state.properties[propertyId];
+    if (prop == null || prop.ownerId != null) return;
+
+    _addLog('🔨 AUCTION STARTED for ${prop.name}! Starting at ₹1');
+
+    // Collect bids from all active players
+    final activePlayers = state.players.where((p) => !p.isBankrupt).toList();
+    int highestBid = 0;
+    Player? highestBidder;
+
+    for (final player in activePlayers) {
+      int bid = 0;
+
+      if (player.type == PlayerType.ai) {
+        // AI bidding logic based on personality
+        final personality = player.aiPersonality ?? AiPersonality.conservative;
+        double maxBidRatio;
+        switch (personality) {
+          case AiPersonality.aggressive:
+          case AiPersonality.riskTaker:
+            maxBidRatio = 1.2;
+            break;
+          case AiPersonality.investor:
+            maxBidRatio = 1.0;
+            break;
+          case AiPersonality.trader:
+            maxBidRatio = 0.9;
+            break;
+          case AiPersonality.conservative:
+            maxBidRatio = 0.7;
+            break;
+        }
+
+        // Check if completing monopoly makes it more valuable
+        final groupProps = state.properties.values.where((p) => p.group == prop.group);
+        final aiOwnsInGroup = groupProps.where((p) => p.ownerId == player.id).length;
+        final isNearMonopoly = aiOwnsInGroup == groupProps.length - 1;
+        if (isNearMonopoly) maxBidRatio += 0.5;
+
+        final maxBid = (prop.price * maxBidRatio).round();
+        // AI bids up to maxBid but at least 1 above current highest
+        if (player.cash >= highestBid + 10 && maxBid > highestBid) {
+          bid = min(maxBid, player.cash);
+          bid = max(bid, highestBid + 10);
+          bid = min(bid, player.cash); // Cap at cash
+        }
+      } else {
+        // Human player: auto-bid at starting price (base value)
+        // In a real-time game this would be interactive; for now, human gets a fair starting bid
+        if (player.cash >= highestBid + 10) {
+          bid = min(prop.price ~/ 2, player.cash);
+          bid = max(bid, highestBid + 10);
+          bid = min(bid, player.cash);
+        }
+      }
+
+      if (bid > highestBid && bid > 0) {
+        highestBid = bid;
+        highestBidder = player;
+      }
+    }
+
+    // Execute auction result
+    if (highestBidder != null && highestBid > 0) {
+      final newProps = Map<String, Property>.from(state.properties);
+      newProps[propertyId] = prop.copyWith(ownerId: highestBidder.id);
+
+      final updatedBidder = highestBidder.copyWith(
+        cash: highestBidder.cash - highestBid,
+        ownedPropertyIds: [...highestBidder.ownedPropertyIds, propertyId],
+      );
+      _updatePlayer(updatedBidder);
+      try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
+
+      _addLog('🔨 ${highestBidder.name} won auction for ${prop.name} at ₹$highestBid!');
+
+      state = state.copyWith(
+        properties: newProps,
+        clearInspectedProperty: true,
+        phase: GamePhase.turnEnd,
+        message: '${highestBidder.name} won ${prop.name} at auction for ₹$highestBid!',
+      );
+    } else {
+      _addLog('🔨 No bidders for ${prop.name}. Property remains unsold.');
+      state = state.copyWith(
+        clearInspectedProperty: true,
+        phase: GamePhase.turnEnd,
+        message: 'No one bid on ${prop.name}. Property stays with the bank.',
+      );
+    }
+
+    if (state.currentPlayer.type == PlayerType.ai) {
+      _scheduleAiTurnEnd();
     }
   }
 
