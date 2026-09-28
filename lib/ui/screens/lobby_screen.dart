@@ -212,7 +212,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Supabase Realtime: Connected',
+                  'Game Network: Online',
                   style: GoogleFonts.outfit(
                     color: const Color(0xFF065F46),
                     fontSize: 12,
@@ -709,7 +709,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                       ),
                                     ),
                                     Text(
-                                      'See live top rankings from Supabase database',
+                                      'See live top rankings from Kerala League',
                                       style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12),
                                     ),
                                   ],

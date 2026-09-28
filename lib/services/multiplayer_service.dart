@@ -21,6 +21,7 @@ class MultiplayerService {
   final Map<String, PublicRoom> _activeRooms = {};
   void Function(List<PublicRoom>)? _onRoomsUpdated;
 
+  String? activeRoomId;
   bool get isConnected => _roomChannel != null;
 
   void Function(Map<String, dynamic>)? onStateSyncReceived;
@@ -69,6 +70,29 @@ class MultiplayerService {
     _discoveryChannel!.subscribe((status, [error]) {
       debugPrint('[MultiplayerService] Discovery status: $status');
     });
+
+    // Query persistent Postgres game_rooms table
+    client.from('game_rooms')
+      .select('room_id, host_name, player_count, max_players, starting_cash, updated_at')
+      .eq('status', 'waiting')
+      .then((rows) {
+        for (final row in rows) {
+          final rId = row['room_id']?.toString() ?? '';
+          if (rId.isNotEmpty) {
+            _activeRooms[rId] = PublicRoom(
+              roomId: rId,
+              hostName: row['host_name']?.toString() ?? 'Host',
+              playerCount: row['player_count'] is int ? row['player_count'] as int : 1,
+              maxPlayers: row['max_players'] is int ? row['max_players'] as int : 4,
+              startingCash: row['starting_cash'] is int ? row['starting_cash'] as int : 150000,
+              lastSeen: DateTime.now(),
+            );
+          }
+        }
+        _notifyRooms();
+      }).catchError((err) {
+        debugPrint('[MultiplayerService] game_rooms query: $err');
+      });
 
     _pruneTimer?.cancel();
     _pruneTimer = Timer.periodic(const Duration(seconds: 4), (_) {
@@ -120,6 +144,23 @@ class MultiplayerService {
         },
       );
     }
+
+    // Also persist in Supabase Postgres game_rooms table
+    final client = _client;
+    if (client != null) {
+      client.from('game_rooms').upsert({
+        'room_id': roomId,
+        'host_id': client.auth.currentUser?.id ?? 'host_$roomId',
+        'host_name': hostName,
+        'player_count': playerCount,
+        'max_players': 4,
+        'starting_cash': startingCash,
+        'status': 'waiting',
+        'updated_at': DateTime.now().toIso8601String(),
+      }).then((_) {}).catchError((err) {
+        debugPrint('[MultiplayerService] game_rooms upsert: $err');
+      });
+    }
   }
 
   void broadcastRoomClosed(String roomId) {
@@ -129,15 +170,24 @@ class MultiplayerService {
         payload: {'roomId': roomId},
       );
     }
+
+    final client = _client;
+    if (client != null) {
+      client.from('game_rooms').update({
+        'status': 'closed',
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('room_id', roomId).then((_) {}).catchError((_) {});
+    }
   }
 
   // ==================== ROOM HOSTING & JOINING ====================
 
   Future<void> hostRoom(String roomId) async {
     final client = _client;
-    if (client == null) throw Exception("Supabase not configured");
+    if (client == null) throw Exception("Network service unavailable");
 
     await leaveRoom();
+    activeRoomId = roomId;
 
     _roomChannel = client.channel('kuthaka_room_$roomId');
 
@@ -165,9 +215,10 @@ class MultiplayerService {
 
   Future<void> joinRoom(String roomId) async {
     final client = _client;
-    if (client == null) throw Exception("Supabase not configured");
+    if (client == null) throw Exception("Network service unavailable");
 
     await leaveRoom();
+    activeRoomId = roomId;
 
     _roomChannel = client.channel('kuthaka_room_$roomId');
 
@@ -270,5 +321,6 @@ class MultiplayerService {
     onLobbyJoinReceived = null;
     onLobbyLeaveReceived = null;
     onGameStartReceived = null;
+    activeRoomId = null;
   }
 }

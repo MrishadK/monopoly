@@ -5,14 +5,14 @@ import '../models/event_card.dart';
 class GameData {
   static final List<BoardSpace> spaces = [
     const BoardSpace(index: 0, name: "NAATTILE THUDAKKAM", type: SpaceType.start),
-    const BoardSpace(index: 1, name: "Kozhikode Beach", type: SpaceType.property, propertyId: "prop_01"),
+    const BoardSpace(index: 1, name: "Vengeri", type: SpaceType.property, propertyId: "prop_01"),
     const BoardSpace(index: 2, name: "Vishu", type: SpaceType.communityChest),
     const BoardSpace(index: 3, name: "Beypore", type: SpaceType.property, propertyId: "prop_02"),
     const BoardSpace(index: 4, name: "Property Tax", type: SpaceType.tax, feeAmount: 2000),
     const BoardSpace(index: 5, name: "KSRTC Stand", type: SpaceType.railroad, propertyId: "trans_01"),
-    const BoardSpace(index: 6, name: "Kallai", type: SpaceType.property, propertyId: "prop_03"),
+    const BoardSpace(index: 6, name: "Nilambur", type: SpaceType.property, propertyId: "prop_03"),
     const BoardSpace(index: 7, name: "Monsoon", type: SpaceType.chance),
-    const BoardSpace(index: 8, name: "Thalassery", type: SpaceType.property, propertyId: "prop_04"),
+    const BoardSpace(index: 8, name: "Payyanur", type: SpaceType.property, propertyId: "prop_04"),
     const BoardSpace(index: 9, name: "Fort Kochi", type: SpaceType.property, propertyId: "prop_05"),
     const BoardSpace(index: 10, name: "Hospital", type: SpaceType.jail),
     const BoardSpace(index: 11, name: "Marine Drive", type: SpaceType.property, propertyId: "prop_06"),
@@ -41,19 +41,19 @@ class GameData {
     const BoardSpace(index: 34, name: "Thekkady", type: SpaceType.property, propertyId: "prop_20"),
     const BoardSpace(index: 35, name: "Airport", type: SpaceType.railroad, propertyId: "trans_04"),
     const BoardSpace(index: 36, name: "Monsoon", type: SpaceType.chance),
-    const BoardSpace(index: 37, name: "Varkala", type: SpaceType.property, propertyId: "prop_21"),
+    const BoardSpace(index: 37, name: "Bekal Fort", type: SpaceType.property, propertyId: "prop_21"),
     const BoardSpace(index: 38, name: "Panchayath Tax", type: SpaceType.tax, feeAmount: 1000),
     const BoardSpace(index: 39, name: "Kovalam", type: SpaceType.property, propertyId: "prop_22"),
   ];
 
   static final Map<String, Property> initialProperties = {
     // Malabar (Brown)
-    "prop_01": Property(id: "prop_01", name: "Kozhikode Beach", group: PropertyGroup.malabar, price: 6000, rent: [200, 1000, 3000, 9000, 16000, 25000], upgradeCost: 5000, mortgageValue: 3000),
+    "prop_01": Property(id: "prop_01", name: "Vengeri", group: PropertyGroup.malabar, price: 6000, rent: [200, 1000, 3000, 9000, 16000, 25000], upgradeCost: 5000, mortgageValue: 3000),
     "prop_02": Property(id: "prop_02", name: "Beypore", group: PropertyGroup.malabar, price: 6000, rent: [400, 2000, 6000, 18000, 32000, 45000], upgradeCost: 5000, mortgageValue: 3000),
-    "prop_03": Property(id: "prop_03", name: "Kallai", group: PropertyGroup.malabar, price: 8000, rent: [400, 2000, 6000, 18000, 32000, 45000], upgradeCost: 5000, mortgageValue: 4000),
+    "prop_03": Property(id: "prop_03", name: "Nilambur", group: PropertyGroup.malabar, price: 8000, rent: [400, 2000, 6000, 18000, 32000, 45000], upgradeCost: 5000, mortgageValue: 4000),
     
     // Kochi (Pink)
-    "prop_04": Property(id: "prop_04", name: "Thalassery", group: PropertyGroup.kochi, price: 10000, rent: [600, 3000, 9000, 27000, 40000, 55000], upgradeCost: 5000, mortgageValue: 5000),
+    "prop_04": Property(id: "prop_04", name: "Payyanur", group: PropertyGroup.kochi, price: 10000, rent: [600, 3000, 9000, 27000, 40000, 55000], upgradeCost: 5000, mortgageValue: 5000),
     "prop_05": Property(id: "prop_05", name: "Fort Kochi", group: PropertyGroup.kochi, price: 10000, rent: [600, 3000, 9000, 27000, 40000, 55000], upgradeCost: 5000, mortgageValue: 5000),
     "prop_06": Property(id: "prop_06", name: "Marine Drive", group: PropertyGroup.kochi, price: 12000, rent: [800, 4000, 10000, 30000, 45000, 60000], upgradeCost: 5000, mortgageValue: 6000),
 
@@ -80,7 +80,7 @@ class GameData {
     // Premium (Green)
     "prop_19": Property(id: "prop_19", name: "Vagamon", group: PropertyGroup.premium, price: 30000, rent: [2600, 13000, 39000, 90000, 110000, 127000], upgradeCost: 20000, mortgageValue: 15000),
     "prop_20": Property(id: "prop_20", name: "Thekkady", group: PropertyGroup.premium, price: 30000, rent: [2600, 13000, 39000, 90000, 110000, 127000], upgradeCost: 20000, mortgageValue: 15000),
-    "prop_21": Property(id: "prop_21", name: "Varkala", group: PropertyGroup.premium, price: 32000, rent: [2800, 15000, 45000, 100000, 120000, 140000], upgradeCost: 20000, mortgageValue: 16000),
+    "prop_21": Property(id: "prop_21", name: "Bekal Fort", group: PropertyGroup.premium, price: 32000, rent: [2800, 15000, 45000, 100000, 120000, 140000], upgradeCost: 20000, mortgageValue: 16000),
 
     // Luxury (Dark Blue)
     "prop_22": Property(id: "prop_22", name: "Kovalam", group: PropertyGroup.luxury, price: 35000, rent: [3500, 17500, 50000, 110000, 130000, 150000], upgradeCost: 20000, mortgageValue: 17500),

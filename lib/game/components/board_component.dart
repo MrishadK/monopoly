@@ -10,8 +10,8 @@ import '../../data/game_data.dart';
 class BoardComponent extends PositionComponent with TapCallbacks {
   final Map<String, Property> properties;
   final List<Player> players;
-  final List<int> lastDiceRoll;
-  final bool isDoubles;
+  List<int> lastDiceRoll;
+  bool isDoubles;
   final void Function(Property property)? onPropertyTapped;
 
   BoardComponent({
@@ -21,6 +21,11 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     this.isDoubles = false,
     this.onPropertyTapped,
   });
+
+  void updateDice(List<int> dice, bool doubles) {
+    lastDiceRoll = dice;
+    isDoubles = doubles;
+  }
 
   @override
   void render(Canvas canvas) {
@@ -156,29 +161,49 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     final d1 = lastDiceRoll[0];
     final d2 = lastDiceRoll[1];
 
-    final diceSize = centerRect.width * 0.13;
-    final y = centerRect.top + centerRect.height * 0.62;
-    final x1 = centerRect.center.dx - diceSize - 8;
-    final x2 = centerRect.center.dx + 8;
+    final diceSize = centerRect.width * 0.15;
+    final y = centerRect.top + centerRect.height * 0.60;
+    final totalW = diceSize * 2 + 16;
+    final trayRect = Rect.fromCenter(
+      center: Offset(centerRect.center.dx, y + diceSize / 2 + 8),
+      width: totalW + 28,
+      height: diceSize + 36,
+    );
+
+    // Subtle ivory mat tray behind dice
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(trayRect, const Radius.circular(14)),
+      Paint()..color = Colors.white.withValues(alpha: 0.85),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(trayRect, const Radius.circular(14)),
+      Paint()
+        ..color = const Color(0x55C5A049)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+
+    final x1 = centerRect.center.dx - diceSize - 6;
+    final x2 = centerRect.center.dx + 6;
 
     _renderSingleDice(canvas, Rect.fromLTWH(x1, y, diceSize, diceSize), d1);
     _renderSingleDice(canvas, Rect.fromLTWH(x2, y, diceSize, diceSize), d2);
 
     // Dice sum pill
     final totalSpan = TextSpan(
-      text: 'ROLLED ${d1 + d2}${isDoubles ? " (DOUBLES!)" : ""}',
+      text: 'ROLLED ${d1 + d2}${isDoubles ? " • DOUBLES!" : ""}',
       style: TextStyle(
         color: isDoubles ? const Color(0xFFC62828) : const Color(0xFF133E2B),
-        fontSize: 11,
+        fontSize: 11.5,
         fontWeight: FontWeight.w900,
-        letterSpacing: 1.5,
+        letterSpacing: 1.2,
       ),
     );
     final totalPainter = TextPainter(text: totalSpan, textDirection: TextDirection.ltr);
     totalPainter.layout();
     totalPainter.paint(
       canvas,
-      Offset(centerRect.center.dx - totalPainter.width / 2, y + diceSize + 8),
+      Offset(centerRect.center.dx - totalPainter.width / 2, y + diceSize + 6),
     );
   }
 

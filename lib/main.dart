@@ -3,14 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'ui/screens/home_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'supabase_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   await Supabase.initialize(
-    url: 'https://nudbsagwyhaslaajwvoh.supabase.co',
-    publishableKey: 'sb_publishable_DRoKSQBEUW4c4DiTiVAeYw_kw09KLl0',
+    url: SupabaseConfig.supabaseUrl,
+    publishableKey: SupabaseConfig.supabaseAnonKey,
   );
+
+
 
   runApp(
     const ProviderScope(

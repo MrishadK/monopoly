@@ -43,16 +43,18 @@ class KuthakaGame extends FlameGame {
       tokens.clear();
     }
 
-    // Calculate optimal board size to preserve clearance for top & bottom HUDs
-    double topPadding = size.y > size.x ? 112.0 : 40.0;
-    double bottomPadding = size.y > size.x ? 140.0 : 40.0;
-    double availableWidth = size.x - 20;
+    // Calculate optimal board size to preserve clearance for top 2:N friends grid & bottom HUDs
+    final playerCount = ref.read(gameProvider).players.length;
+    double topPadding = size.y > size.x ? (playerCount > 2 ? 172.0 : 120.0) : 40.0;
+    double bottomPadding = size.y > size.x ? 155.0 : 45.0;
+    double availableWidth = size.x - 16;
     double availableHeight = size.y - (topPadding + bottomPadding);
     double boardSize = min(availableWidth, availableHeight);
     boardSize = max(boardSize, 260); // Minimum sensible size
 
     double posX = (size.x - boardSize) / 2;
-    double posY = topPadding + (availableHeight - boardSize) / 2;
+    double verticalSlack = max(0.0, availableHeight - boardSize);
+    double posY = topPadding + verticalSlack * 0.45;
 
     final gameState = ref.read(gameProvider);
 
@@ -88,6 +90,9 @@ class KuthakaGame extends FlameGame {
     super.update(dt);
 
     final gameState = ref.read(gameProvider);
+
+    // Sync board dice state
+    board?.updateDice(gameState.lastDiceRoll, gameState.isDoubles);
 
     // Sync tokens with state
     for (int i = 0; i < tokens.length && i < gameState.players.length; i++) {

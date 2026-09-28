@@ -10,6 +10,8 @@ import '../models/bankruptcy_record.dart';
 import '../data/game_data.dart';
 import '../services/multiplayer_service.dart';
 import '../services/audio_service.dart';
+import '../services/leaderboard_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum GamePhase { roll, moving, spaceAction, turnEnd, gameOver }
 
@@ -27,6 +29,7 @@ class GameState {
   final BankruptcyRecord? activeBankruptcyRecord;
   final List<String> gameLogs;
   final bool isAiThinking;
+  final bool isRollingDice;
 
   const GameState({
     required this.players,
@@ -42,6 +45,7 @@ class GameState {
     this.activeBankruptcyRecord,
     this.gameLogs = const [],
     this.isAiThinking = false,
+    this.isRollingDice = false,
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -64,6 +68,7 @@ class GameState {
     bool clearBankruptcyRecord = false,
     List<String>? gameLogs,
     bool? isAiThinking,
+    bool? isRollingDice,
   }) {
     return GameState(
       players: players ?? this.players,
@@ -79,6 +84,7 @@ class GameState {
       activeBankruptcyRecord: clearBankruptcyRecord ? null : (activeBankruptcyRecord ?? this.activeBankruptcyRecord),
       gameLogs: gameLogs ?? this.gameLogs,
       isAiThinking: isAiThinking ?? this.isAiThinking,
+      isRollingDice: isRollingDice ?? this.isRollingDice,
     );
   }
 
@@ -94,6 +100,7 @@ class GameState {
       'message': message,
       'activeBankruptcyRecord': activeBankruptcyRecord?.toMap(),
       'gameLogs': gameLogs,
+      'isRollingDice': isRollingDice,
     };
   }
 
@@ -111,6 +118,7 @@ class GameState {
           ? BankruptcyRecord.fromMap(Map<String, dynamic>.from(map['activeBankruptcyRecord']))
           : null,
       gameLogs: List<String>.from(map['gameLogs'] ?? []),
+      isRollingDice: map['isRollingDice'] ?? false,
     );
   }
 }
@@ -296,7 +304,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _executeRollDice() {
-    if (state.phase != GamePhase.roll) return;
+    if (state.phase != GamePhase.roll || state.isRollingDice) return;
     try { ref.read(audioServiceProvider.notifier).playDiceRoll(); } catch (_) {}
     final current = state.currentPlayer;
 
@@ -311,23 +319,39 @@ class GameNotifier extends Notifier<GameState> {
     final isDouble = d1 == d2;
     final newConsecutive = isDouble ? state.consecutiveDoubles + 1 : 0;
 
-    _addLog('${current.name} rolled $d1 & $d2 (${d1 + d2})${isDouble ? " - DOUBLES!" : ""}');
-
-    if (newConsecutive >= 3) {
-      _addLog('${current.name} rolled 3 doubles in a row! Sent to Police Station.');
-      _sendToJail(current);
-      return;
-    }
-
+    // Trigger dynamic rolling animation across all clients & overlays
     state = state.copyWith(
-      lastDiceRoll: [d1, d2],
-      isDoubles: isDouble,
-      consecutiveDoubles: newConsecutive,
-      phase: GamePhase.moving,
-      message: '${current.name} moves ${d1 + d2} spaces',
+      isRollingDice: true,
+      message: '${current.name} is rolling the dice...',
     );
 
-    _movePlayerStepwise(d1 + d2);
+    final lockId = _actionLockId;
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (lockId != _actionLockId) return;
+
+      _addLog('${current.name} rolled $d1 & $d2 (${d1 + d2})${isDouble ? " - DOUBLES!" : ""}');
+
+      if (newConsecutive >= 3) {
+        _addLog('${current.name} rolled 3 doubles in a row! Sent to Police Station.');
+        state = state.copyWith(
+          isRollingDice: false,
+          lastDiceRoll: [d1, d2],
+        );
+        _sendToJail(current);
+        return;
+      }
+
+      state = state.copyWith(
+        lastDiceRoll: [d1, d2],
+        isDoubles: isDouble,
+        consecutiveDoubles: newConsecutive,
+        isRollingDice: false,
+        phase: GamePhase.moving,
+        message: '${current.name} rolled ${d1 + d2}! Moving spaces...',
+      );
+
+      _movePlayerStepwise(d1 + d2);
+    });
   }
 
   void _handleJailRoll() {
@@ -336,53 +360,66 @@ class GameNotifier extends Notifier<GameState> {
     final d2 = _random.nextInt(6) + 1;
     final isDouble = d1 == d2;
 
-    _addLog('${current.name} in Hospital/Jail rolls $d1 & $d2');
+    state = state.copyWith(
+      isRollingDice: true,
+      message: '${current.name} in Hospital/Lockup rolling for doubles...',
+    );
 
-    if (isDouble) {
-      _addLog('🎉 Doubles! ${current.name} escapes from Lockup free!');
-      final updated = current.copyWith(isInJail: false, turnsInJail: 0);
-      _updatePlayer(updated);
-      state = state.copyWith(
-        lastDiceRoll: [d1, d2],
-        isDoubles: false,
-        consecutiveDoubles: 0,
-        phase: GamePhase.moving,
-        message: '${current.name} rolled doubles and got out of jail!',
-      );
-      _movePlayerStepwise(d1 + d2);
-    } else {
-      int turns = current.turnsInJail + 1;
-      if (turns >= 3) {
-        // Forced bail
-        _addLog('${current.name} served 3 turns. Paid ₹2,500 fine and is freed.');
-        final updated = current.copyWith(
-          cash: max(0, current.cash - 2500),
-          isInJail: false,
-          turnsInJail: 0,
-        );
+    final lockId = _actionLockId;
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (lockId != _actionLockId) return;
+
+      _addLog('${current.name} in Hospital/Jail rolled $d1 & $d2');
+
+      if (isDouble) {
+        _addLog('🎉 Doubles! ${current.name} escapes from Lockup free!');
+        final updated = current.copyWith(isInJail: false, turnsInJail: 0);
         _updatePlayer(updated);
         state = state.copyWith(
           lastDiceRoll: [d1, d2],
           isDoubles: false,
+          consecutiveDoubles: 0,
+          isRollingDice: false,
           phase: GamePhase.moving,
-          message: '${current.name} paid ₹2,500 fine and was released.',
+          message: '${current.name} rolled doubles and got out of jail!',
         );
         _movePlayerStepwise(d1 + d2);
       } else {
-        _addLog('${current.name} did not roll doubles ($turns/3 turns)');
-        final updated = current.copyWith(turnsInJail: turns);
-        _updatePlayer(updated);
-        state = state.copyWith(
-          lastDiceRoll: [d1, d2],
-          isDoubles: false,
-          phase: GamePhase.turnEnd,
-          message: 'Still in Lockup. Try again next turn.',
-        );
-        if (current.type == PlayerType.ai) {
-          Future.delayed(const Duration(milliseconds: 1200), _endTurn);
+        int turns = current.turnsInJail + 1;
+        if (turns >= 3) {
+          // Forced bail
+          _addLog('${current.name} served 3 turns. Paid ₹2,500 fine and is freed.');
+          final updated = current.copyWith(
+            cash: max(0, current.cash - 2500),
+            isInJail: false,
+            turnsInJail: 0,
+          );
+          _updatePlayer(updated);
+          state = state.copyWith(
+            lastDiceRoll: [d1, d2],
+            isDoubles: false,
+            isRollingDice: false,
+            phase: GamePhase.moving,
+            message: '${current.name} paid ₹2,500 fine and was released.',
+          );
+          _movePlayerStepwise(d1 + d2);
+        } else {
+          _addLog('${current.name} did not roll doubles ($turns/3 turns)');
+          final updated = current.copyWith(turnsInJail: turns);
+          _updatePlayer(updated);
+          state = state.copyWith(
+            lastDiceRoll: [d1, d2],
+            isDoubles: false,
+            isRollingDice: false,
+            phase: GamePhase.turnEnd,
+            message: 'Still in Lockup. Try again next turn.',
+          );
+          if (current.type == PlayerType.ai) {
+            Future.delayed(const Duration(milliseconds: 1200), _endTurn);
+          }
         }
       }
-    }
+    });
   }
 
   void payJailBail() {
@@ -1178,12 +1215,33 @@ class GameNotifier extends Notifier<GameState> {
       ownedPropertyIds: const [],
     );
 
+    // Persist real bankruptcy decree log in Supabase Postgres
+    try {
+      Supabase.instance.client.from('bankruptcy_logs').insert({
+        'room_id': 'match',
+        'bankrupt_player_name': player.name,
+        'creditor_name': creditor?.name,
+        'properties_forfeited': player.ownedPropertyIds.length,
+        'sealed_at': DateTime.now().toIso8601String(),
+      }).then((_) {}).catchError((_) {});
+    } catch (_) {}
+
     // Check winner condition
     final active = newPlayers.where((p) => !p.isBankrupt).toList();
     if (active.length <= 1) {
       final winner = active.isNotEmpty ? active.first : player;
       _addLog('VICTORY! ${winner.name} won Kuthaka!');
       try { ref.read(audioServiceProvider.notifier).playVictory(); } catch (_) {}
+
+      // Award real XP to winner in Supabase Postgres user_xp
+      try {
+        ref.read(leaderboardServiceProvider).awardXp(
+          playerName: winner.name,
+          xpToAdd: 50,
+          isWinner: true,
+        );
+      } catch (_) {}
+
       state = state.copyWith(
         players: newPlayers,
         properties: newProps,

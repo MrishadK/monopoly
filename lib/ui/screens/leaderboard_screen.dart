@@ -43,7 +43,7 @@ class LeaderboardScreen extends ConsumerWidget {
               CircularProgressIndicator(color: Color(0xFF047857)),
               SizedBox(height: 16),
               Text(
-                'Connecting to Supabase Leaderboard...',
+                'Connecting to Live Leaderboard...',
                 style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold),
               ),
             ],
@@ -102,7 +102,7 @@ class LeaderboardScreen extends ConsumerWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Live Supabase Postgres Database',
+                      'Official Kerala Championship • Live',
                       style: GoogleFonts.outfit(
                         color: const Color(0xFF065F46),
                         fontSize: 12,
@@ -223,15 +223,58 @@ class LeaderboardScreen extends ConsumerWidget {
 
               // Standings List
               Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: tycoons.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final tycoon = tycoons[index];
-                    return _buildTycoonTile(tycoon, index + 1);
-                  },
-                ),
+                child: tycoons.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0xFFFDE68A)),
+                                ),
+                                child: const Icon(
+                                  Icons.emoji_events_rounded,
+                                  size: 40,
+                                  color: Color(0xFFD97706),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Season 1 Leaderboard Open!',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'No champions ranked yet. Play matches, acquire properties, and win games to claim #1 in Kerala!',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.outfit(
+                                  color: const Color(0xFF64748B),
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: tycoons.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final tycoon = tycoons[index];
+                          return _buildTycoonTile(tycoon, index + 1);
+                        },
+                      ),
               ),
             ],
           );

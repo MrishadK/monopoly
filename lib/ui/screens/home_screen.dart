@@ -245,7 +245,7 @@ class HomeScreen extends ConsumerWidget {
                 _buildMenuBtn(
                   context,
                   title: 'KERALA TYCOONS',
-                  subtitle: 'Supabase Live Hall of Fame',
+                  subtitle: 'Global Kerala Hall of Fame',
                   icon: Icons.leaderboard_rounded,
                   isPrimary: false,
                   onTap: () => _openLeaderboard(context),

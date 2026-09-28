@@ -44,13 +44,7 @@ class LeaderboardService {
     final client = _client;
     if (client != null) {
       try {
-        if (client.auth.currentUser == null) {
-          try {
-            await client.auth.signInAnonymously();
-          } catch (authErr) {
-            debugPrint('[LeaderboardService] Anonymous sign-in attempt: $authErr');
-          }
-        }
+
 
         final data = await client
             .from('user_xp')
@@ -80,85 +74,56 @@ class LeaderboardService {
           }).toList();
         }
       } catch (e) {
-        debugPrint('[LeaderboardService] Supabase fetch fallback: $e');
+        debugPrint('[LeaderboardService] Leaderboard fetch: $e');
       }
     }
 
-    return _fallbackKeralaTycoons;
+    return const <KeralaTycoon>[];
   }
 
-  static const List<KeralaTycoon> _fallbackKeralaTycoons = [
-    KeralaTycoon(
-      id: 'k1',
-      displayName: 'Yusuff Ali',
-      totalXp: 1250,
-      level: 14,
-      state: 'Thrissur',
-      country: 'India',
-      rank: 1,
-    ),
-    KeralaTycoon(
-      id: 'k2',
-      displayName: 'Ravi Pillai',
-      totalXp: 980,
-      level: 11,
-      state: 'Kollam',
-      country: 'India',
-      rank: 2,
-    ),
-    KeralaTycoon(
-      id: 'k3',
-      displayName: 'Syed',
-      totalXp: 750,
-      level: 9,
-      state: 'Malappuram',
-      country: 'India',
-      rank: 3,
-    ),
-    KeralaTycoon(
-      id: 'k4',
-      displayName: 'Afi',
-      totalXp: 620,
-      level: 8,
-      state: 'Kozhikode',
-      country: 'India',
-      rank: 4,
-    ),
-    KeralaTycoon(
-      id: 'k5',
-      displayName: 'Zeeshan',
-      totalXp: 540,
-      level: 7,
-      state: 'Kannur',
-      country: 'India',
-      rank: 5,
-    ),
-    KeralaTycoon(
-      id: 'k6',
-      displayName: 'Dulquer',
-      totalXp: 490,
-      level: 6,
-      state: 'Kochi',
-      country: 'India',
-      rank: 6,
-    ),
-    KeralaTycoon(
-      id: 'k7',
-      displayName: 'Abdul Khader',
-      totalXp: 410,
-      level: 5,
-      state: 'Alappuzha',
-      country: 'India',
-      rank: 7,
-    ),
-    KeralaTycoon(
-      id: 'k8',
-      displayName: 'Rash Pk',
-      totalXp: 350,
-      level: 4,
-      state: 'Wayanad',
-      country: 'India',
-      rank: 8,
-    ),
-  ];
+  Future<void> awardXp({
+    required String playerName,
+    required int xpToAdd,
+    bool isWinner = false,
+  }) async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      final res = await client
+          .from('user_xp')
+          .select('id, total_xp, level, games_played, games_won')
+          .eq('display_name', playerName)
+          .maybeSingle();
+
+      if (res != null) {
+        final currentXp = (res['total_xp'] is int) ? res['total_xp'] as int : 0;
+        final newXp = currentXp + xpToAdd;
+        final newLevel = (newXp / 100).floor() + 1;
+        final gamesPlayed = (res['games_played'] is int) ? (res['games_played'] as int) + 1 : 1;
+        final gamesWon = (res['games_won'] is int)
+            ? (res['games_won'] as int) + (isWinner ? 1 : 0)
+            : (isWinner ? 1 : 0);
+
+        await client.from('user_xp').update({
+          'total_xp': newXp,
+          'level': newLevel,
+          'games_played': gamesPlayed,
+          'games_won': gamesWon,
+          'last_updated': DateTime.now().toIso8601String(),
+        }).eq('id', res['id']);
+      } else {
+        await client.from('user_xp').insert({
+          'display_name': playerName,
+          'total_xp': xpToAdd,
+          'level': (xpToAdd / 100).floor() + 1,
+          'games_played': 1,
+          'games_won': isWinner ? 1 : 0,
+          'state': 'Kerala',
+          'country': 'India',
+        });
+      }
+    } catch (e) {
+      debugPrint('[LeaderboardService] awardXp error: $e');
+    }
+  }
 }
