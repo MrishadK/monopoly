@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../providers/game_provider.dart';
 import '../../models/property.dart';
 import '../../models/player.dart';
+import '../../data/game_data.dart';
 
 class PropertyCardOverlay extends ConsumerWidget {
   const PropertyCardOverlay({super.key});
@@ -118,8 +119,8 @@ class PropertyCardOverlay extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Text(
                         prop.isTransport
-                            ? 'Transport Scale:\n1 Station: ₹2,500  •  2: ₹5,000\n3: ₹10,000  •  4: ₹20,000'
-                            : 'Utility Scale:\n1 Utility: 400x Dice Roll\n2 Utilities: 1000x Dice Roll',
+                            ? 'Transport Fare Scale:\n1 Transport: ₹15  •  2: ₹35\n3: ₹70  •  4: ₹135'
+                            : 'Kerala Utility Tariff:\n1 Utility: 4× Dice Total (₹8 - ₹48)\n2 Utilities: 10× Dice Total (₹20 - ₹120)',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.outfit(color: const Color(0xFF334155), fontSize: 13, height: 1.4),
                       ),
@@ -157,12 +158,12 @@ class PropertyCardOverlay extends ConsumerWidget {
                       ),
                     ),
 
-                  // Actions
+                  // Actions: Buy Tile or Put up for Auction
                   if (isLandedHere && isUnowned) ...[
                     Row(
                       children: [
                         Expanded(
-                          child: ElevatedButton(
+                          child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF047857),
                               foregroundColor: Colors.white,
@@ -172,23 +173,28 @@ class PropertyCardOverlay extends ConsumerWidget {
                             onPressed: current.cash >= prop.price
                                 ? () => ref.read(gameProvider.notifier).buyProperty(prop.id)
                                 : null,
-                            child: Text(
+                            icon: const Icon(Icons.shopping_bag_rounded, size: 17),
+                            label: Text(
                               'BUY ₹${prop.price}',
-                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
+                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13.5),
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF0F172A),
-                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFD97706),
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            onPressed: () => ref.read(gameProvider.notifier).passProperty(),
-                            child: Text('PASS', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                            onPressed: () => ref.read(gameProvider.notifier).startAuction(prop.id),
+                            icon: const Icon(Icons.gavel_rounded, size: 17),
+                            label: Text(
+                              'AUCTION',
+                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13.5),
+                            ),
                           ),
                         ),
                       ],
@@ -271,7 +277,7 @@ class PropertyCardOverlay extends ConsumerWidget {
   }
 
   int _getPropertySpaceIndex(String propId) {
-    return 0;
+    return GameData.spaces.indexWhere((s) => s.propertyId == propId);
   }
 
   Color _getGroupColor(PropertyGroup group) {

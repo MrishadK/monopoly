@@ -125,8 +125,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     // Center Traditional Emblem: Clean Vector Medallion (NO EMOJIS)
     _drawCenterEmblem(canvas, Offset(inner.center.dx, inner.top + inner.height * 0.44));
 
-    // Center Dice Display
-    _drawCenterDice(canvas, inner);
   }
 
   void _drawCenterEmblem(Canvas canvas, Offset center) {
@@ -156,108 +154,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawPath(path, emblemFill);
   }
 
-  void _drawCenterDice(Canvas canvas, Rect centerRect) {
-    if (lastDiceRoll.length < 2) return;
-    final d1 = lastDiceRoll[0];
-    final d2 = lastDiceRoll[1];
-
-    final diceSize = centerRect.width * 0.15;
-    final y = centerRect.top + centerRect.height * 0.60;
-    final totalW = diceSize * 2 + 16;
-    final trayRect = Rect.fromCenter(
-      center: Offset(centerRect.center.dx, y + diceSize / 2 + 8),
-      width: totalW + 28,
-      height: diceSize + 36,
-    );
-
-    // Subtle ivory mat tray behind dice
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(trayRect, const Radius.circular(14)),
-      Paint()..color = Colors.white.withValues(alpha: 0.85),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(trayRect, const Radius.circular(14)),
-      Paint()
-        ..color = const Color(0x55C5A049)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
-
-    final x1 = centerRect.center.dx - diceSize - 6;
-    final x2 = centerRect.center.dx + 6;
-
-    _renderSingleDice(canvas, Rect.fromLTWH(x1, y, diceSize, diceSize), d1);
-    _renderSingleDice(canvas, Rect.fromLTWH(x2, y, diceSize, diceSize), d2);
-
-    // Dice sum pill
-    final totalSpan = TextSpan(
-      text: 'ROLLED ${d1 + d2}${isDoubles ? " • DOUBLES!" : ""}',
-      style: TextStyle(
-        color: isDoubles ? const Color(0xFFC62828) : const Color(0xFF133E2B),
-        fontSize: 11.5,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.2,
-      ),
-    );
-    final totalPainter = TextPainter(text: totalSpan, textDirection: TextDirection.ltr);
-    totalPainter.layout();
-    totalPainter.paint(
-      canvas,
-      Offset(centerRect.center.dx - totalPainter.width / 2, y + diceSize + 6),
-    );
-  }
-
-  void _renderSingleDice(Canvas canvas, Rect r, int value) {
-    // Drop shadow
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(r.translate(0, 2), const Radius.circular(8)),
-      Paint()..color = const Color(0x25000000),
-    );
-
-    // Die body with clean porcelain ivory gradient
-    final diePaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFFFFFFF), Color(0xFFF1EDE4)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(r);
-    canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(8)), diePaint);
-
-    // Gold rim border
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(8)),
-      Paint()
-        ..color = const Color(0xFFC5A049)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-
-    // Draw deep crimson pips (dots)
-    final dotPaint = Paint()..color = const Color(0xFFB71C1C);
-    final dotRadius = r.width * 0.09;
-    final cx = r.center.dx;
-    final cy = r.center.dy;
-    final left = r.left + r.width * 0.25;
-    final right = r.right - r.width * 0.25;
-    final top = r.top + r.height * 0.25;
-    final bottom = r.bottom - r.height * 0.25;
-
-    if (value % 2 == 1) {
-      canvas.drawCircle(Offset(cx, cy), dotRadius, dotPaint); // Center
-    }
-    if (value > 1) {
-      canvas.drawCircle(Offset(left, top), dotRadius, dotPaint);
-      canvas.drawCircle(Offset(right, bottom), dotRadius, dotPaint);
-    }
-    if (value > 3) {
-      canvas.drawCircle(Offset(right, top), dotRadius, dotPaint);
-      canvas.drawCircle(Offset(left, bottom), dotRadius, dotPaint);
-    }
-    if (value == 6) {
-      canvas.drawCircle(Offset(left, cy), dotRadius, dotPaint);
-      canvas.drawCircle(Offset(right, cy), dotRadius, dotPaint);
-    }
-  }
 
   void _drawAllSpaces(Canvas canvas) {
     double cornerW = size.x * 0.13;
@@ -269,6 +165,97 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       final rect = _getSpaceRect(i, cornerW, cornerH, spaceW, spaceH);
       _drawSingleSpace(canvas, i, rect);
     }
+
+    // Draw prominent inward ownership extensions so owners are crystal-clear
+    for (int i = 0; i < 40; i++) {
+      final space = GameData.spaces[i];
+      if (space.propertyId != null) {
+        final prop = properties[space.propertyId];
+        if (prop != null && prop.ownerId != null) {
+          final rect = _getSpaceRect(i, cornerW, cornerH, spaceW, spaceH);
+          _drawOwnershipInwardExtension(canvas, i, rect, prop);
+        }
+      }
+    }
+  }
+
+  void _drawOwnershipInwardExtension(Canvas canvas, int index, Rect spaceRect, Property prop) {
+    if (prop.ownerId == null) return;
+    final owner = players.firstWhere((p) => p.id == prop.ownerId, orElse: () => players.first);
+
+    const double extDepth = 13.0; // Inward extension depth
+    Rect extRect;
+    RRect rrect;
+
+    if (index > 0 && index < 10) {
+      // Bottom edge: inward is UP
+      extRect = Rect.fromLTWH(spaceRect.left + 1, spaceRect.top - extDepth, spaceRect.width - 2, extDepth);
+      rrect = RRect.fromRectAndCorners(
+        extRect,
+        topLeft: const Radius.circular(5),
+        topRight: const Radius.circular(5),
+      );
+    } else if (index > 10 && index < 20) {
+      // Left edge: inward is RIGHT
+      extRect = Rect.fromLTWH(spaceRect.right, spaceRect.top + 1, extDepth, spaceRect.height - 2);
+      rrect = RRect.fromRectAndCorners(
+        extRect,
+        topRight: const Radius.circular(5),
+        bottomRight: const Radius.circular(5),
+      );
+    } else if (index > 20 && index < 30) {
+      // Top edge: inward is DOWN
+      extRect = Rect.fromLTWH(spaceRect.left + 1, spaceRect.bottom, spaceRect.width - 2, extDepth);
+      rrect = RRect.fromRectAndCorners(
+        extRect,
+        bottomLeft: const Radius.circular(5),
+        bottomRight: const Radius.circular(5),
+      );
+    } else if (index > 30) {
+      // Right edge: inward is LEFT
+      extRect = Rect.fromLTWH(spaceRect.left - extDepth, spaceRect.top + 1, extDepth, spaceRect.height - 2);
+      rrect = RRect.fromRectAndCorners(
+        extRect,
+        topLeft: const Radius.circular(5),
+        bottomLeft: const Radius.circular(5),
+      );
+    } else {
+      return; // Corners don't have ownership
+    }
+
+    // Shadow
+    canvas.drawRRect(
+      rrect.shift(const Offset(0, 1)),
+      Paint()..color = const Color(0x30000000),
+    );
+
+    // Extension fill with owner color
+    final fillPaint = Paint()..color = prop.isMortgaged ? const Color(0xFF64748B) : owner.color;
+    canvas.drawRRect(rrect, fillPaint);
+
+    // Gold Kasavu border
+    final borderPaint = Paint()
+      ..color = const Color(0xFFC5A049)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawRRect(rrect, borderPaint);
+
+    // Centered owner initial badge
+    final badgeRadius = min(extRect.width, extRect.height) * 0.32;
+    canvas.drawCircle(extRect.center, badgeRadius, Paint()..color = Colors.white);
+
+    final initial = owner.name.trim().isNotEmpty ? owner.name.trim()[0].toUpperCase() : 'P';
+    final textSpan = TextSpan(
+      text: prop.isMortgaged ? 'M' : initial,
+      style: TextStyle(
+        color: prop.isMortgaged ? const Color(0xFF64748B) : owner.color,
+        fontSize: badgeRadius * 1.35,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+    final tp = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
+    tp.layout();
+    tp.paint(canvas, Offset(extRect.center.dx - tp.width / 2, extRect.center.dy - tp.height / 2));
   }
 
   Rect _getSpaceRect(int index, double cornerW, double cornerH, double spaceW, double spaceH) {
@@ -425,7 +412,8 @@ class BoardComponent extends PositionComponent with TapCallbacks {
 
     switch (space.type) {
       case SpaceType.railroad:
-        sub = '₹200';
+        final prop = properties[space.propertyId];
+        sub = '₹${prop?.price ?? 135}';
         if (space.name.contains('Metro')) {
           drawIcon = () => _drawMetroIcon(canvas, rect.center);
         } else if (space.name.contains('Airport')) {
@@ -437,7 +425,8 @@ class BoardComponent extends PositionComponent with TapCallbacks {
         }
         break;
       case SpaceType.utility:
-        sub = '₹150';
+        final prop = properties[space.propertyId];
+        sub = '₹${prop?.price ?? 100}';
         if (space.name.contains('KSEB')) {
           drawIcon = () => _drawLightningIcon(canvas, rect.center);
         } else {
@@ -453,7 +442,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
         drawIcon = () => _drawLampIcon(canvas, rect.center);
         break;
       case SpaceType.tax:
-        sub = '₹${space.feeAmount ?? 100}';
+        sub = '₹${space.feeAmount ?? 50}';
         drawIcon = () => _drawTaxIcon(canvas, rect.center);
         break;
       default:

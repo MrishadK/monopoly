@@ -35,6 +35,7 @@ class Player {
   final int turnsInJail;
   final int getOutOfJailCards;
   final List<String> ownedPropertyIds;
+  final int consecutiveTimeouts;
   
   const Player({
     required this.id,
@@ -50,6 +51,7 @@ class Player {
     this.turnsInJail = 0,
     this.getOutOfJailCards = 0,
     this.ownedPropertyIds = const [],
+    this.consecutiveTimeouts = 0,
   });
 
   IconData get tokenIcon {
@@ -121,6 +123,7 @@ class Player {
     int? turnsInJail,
     int? getOutOfJailCards,
     List<String>? ownedPropertyIds,
+    int? consecutiveTimeouts,
   }) {
     return Player(
       id: id ?? this.id,
@@ -136,6 +139,7 @@ class Player {
       turnsInJail: turnsInJail ?? this.turnsInJail,
       getOutOfJailCards: getOutOfJailCards ?? this.getOutOfJailCards,
       ownedPropertyIds: ownedPropertyIds ?? List.from(this.ownedPropertyIds),
+      consecutiveTimeouts: consecutiveTimeouts ?? this.consecutiveTimeouts,
     );
   }
 
@@ -154,6 +158,7 @@ class Player {
       'turnsInJail': turnsInJail,
       'getOutOfJailCards': getOutOfJailCards,
       'ownedPropertyIds': ownedPropertyIds,
+      'consecutiveTimeouts': consecutiveTimeouts,
     };
   }
 
@@ -174,6 +179,7 @@ class Player {
       turnsInJail: map['turnsInJail'] ?? 0,
       getOutOfJailCards: map['getOutOfJailCards'] ?? 0,
       ownedPropertyIds: List<String>.from(map['ownedPropertyIds'] ?? const []),
+      consecutiveTimeouts: (map['consecutiveTimeouts'] as num?)?.toInt() ?? 0,
     );
   }
 }

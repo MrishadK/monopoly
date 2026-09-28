@@ -252,6 +252,47 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             ),
           ),
 
+          // 30-Second Turn Timer Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: gameState.turnTimeRemaining <= 10
+                  ? const Color(0xFFFEF2F2)
+                  : const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: gameState.turnTimeRemaining <= 10
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF10B981),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.timer_rounded,
+                  size: 13,
+                  color: gameState.turnTimeRemaining <= 10
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF047857),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${gameState.turnTimeRemaining}s',
+                  style: GoogleFonts.outfit(
+                    color: gameState.turnTimeRemaining <= 10
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF047857),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Match / Room Mode Badge & Quick Menu
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -443,6 +484,25 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                         ),
                         child: Text(
                           'BANKRUPT',
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFFDC2626),
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (player.consecutiveTimeouts > 0 && !player.isBankrupt) ...[
+                      const SizedBox(width: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFEF4444), width: 0.8),
+                        ),
+                        child: Text(
+                          '${player.consecutiveTimeouts}/3 TIMEOUTS',
                           style: GoogleFonts.outfit(
                             color: const Color(0xFFDC2626),
                             fontSize: 7.5,
@@ -758,9 +818,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             children: [
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.black),
-                onPressed: current.cash >= 2500 ? () => ref.read(gameProvider.notifier).payJailBail() : null,
+                onPressed: current.cash >= 100 ? () => ref.read(gameProvider.notifier).payJailBail() : null,
                 icon: const Icon(Icons.payment_rounded, size: 16),
-                label: Text('PAY ₹2,500', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: Text('PAY ₹100', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 8),
               if (current.getOutOfJailCards > 0) ...[
@@ -784,34 +844,45 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       }
 
       // Normal Roll Button
+      final isDoublesBonus = gameState.consecutiveDoubles > 0;
+      final rollLabel = isDoublesBonus
+          ? (!isOnline ? '${current.name.toUpperCase()} - ROLL AGAIN 🎲' : 'ROLL AGAIN (DOUBLES!) 🎲')
+          : (!isOnline ? '${current.name.toUpperCase()} - ROLL' : 'ROLL DICE');
+
       return InkWell(
         onTap: () => ref.read(gameProvider.notifier).rollDice(),
         borderRadius: BorderRadius.circular(28),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 12),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
+            gradient: LinearGradient(
+              colors: isDoublesBonus
+                  ? const [Color(0xFFFF9800), Color(0xFFE65100)]
+                  : const [Color(0xFFFFD54F), Color(0xFFFFB300)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(28),
-            boxShadow: const [
-              BoxShadow(color: Color(0x35FFB300), blurRadius: 14, offset: Offset(0, 4)),
+            boxShadow: [
+              BoxShadow(
+                color: isDoublesBonus ? const Color(0x55FF9800) : const Color(0x35FFB300),
+                blurRadius: isDoublesBonus ? 18 : 14,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.casino_rounded, color: Colors.black87, size: 22),
+              Icon(Icons.casino_rounded, color: isDoublesBonus ? Colors.white : Colors.black87, size: 22),
               const SizedBox(width: 10),
               Text(
-                !isOnline ? '${current.name.toUpperCase()} - ROLL' : 'ROLL DICE',
+                rollLabel,
                 style: GoogleFonts.outfit(
-                  color: Colors.black87,
+                  color: isDoublesBonus ? Colors.white : Colors.black87,
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
+                  letterSpacing: 1.5,
                 ),
               ),
             ],
@@ -820,19 +891,24 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       );
     }
 
+    if (gameState.phase == GamePhase.spaceAction && gameState.inspectedProperty != null) {
+      return const SizedBox.shrink();
+    }
+
     if (gameState.phase == GamePhase.turnEnd || gameState.phase == GamePhase.spaceAction) {
+      final isDoublesRoll = gameState.isDoubles && !current.isInJail;
       return ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF00695C),
+          backgroundColor: isDoublesRoll ? const Color(0xFFE65100) : const Color(0xFF00695C),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           elevation: 4,
         ),
         onPressed: () => ref.read(gameProvider.notifier).endTurn(),
-        icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+        icon: Icon(isDoublesRoll ? Icons.casino_rounded : Icons.check_circle_outline_rounded, size: 20),
         label: Text(
-          'END TURN',
+          isDoublesRoll ? 'ROLL AGAIN (DOUBLES!) 🎲' : 'END TURN',
           style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: 1.5),
         ),
       );

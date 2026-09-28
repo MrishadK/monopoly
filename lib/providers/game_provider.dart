@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import '../models/board_space.dart';
 import '../models/event_card.dart';
 import '../models/trade_offer.dart';
 import '../models/bankruptcy_record.dart';
+import '../models/auction_state.dart';
 import '../data/game_data.dart';
 import '../services/multiplayer_service.dart';
 import '../services/audio_service.dart';
@@ -27,9 +29,11 @@ class GameState {
   final EventCard? activeEventCard;
   final Property? inspectedProperty;
   final BankruptcyRecord? activeBankruptcyRecord;
+  final AuctionState? activeAuction;
   final List<String> gameLogs;
   final bool isAiThinking;
   final bool isRollingDice;
+  final int turnTimeRemaining;
 
   const GameState({
     required this.players,
@@ -43,9 +47,11 @@ class GameState {
     this.activeEventCard,
     this.inspectedProperty,
     this.activeBankruptcyRecord,
+    this.activeAuction,
     this.gameLogs = const [],
     this.isAiThinking = false,
     this.isRollingDice = false,
+    this.turnTimeRemaining = 30,
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -66,9 +72,12 @@ class GameState {
     bool clearInspectedProperty = false,
     BankruptcyRecord? activeBankruptcyRecord,
     bool clearBankruptcyRecord = false,
+    AuctionState? activeAuction,
+    bool clearActiveAuction = false,
     List<String>? gameLogs,
     bool? isAiThinking,
     bool? isRollingDice,
+    int? turnTimeRemaining,
   }) {
     return GameState(
       players: players ?? this.players,
@@ -82,9 +91,11 @@ class GameState {
       activeEventCard: clearActiveEventCard ? null : (activeEventCard ?? this.activeEventCard),
       inspectedProperty: clearInspectedProperty ? null : (inspectedProperty ?? this.inspectedProperty),
       activeBankruptcyRecord: clearBankruptcyRecord ? null : (activeBankruptcyRecord ?? this.activeBankruptcyRecord),
+      activeAuction: clearActiveAuction ? null : (activeAuction ?? this.activeAuction),
       gameLogs: gameLogs ?? this.gameLogs,
       isAiThinking: isAiThinking ?? this.isAiThinking,
       isRollingDice: isRollingDice ?? this.isRollingDice,
+      turnTimeRemaining: turnTimeRemaining ?? this.turnTimeRemaining,
     );
   }
 
@@ -99,8 +110,10 @@ class GameState {
       'consecutiveDoubles': consecutiveDoubles,
       'message': message,
       'activeBankruptcyRecord': activeBankruptcyRecord?.toMap(),
+      'activeAuction': activeAuction?.toMap(),
       'gameLogs': gameLogs,
       'isRollingDice': isRollingDice,
+      'turnTimeRemaining': turnTimeRemaining,
     };
   }
 
@@ -117,8 +130,12 @@ class GameState {
       activeBankruptcyRecord: map['activeBankruptcyRecord'] != null
           ? BankruptcyRecord.fromMap(Map<String, dynamic>.from(map['activeBankruptcyRecord']))
           : null,
+      activeAuction: map['activeAuction'] != null
+          ? AuctionState.fromMap(Map<String, dynamic>.from(map['activeAuction']))
+          : null,
       gameLogs: List<String>.from(map['gameLogs'] ?? []),
       isRollingDice: map['isRollingDice'] ?? false,
+      turnTimeRemaining: (map['turnTimeRemaining'] as num?)?.toInt() ?? 30,
     );
   }
 }
@@ -127,6 +144,7 @@ class GameNotifier extends Notifier<GameState> {
   final Random _random = Random();
   bool _isHost = true;
   int _actionLockId = 0;
+  Timer? _turnTimer;
 
   @override
   GameState build() {
@@ -186,6 +204,8 @@ class GameNotifier extends Notifier<GameState> {
       _broadcastState();
     }
 
+    _startTurnTimer();
+
     if (players.first.type == PlayerType.ai) {
       _scheduleAiTurn();
     }
@@ -214,7 +234,8 @@ class GameNotifier extends Notifier<GameState> {
     final data = payload['data'] is Map ? Map<String, dynamic>.from(payload['data'] as Map) : <String, dynamic>{};
     final senderPlayerId = data['playerId'] as String?;
 
-    if (senderPlayerId != null && senderPlayerId != state.currentPlayer.id) {
+    final isAuctionAction = actionType == 'place_bid' || actionType == 'pass_bid';
+    if (!isAuctionAction && senderPlayerId != null && senderPlayerId != state.currentPlayer.id) {
       debugPrint('[GameNotifier] Ignored $actionType from $senderPlayerId (active: ${state.currentPlayer.id})');
       return;
     }
@@ -226,6 +247,19 @@ class GameNotifier extends Notifier<GameState> {
       case 'buy_property':
         final propId = data['propertyId'] as String?;
         if (propId != null) _executeBuyProperty(propId);
+        break;
+      case 'start_auction':
+        final propId = data['propertyId'] as String?;
+        if (propId != null) _executeStartAuction(propId);
+        break;
+      case 'place_bid':
+        final pId = data['playerId'] as String?;
+        final amount = (data['amount'] as num?)?.toInt();
+        if (pId != null && amount != null) _executePlaceBid(pId, amount);
+        break;
+      case 'pass_bid':
+        final pId = data['playerId'] as String?;
+        if (pId != null) _executePassBid(pId);
         break;
       case 'pass_property':
         _executePassProperty();
@@ -283,10 +317,21 @@ class GameNotifier extends Notifier<GameState> {
       return;
     }
     state = state.copyWith(clearActiveEventCard: true);
-    if (state.phase == GamePhase.spaceAction) {
+    final current = state.currentPlayer;
+    if (state.isDoubles && !current.isInJail) {
+      _addLog('🎲 Doubles! ${current.name} gets another roll!');
+      state = state.copyWith(
+        phase: GamePhase.roll,
+        isDoubles: false,
+        message: 'DOUBLES! ${current.name} rolls again! 🎲',
+      );
+      if (current.type == PlayerType.ai) {
+        _scheduleAiTurn();
+      }
+    } else {
       state = state.copyWith(phase: GamePhase.turnEnd);
-      if (state.currentPlayer.type == PlayerType.ai) {
-        _endTurn();
+      if (current.type == PlayerType.ai) {
+        _scheduleAiTurnEnd();
       }
     }
   }
@@ -307,6 +352,9 @@ class GameNotifier extends Notifier<GameState> {
     if (state.phase != GamePhase.roll || state.isRollingDice) return;
     try { ref.read(audioServiceProvider.notifier).playDiceRoll(); } catch (_) {}
     final current = state.currentPlayer;
+    if (current.consecutiveTimeouts > 0) {
+      _updatePlayer(current.copyWith(consecutiveTimeouts: 0));
+    }
 
     // Check jail handling
     if (current.isInJail) {
@@ -388,9 +436,9 @@ class GameNotifier extends Notifier<GameState> {
         int turns = current.turnsInJail + 1;
         if (turns >= 3) {
           // Forced bail
-          _addLog('${current.name} served 3 turns. Paid ₹50 fine and is freed.');
+          _addLog('${current.name} served 3 turns. Paid ₹100 fine and is freed.');
           final updated = current.copyWith(
-            cash: max(0, current.cash - 50),
+            cash: max(0, current.cash - 100),
             isInJail: false,
             turnsInJail: 0,
           );
@@ -400,7 +448,7 @@ class GameNotifier extends Notifier<GameState> {
             isDoubles: false,
             isRollingDice: false,
             phase: GamePhase.moving,
-            message: '${current.name} paid ₹50 fine and was released.',
+            message: '${current.name} paid ₹100 fine and was released.',
           );
           _movePlayerStepwise(d1 + d2);
         } else {
@@ -435,7 +483,7 @@ class GameNotifier extends Notifier<GameState> {
   void _executePayJailBail() {
     final current = state.currentPlayer;
     if (!current.isInJail) return;
-    const bailCost = 50;
+    const bailCost = 100;
     if (current.cash >= bailCost) {
       _addLog('${current.name} paid ₹$bailCost fine to leave Lockup.');
       final updated = current.copyWith(
@@ -491,8 +539,9 @@ class GameNotifier extends Notifier<GameState> {
 
     _updatePlayer(current.copyWith(position: targetPos, cash: newCash));
 
-    // Allow board token hop animation to finish
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    // Allow board token hop animation to finish at calibrated slower speed
+    final delayMs = (totalSteps * 360) + 500;
+    Future.delayed(Duration(milliseconds: delayMs), () {
       if (lockId != _actionLockId) return;
       state = state.copyWith(phase: GamePhase.spaceAction);
       _handleSpaceAction();
@@ -523,12 +572,24 @@ class GameNotifier extends Notifier<GameState> {
           }
         } else if (prop.ownerId == current.id) {
           _addLog('${current.name} visited their own property (${prop.name})');
-          state = state.copyWith(
-            phase: GamePhase.turnEnd,
-            message: 'You own ${prop.name}. Relax!',
-          );
-          if (current.type == PlayerType.ai) {
-            _scheduleAiTurnEnd();
+          if (state.isDoubles && !current.isInJail) {
+            _addLog('🎲 Doubles! ${current.name} gets another roll!');
+            state = state.copyWith(
+              phase: GamePhase.roll,
+              isDoubles: false,
+              message: 'You own ${prop.name}. Rolled DOUBLES! Roll again! 🎲',
+            );
+            if (current.type == PlayerType.ai) {
+              _scheduleAiTurn();
+            }
+          } else {
+            state = state.copyWith(
+              phase: GamePhase.turnEnd,
+              message: 'You own ${prop.name}. Relax!',
+            );
+            if (current.type == PlayerType.ai) {
+              _scheduleAiTurnEnd();
+            }
           }
         } else {
           // Opponent property - pay rent!
@@ -536,12 +597,24 @@ class GameNotifier extends Notifier<GameState> {
             _payRent(prop);
           } else {
             _addLog('${prop.name} is mortgaged. No rent due!');
-            state = state.copyWith(
-              phase: GamePhase.turnEnd,
-              message: '${prop.name} is mortgaged. No rent owed!',
-            );
-            if (current.type == PlayerType.ai) {
-              _scheduleAiTurnEnd();
+            if (state.isDoubles && !current.isInJail) {
+              _addLog('🎲 Doubles! ${current.name} gets another roll!');
+              state = state.copyWith(
+                phase: GamePhase.roll,
+                isDoubles: false,
+                message: '${prop.name} is mortgaged. Rolled DOUBLES! Roll again! 🎲',
+              );
+              if (current.type == PlayerType.ai) {
+                _scheduleAiTurn();
+              }
+            } else {
+              state = state.copyWith(
+                phase: GamePhase.turnEnd,
+                message: '${prop.name} is mortgaged. No rent owed!',
+              );
+              if (current.type == PlayerType.ai) {
+                _scheduleAiTurnEnd();
+              }
             }
           }
         }
@@ -567,33 +640,69 @@ class GameNotifier extends Notifier<GameState> {
 
       case SpaceType.freeParking:
         _addLog('${current.name} took a tea break at Chaya Kada. ☕');
-        state = state.copyWith(
-          phase: GamePhase.turnEnd,
-          message: 'Enjoyed a Meter Chaya at Chaya Kada!',
-        );
-        if (current.type == PlayerType.ai) {
-          _scheduleAiTurnEnd();
+        if (state.isDoubles && !current.isInJail) {
+          _addLog('🎲 Doubles! ${current.name} gets another roll!');
+          state = state.copyWith(
+            phase: GamePhase.roll,
+            isDoubles: false,
+            message: 'Enjoyed Meter Chaya! Rolled DOUBLES! Roll again! 🎲',
+          );
+          if (current.type == PlayerType.ai) {
+            _scheduleAiTurn();
+          }
+        } else {
+          state = state.copyWith(
+            phase: GamePhase.turnEnd,
+            message: 'Enjoyed a Meter Chaya at Chaya Kada!',
+          );
+          if (current.type == PlayerType.ai) {
+            _scheduleAiTurnEnd();
+          }
         }
         break;
 
       case SpaceType.jail:
         _addLog('${current.name} is Just Visiting the Hospital/Jail.');
-        state = state.copyWith(
-          phase: GamePhase.turnEnd,
-          message: 'Just visiting the Hospital.',
-        );
-        if (current.type == PlayerType.ai) {
-          _scheduleAiTurnEnd();
+        if (state.isDoubles && !current.isInJail) {
+          _addLog('🎲 Doubles! ${current.name} gets another roll!');
+          state = state.copyWith(
+            phase: GamePhase.roll,
+            isDoubles: false,
+            message: 'Just visiting. Rolled DOUBLES! Roll again! 🎲',
+          );
+          if (current.type == PlayerType.ai) {
+            _scheduleAiTurn();
+          }
+        } else {
+          state = state.copyWith(
+            phase: GamePhase.turnEnd,
+            message: 'Just visiting the Hospital.',
+          );
+          if (current.type == PlayerType.ai) {
+            _scheduleAiTurnEnd();
+          }
         }
         break;
 
       case SpaceType.start:
-        state = state.copyWith(
-          phase: GamePhase.turnEnd,
-          message: 'At Naattile Thudakkam!',
-        );
-        if (current.type == PlayerType.ai) {
-          _scheduleAiTurnEnd();
+        if (state.isDoubles && !current.isInJail) {
+          _addLog('🎲 Doubles! ${current.name} gets another roll!');
+          state = state.copyWith(
+            phase: GamePhase.roll,
+            isDoubles: false,
+            message: 'At Naattile Thudakkam! Rolled DOUBLES! Roll again! 🎲',
+          );
+          if (current.type == PlayerType.ai) {
+            _scheduleAiTurn();
+          }
+        } else {
+          state = state.copyWith(
+            phase: GamePhase.turnEnd,
+            message: 'At Naattile Thudakkam!',
+          );
+          if (current.type == PlayerType.ai) {
+            _scheduleAiTurnEnd();
+          }
         }
         break;
     }
@@ -714,12 +823,24 @@ class GameNotifier extends Notifier<GameState> {
     if (current.cash >= rent) {
       _transferMoney(current.id, owner.id, rent);
       try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
-      state = state.copyWith(
-        phase: GamePhase.turnEnd,
-        message: 'Paid ₹$rent rent to ${owner.name}',
-      );
-      if (current.type == PlayerType.ai) {
-        _scheduleAiTurnEnd();
+      if (state.isDoubles && !current.isInJail) {
+        _addLog('🎲 Doubles! ${current.name} gets another roll!');
+        state = state.copyWith(
+          phase: GamePhase.roll,
+          isDoubles: false,
+          message: 'Paid ₹$rent rent to ${owner.name}. Rolled DOUBLES! Roll again! 🎲',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurn();
+        }
+      } else {
+        state = state.copyWith(
+          phase: GamePhase.turnEnd,
+          message: 'Paid ₹$rent rent to ${owner.name}',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurnEnd();
+        }
       }
     } else {
       _handleCashDeficit(current, rent, creditorId: owner.id);
@@ -732,12 +853,24 @@ class GameNotifier extends Notifier<GameState> {
     if (current.cash >= amount) {
       _updatePlayer(current.copyWith(cash: current.cash - amount));
       try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
-      state = state.copyWith(
-        phase: GamePhase.turnEnd,
-        message: 'Paid ₹$amount in $taxName',
-      );
-      if (current.type == PlayerType.ai) {
-        _scheduleAiTurnEnd();
+      if (state.isDoubles && !current.isInJail) {
+        _addLog('🎲 Doubles! ${current.name} gets another roll!');
+        state = state.copyWith(
+          phase: GamePhase.roll,
+          isDoubles: false,
+          message: 'Paid ₹$amount in $taxName. Rolled DOUBLES! Roll again! 🎲',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurn();
+        }
+      } else {
+        state = state.copyWith(
+          phase: GamePhase.turnEnd,
+          message: 'Paid ₹$amount in $taxName',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurnEnd();
+        }
       }
     } else {
       _handleCashDeficit(current, amount);
@@ -806,17 +939,31 @@ class GameNotifier extends Notifier<GameState> {
 
       _updatePlayer(updatedPlayer);
       try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
-      state = state.copyWith(
-        properties: newProps,
-        clearInspectedProperty: true,
-        phase: GamePhase.turnEnd,
-        message: '${current.name} purchased ${prop.name} for ₹${prop.price}!',
-      );
 
       _addLog('${current.name} bought ${prop.name} for ₹${prop.price}');
 
-      if (updatedPlayer.type == PlayerType.ai) {
-        _scheduleAiTurnEnd();
+      if (state.isDoubles && !updatedPlayer.isInJail) {
+        _addLog('🎲 Doubles! ${current.name} gets another roll!');
+        state = state.copyWith(
+          properties: newProps,
+          clearInspectedProperty: true,
+          phase: GamePhase.roll,
+          isDoubles: false,
+          message: '${current.name} purchased ${prop.name}! Rolled DOUBLES! Roll again! 🎲',
+        );
+        if (updatedPlayer.type == PlayerType.ai) {
+          _scheduleAiTurn();
+        }
+      } else {
+        state = state.copyWith(
+          properties: newProps,
+          clearInspectedProperty: true,
+          phase: GamePhase.turnEnd,
+          message: '${current.name} purchased ${prop.name} for ₹${prop.price}!',
+        );
+        if (updatedPlayer.type == PlayerType.ai) {
+          _scheduleAiTurnEnd();
+        }
       }
     }
   }
@@ -833,6 +980,13 @@ class GameNotifier extends Notifier<GameState> {
 
   void _executePassProperty() {
     final current = state.currentPlayer;
+    final prop = state.inspectedProperty;
+    if (prop != null && prop.ownerId == null && state.phase == GamePhase.spaceAction) {
+      // Per Monopoly rules: passing on an unpurchased tile puts it up for auction
+      _executeStartAuction(prop.id);
+      return;
+    }
+
     _addLog('${current.name} passed on buying ${state.inspectedProperty?.name ?? "property"}');
     state = state.copyWith(
       clearInspectedProperty: true,
@@ -842,6 +996,305 @@ class GameNotifier extends Notifier<GameState> {
     if (current.type == PlayerType.ai) {
       _scheduleAiTurnEnd();
     }
+  }
+
+  // ==================== AUCTION SYSTEM ====================
+
+  void startAuction(String propertyId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('start_auction', {
+        'playerId': state.currentPlayer.id,
+        'propertyId': propertyId,
+      });
+      return;
+    }
+    _executeStartAuction(propertyId);
+  }
+
+  void _executeStartAuction(String propertyId) {
+    final prop = state.properties[propertyId];
+    if (prop == null || prop.ownerId != null) return;
+
+    final current = state.currentPlayer;
+    // Bidders list starting with current player (who landed on the tile and bids first)
+    final nonBankrupt = state.players.where((p) => !p.isBankrupt).toList();
+    final currentIdxInNonBankrupt = nonBankrupt.indexWhere((p) => p.id == current.id);
+    final orderedBidders = <Player>[];
+    for (int i = 0; i < nonBankrupt.length; i++) {
+      final p = nonBankrupt[(currentIdxInNonBankrupt + i) % nonBankrupt.length];
+      orderedBidders.add(p);
+    }
+
+    final auction = AuctionState(
+      propertyId: propertyId,
+      initiatorPlayerId: current.id,
+      highestBid: 0,
+      highestBidderId: null,
+      currentBidderIndex: 0, // Current player bids first!
+      activeBidderIds: orderedBidders.map((p) => p.id).toList(),
+      bidHistory: ['${current.name} put ${prop.name} up for auction!'],
+    );
+
+    _addLog('🔨 AUCTION: ${current.name} put ${prop.name} up for auction! ${current.name} bids first.');
+    try { ref.read(audioServiceProvider.notifier).playCardDraw(); } catch (_) {}
+
+    state = state.copyWith(
+      clearInspectedProperty: true,
+      activeAuction: auction,
+      message: 'Auction for ${prop.name}! ${current.name} bids first.',
+    );
+
+    if (current.type == PlayerType.ai) {
+      _scheduleAiAuctionBid();
+    }
+  }
+
+  void placeBid(String playerId, int amount) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('place_bid', {
+        'playerId': playerId,
+        'amount': amount,
+      });
+      return;
+    }
+    _executePlaceBid(playerId, amount);
+  }
+
+  void _executePlaceBid(String playerId, int amount) {
+    final auction = state.activeAuction;
+    if (auction == null || auction.isCompleted) return;
+
+    final bidder = state.players.firstWhere((p) => p.id == playerId);
+    if (amount <= auction.highestBid || bidder.cash < amount) return;
+
+    _addLog('🔨 ${bidder.name} bid ₹$amount on ${state.properties[auction.propertyId]?.name ?? "property"}');
+    try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
+
+    // Advance to next active bidder
+    final nextIdx = (auction.currentBidderIndex + 1) % auction.activeBidderIds.length;
+
+    final updatedAuction = auction.copyWith(
+      highestBid: amount,
+      highestBidderId: playerId,
+      currentBidderIndex: nextIdx,
+      bidHistory: [...auction.bidHistory, '${bidder.name} bid ₹$amount'],
+    );
+
+    state = state.copyWith(
+      activeAuction: updatedAuction,
+      message: '${bidder.name} bid ₹$amount! Waiting for next bidder...',
+    );
+
+    final nextBidderId = updatedAuction.currentBidderId;
+    final nextBidder = state.players.firstWhere((p) => p.id == nextBidderId);
+    if (nextBidder.type == PlayerType.ai && !updatedAuction.isCompleted) {
+      _scheduleAiAuctionBid();
+    }
+  }
+
+  void passBid(String playerId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('pass_bid', {
+        'playerId': playerId,
+      });
+      return;
+    }
+    _executePassBid(playerId);
+  }
+
+  void _executePassBid(String playerId) {
+    final auction = state.activeAuction;
+    if (auction == null || auction.isCompleted) return;
+
+    final passer = state.players.firstWhere((p) => p.id == playerId);
+    final remainingBidders = List<String>.from(auction.activeBidderIds)..remove(playerId);
+
+    _addLog('${passer.name} passed in auction for ${state.properties[auction.propertyId]?.name ?? "property"}');
+
+    // Case 1: Only 1 bidder left and there is a highest bidder -> Winner!
+    if (remainingBidders.length == 1 && auction.highestBidderId != null) {
+      final winnerId = auction.highestBidderId!;
+      final winningBid = auction.highestBid;
+      final completedAuction = auction.copyWith(
+        activeBidderIds: remainingBidders,
+        bidHistory: [...auction.bidHistory, '${passer.name} passed.'],
+        isCompleted: true,
+        winnerId: winnerId,
+        winningBid: winningBid,
+      );
+      state = state.copyWith(activeAuction: completedAuction);
+      _concludeAuction(winnerId, winningBid);
+      return;
+    }
+
+    // Case 2: All bidders have passed (nobody placed a bid or all remaining folded)
+    if (remainingBidders.isEmpty || (remainingBidders.length == 1 && auction.highestBidderId == null)) {
+      final completedAuction = auction.copyWith(
+        activeBidderIds: [],
+        bidHistory: [...auction.bidHistory, '${passer.name} passed.'],
+        isCompleted: true,
+      );
+      state = state.copyWith(activeAuction: completedAuction);
+      _concludeAuctionNoBids();
+      return;
+    }
+
+    // Case 3: Still multiple bidders left -> Advance turn
+    final nextIdx = auction.currentBidderIndex % remainingBidders.length;
+    final updatedAuction = auction.copyWith(
+      activeBidderIds: remainingBidders,
+      currentBidderIndex: nextIdx,
+      bidHistory: [...auction.bidHistory, '${passer.name} passed.'],
+    );
+
+    state = state.copyWith(
+      activeAuction: updatedAuction,
+      message: '${passer.name} passed.',
+    );
+
+    final nextBidderId = updatedAuction.currentBidderId;
+    final nextBidder = state.players.firstWhere((p) => p.id == nextBidderId);
+    if (nextBidder.type == PlayerType.ai) {
+      _scheduleAiAuctionBid();
+    }
+  }
+
+  void _concludeAuction(String winnerId, int winningBid) {
+    final auction = state.activeAuction;
+    if (auction == null) return;
+    final prop = state.properties[auction.propertyId];
+    if (prop == null) return;
+    final winner = state.players.firstWhere((p) => p.id == winnerId);
+
+    _addLog('🏆 ${winner.name} won ${prop.name} for ₹$winningBid in auction!');
+    try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
+
+    final newProps = Map<String, Property>.from(state.properties);
+    newProps[prop.id] = prop.copyWith(ownerId: winner.id);
+
+    final updatedWinner = winner.copyWith(
+      cash: winner.cash - winningBid,
+      ownedPropertyIds: [...winner.ownedPropertyIds, prop.id],
+    );
+    _updatePlayer(updatedWinner);
+
+    state = state.copyWith(
+      properties: newProps,
+      message: '${winner.name} won ${prop.name} for ₹$winningBid!',
+    );
+
+    Future.delayed(const Duration(milliseconds: 1600), () {
+      state = state.copyWith(clearActiveAuction: true);
+
+      // Check doubles rule for current turn player!
+      final current = state.currentPlayer;
+      if (state.isDoubles && !current.isInJail) {
+        _addLog('🎲 Doubles! ${current.name} gets another roll!');
+        state = state.copyWith(
+          phase: GamePhase.roll,
+          isDoubles: false,
+          message: 'DOUBLES! ${current.name} rolls again! 🎲',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurn();
+        }
+      } else {
+        state = state.copyWith(
+          phase: GamePhase.turnEnd,
+          message: 'Auction concluded. Turn finished.',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurnEnd();
+        }
+      }
+    });
+  }
+
+  void _concludeAuctionNoBids() {
+    final current = state.currentPlayer;
+    _addLog('No bids received. Property remains unowned.');
+
+    Future.delayed(const Duration(milliseconds: 1800), () {
+      state = state.copyWith(clearActiveAuction: true);
+
+      if (state.isDoubles && !current.isInJail) {
+        _addLog('🎲 Doubles! ${current.name} gets another roll!');
+        state = state.copyWith(
+          phase: GamePhase.roll,
+          isDoubles: false,
+          message: 'DOUBLES! ${current.name} rolls again! 🎲',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurn();
+        }
+      } else {
+        state = state.copyWith(
+          phase: GamePhase.turnEnd,
+          message: 'Auction ended. No one purchased the property.',
+        );
+        if (current.type == PlayerType.ai) {
+          _scheduleAiTurnEnd();
+        }
+      }
+    });
+  }
+
+  void _scheduleAiAuctionBid() {
+    final auction = state.activeAuction;
+    if (auction == null || auction.isCompleted) return;
+
+    final bidderId = auction.currentBidderId;
+    final ai = state.players.firstWhere((p) => p.id == bidderId);
+    if (ai.type != PlayerType.ai) return;
+
+    Future.delayed(const Duration(milliseconds: 1100), () {
+      final currentAuction = state.activeAuction;
+      if (currentAuction == null || currentAuction.isCompleted) return;
+      if (currentAuction.currentBidderId != ai.id) return;
+
+      final prop = state.properties[currentAuction.propertyId];
+      if (prop == null) {
+        passBid(ai.id);
+        return;
+      }
+
+      // AI Valuation:
+      final personality = ai.aiPersonality ?? AiPersonality.conservative;
+      double factor = 0.8;
+      switch (personality) {
+        case AiPersonality.aggressive:
+        case AiPersonality.riskTaker:
+          factor = 1.15;
+          break;
+        case AiPersonality.investor:
+          factor = 1.0;
+          break;
+        case AiPersonality.trader:
+          factor = 0.9;
+          break;
+        case AiPersonality.conservative:
+          factor = 0.75;
+          break;
+      }
+
+      // Check if completing monopoly:
+      final groupProps = state.properties.values.where((p) => p.group == prop.group);
+      final aiOwned = groupProps.where((p) => p.ownerId == ai.id).length;
+      if (aiOwned == groupProps.length - 1) {
+        factor = 1.6; // High willingness to bid for monopoly
+      }
+
+      final maxWillingness = (prop.price * factor).round();
+      final minNextBid = currentAuction.minimumNextBid;
+
+      if (minNextBid <= maxWillingness && ai.cash >= minNextBid + 15) {
+        // AI places bid!
+        placeBid(ai.id, minNextBid);
+      } else {
+        // AI passes
+        passBid(ai.id);
+      }
+    });
   }
 
   void upgradeProperty(String propertyId) {
@@ -1061,7 +1514,7 @@ class GameNotifier extends Notifier<GameState> {
     if (shouldBuy) {
       buyProperty(prop.id);
     } else {
-      passProperty();
+      startAuction(prop.id);
     }
   }
 
@@ -1101,8 +1554,149 @@ class GameNotifier extends Notifier<GameState> {
     _endTurn();
   }
 
+  void closeAuction() {
+    if (state.activeAuction != null) {
+      state = state.copyWith(clearActiveAuction: true);
+    }
+  }
+
+  void _startTurnTimer() {
+    _turnTimer?.cancel();
+    if (state.phase == GamePhase.gameOver) return;
+
+    state = state.copyWith(turnTimeRemaining: 30);
+    _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (state.phase == GamePhase.gameOver) {
+        timer.cancel();
+        return;
+      }
+      final remaining = state.turnTimeRemaining - 1;
+      if (remaining > 0) {
+        state = state.copyWith(turnTimeRemaining: remaining);
+      } else {
+        timer.cancel();
+        _handleTurnTimeout();
+      }
+    });
+  }
+
+  void _handleTurnTimeout() {
+    if (state.phase == GamePhase.gameOver) return;
+
+    final current = state.currentPlayer;
+    final newTimeouts = current.consecutiveTimeouts + 1;
+    _addLog('⏱️ ${current.name}\'s 30s turn timer expired! (Strike $newTimeouts/3)');
+
+    if (newTimeouts >= 3) {
+      _addLog('🚫 ${current.name} did not play for 3 consecutive turns! Removed from game. All tiles are now unowned.');
+      _removePlayerForTimeouts(current);
+    } else {
+      _updatePlayer(current.copyWith(consecutiveTimeouts: newTimeouts));
+      state = state.copyWith(
+        clearActiveAuction: true,
+        clearActiveEventCard: true,
+        clearInspectedProperty: true,
+        message: '${current.name} timed out (Strike $newTimeouts/3). Passing turn.',
+      );
+      _forcePassTurn();
+    }
+  }
+
+  void _removePlayerForTimeouts(Player player) {
+    final newProps = Map<String, Property>.from(state.properties);
+    final newPlayers = List<Player>.from(state.players);
+    final playerIdx = newPlayers.indexWhere((p) => p.id == player.id);
+
+    // All properties become unowned and available for others to buy
+    for (final propId in player.ownedPropertyIds) {
+      final prop = newProps[propId];
+      if (prop != null) {
+        newProps[propId] = prop.copyWith(
+          clearOwner: true,
+          currentLevel: 0,
+          isMortgaged: false,
+        );
+      }
+    }
+
+    if (playerIdx != -1) {
+      newPlayers[playerIdx] = player.copyWith(
+        isBankrupt: true,
+        cash: 0,
+        ownedPropertyIds: const [],
+        consecutiveTimeouts: 3,
+      );
+    }
+
+    final active = newPlayers.where((p) => !p.isBankrupt).toList();
+    if (active.length <= 1) {
+      final winner = active.isNotEmpty ? active.first : player;
+      _addLog('🏆 VICTORY! ${winner.name} won Kuthaka!');
+      try { ref.read(audioServiceProvider.notifier).playVictory(); } catch (_) {}
+      state = state.copyWith(
+        players: newPlayers,
+        properties: newProps,
+        phase: GamePhase.gameOver,
+        clearActiveAuction: true,
+        clearActiveEventCard: true,
+        clearInspectedProperty: true,
+        message: '${winner.name} Wins Kuthaka!',
+      );
+      _turnTimer?.cancel();
+    } else {
+      state = state.copyWith(
+        players: newPlayers,
+        properties: newProps,
+        clearActiveAuction: true,
+        clearActiveEventCard: true,
+        clearInspectedProperty: true,
+        message: '${player.name} removed for inactivity.',
+      );
+      _forcePassTurn();
+    }
+  }
+
+  void _forcePassTurn() {
+    if (state.phase == GamePhase.gameOver) return;
+
+    state = state.copyWith(isDoubles: false, consecutiveDoubles: 0);
+
+    int nextIdx = (state.currentPlayerIndex + 1) % state.players.length;
+    int searchCount = 0;
+    while (state.players[nextIdx].isBankrupt && searchCount < state.players.length) {
+      nextIdx = (nextIdx + 1) % state.players.length;
+      searchCount++;
+    }
+
+    final nextPlayer = state.players[nextIdx];
+
+    state = state.copyWith(
+      currentPlayerIndex: nextIdx,
+      phase: GamePhase.roll,
+      consecutiveDoubles: 0,
+      isDoubles: false,
+      clearActiveEventCard: true,
+      clearInspectedProperty: true,
+      clearActiveAuction: true,
+      turnTimeRemaining: 30,
+      message: '${nextPlayer.name}\'s Turn!',
+    );
+
+    _startTurnTimer();
+
+    if (nextPlayer.type == PlayerType.ai) {
+      _scheduleAiTurn();
+    }
+  }
+
   void _endTurn() {
     if (state.phase == GamePhase.gameOver) return;
+
+    // Reset strike count if current player successfully took action
+    final current = state.currentPlayer;
+    if (current.consecutiveTimeouts > 0) {
+      _updatePlayer(current.copyWith(consecutiveTimeouts: 0));
+    }
 
     // If rolled doubles, get another roll (unless currently in jail)
     if (state.isDoubles && !state.currentPlayer.isInJail) {
@@ -1110,8 +1704,10 @@ class GameNotifier extends Notifier<GameState> {
       state = state.copyWith(
         phase: GamePhase.roll,
         isDoubles: false,
+        turnTimeRemaining: 30,
         message: 'DOUBLES! Roll again.',
       );
+      _startTurnTimer();
       if (state.currentPlayer.type == PlayerType.ai) {
         _scheduleAiTurn();
       }
@@ -1135,8 +1731,11 @@ class GameNotifier extends Notifier<GameState> {
       isDoubles: false,
       clearActiveEventCard: true,
       clearInspectedProperty: true,
+      turnTimeRemaining: 30,
       message: '${nextPlayer.name}\'s Turn!',
     );
+
+    _startTurnTimer();
 
     if (nextPlayer.type == PlayerType.ai) {
       _scheduleAiTurn();
@@ -1178,7 +1777,7 @@ class GameNotifier extends Notifier<GameState> {
         newProps[propId] = newProps[propId]!.copyWith(ownerId: creditorId);
       } else {
         newProps[propId] = newProps[propId]!.copyWith(
-          ownerId: null,
+          clearOwner: true,
           currentLevel: 0,
           isMortgaged: false,
         );
@@ -1271,6 +1870,7 @@ class GameNotifier extends Notifier<GameState> {
       _declareBankrupt(player);
     }
   }
+
 
   void dismissBankruptcy() {
     if (!_isHost) {

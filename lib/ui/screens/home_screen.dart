@@ -108,17 +108,23 @@ class HomeScreen extends ConsumerWidget {
                             fontSize: 14,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.edit_rounded,
+                          size: 13,
+                          color: Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF3C7),
+                            color: profile.isCustom ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            'PROFILE',
+                            profile.isCustom ? 'CUSTOM' : 'PROFILE',
                             style: GoogleFonts.outfit(
-                              color: const Color(0xFF92400E),
+                              color: profile.isCustom ? const Color(0xFF047857) : const Color(0xFF92400E),
                               fontSize: 9,
                               fontWeight: FontWeight.w900,
                             ),
@@ -172,23 +178,46 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Logo Title
-                Text(
-                  'KUTHAKA',
-                  style: GoogleFonts.outfit(
-                    fontSize: 54,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFF0F172A),
-                    letterSpacing: 8,
+                // Logo Title - Responsive & guaranteed single line
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Builder(
+                      builder: (context) {
+                        final screenWidth = MediaQuery.of(context).size.width;
+                        final double titleSize = (screenWidth * 0.12).clamp(32.0, 52.0);
+                        final double spacing = (screenWidth * 0.016).clamp(3.0, 8.0);
+                        return Text(
+                          'KUTHAKA',
+                          maxLines: 1,
+                          softWrap: false,
+                          style: GoogleFonts.outfit(
+                            fontSize: titleSize,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF0F172A),
+                            letterSpacing: spacing,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
-                Text(
-                  'കുത്തക  •  A KERALA REAL ESTATE SAGA',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF64748B),
-                    letterSpacing: 2,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'കുത്തക  •  A KERALA REAL ESTATE SAGA',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF64748B),
+                        letterSpacing: 2,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -373,22 +402,32 @@ class HomeScreen extends ConsumerWidget {
           borderRadius: BorderRadius.circular(24),
           side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
         ),
-        title: Text(
-          'KUTHAKA RULES GUIDE',
-          style: GoogleFonts.outfit(color: const Color(0xFF0F172A), fontWeight: FontWeight.w900),
+        title: Row(
+          children: [
+            const Icon(Icons.menu_book_rounded, color: Color(0xFF047857), size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'HOW TO PLAY KUTHAKA',
+              style: GoogleFonts.outfit(color: const Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 18),
+            ),
+          ],
         ),
         content: SizedBox(
-          width: 380,
+          width: 420,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _guideSection(Icons.flag_rounded, 'The Objective', 'Bankrupt your fellow players and become the supreme real estate tycoon across God\'s Own Country.'),
-                _guideSection(Icons.casino_rounded, 'Starting Out', 'All players begin at "Naattile Thudakkam" with ₹1,000 cash. Passing Start awards ₹200.'),
-                _guideSection(Icons.star_rounded, 'Monopolies', 'Acquire all lands in a color group (e.g. Kozhikode, Kochi, Munnar) to DOUBLE the base rent!'),
-                _guideSection(Icons.cottage_rounded, 'Cottages & Resorts', 'Once you hold a monopoly, build up to 4 traditional Cottages, then upgrade to a luxury Resort for massive rent payouts!'),
-                _guideSection(Icons.directions_bus_rounded, 'Transports & Utilities', 'Own KSRTC Stand, Kochi Metro, Ferry, and Airport for scaling travel fares. Utilities (KSEB, Water) charge based on dice rolls.'),
-                _guideSection(Icons.local_police_rounded, 'Police Lockup', 'Landing on the Police Station sends you to Lockup at the Hospital. Pay ₹50 fine, use a card, or roll doubles to get out!'),
+                _guideSection(Icons.flag_rounded, 'Objective of the Game', 'Become the wealthiest player across God\'s Own Country through buying, renting, and trading properties until opponents go bankrupt.'),
+                _guideSection(Icons.account_balance_wallet_rounded, 'Starting Balance & GO (₹200)', 'All players begin with a ₹1,000 balance. Each time you land on or pass "Naattile Thudakkam" (GO), the Bank pays you a ₹200 salary.'),
+                _guideSection(Icons.casino_rounded, 'Dice & Rolling Doubles', 'Roll two dice to move clockwise. Rolling matching numbers (Doubles) gives you an immediate extra turn! Roll doubles 3 times in a row and you go straight to Police Lockup.'),
+                _guideSection(Icons.gavel_rounded, 'Buying Property & Auctions', 'Land on an unowned property to buy it from the Bank at printed price, or put it up for Auction. In auctions, the landing player bids first, and the highest bidder wins the Title Deed.'),
+                _guideSection(Icons.payments_rounded, 'Paying Rent & Monopolies', 'Opponents pay rent when landing on your lands. Owning all properties in a complete color group (Monopoly) doubles the rent on unimproved properties.'),
+                _guideSection(Icons.cottage_rounded, 'Cottages & Luxury Resorts', 'Once you hold a complete color group, build up to 4 traditional Cottages evenly across the properties, then upgrade to a luxury Resort for massive rent collection.'),
+                _guideSection(Icons.directions_bus_rounded, 'Transports & Utilities', 'Own KSRTC Stand, Kochi Metro, Ferry, and Airport to scale travel fares (₹15 to ₹135). Utilities (KSEB, Water) collect rent based on dice rolls.'),
+                _guideSection(Icons.local_police_rounded, 'Police Lockup (Jail)', 'Sent to Jail by landing on Police Station, drawing a card, or rolling 3 doubles. Get out by rolling doubles, using a "Get Out of Jail Free" card, or paying a ₹100 fine before rolling on either of your next two turns (mandatory after turn 3).'),
+                _guideSection(Icons.account_balance_rounded, 'Mortgages (10% Interest)', 'Unimproved properties can be mortgaged to the Bank for cash (50% face value). Lift mortgages by repaying the mortgage value plus 10% interest. Mortgaged properties collect no rent.'),
+                _guideSection(Icons.dangerous_rounded, 'Bankruptcy', 'You are declared bankrupt if you owe more debt than your cash and assets can cover. All assets are surrendered, and you retire from the match.'),
               ],
             ),
           ),
@@ -398,6 +437,7 @@ class HomeScreen extends ConsumerWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF047857),
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
             onPressed: () => Navigator.pop(ctx),
