@@ -53,13 +53,15 @@ class GameMenuDialog extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.music_note_rounded, color: Color(0xFF0F172A), size: 20),
-                            SizedBox(width: 8),
-                            Text('Lo-Fi Ambient Music', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13)),
-                          ],
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.music_note_rounded, color: Color(0xFF0F172A), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(child: Text('Lo-Fi Ambient Music', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
                         ),
                         Switch(
                           value: audioService.isMusicEnabled,
@@ -85,13 +87,15 @@ class GameMenuDialog extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.volume_up_rounded, color: Color(0xFF0F172A), size: 20),
-                            SizedBox(width: 8),
-                            Text('Sound Effects (SFX)', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13)),
-                          ],
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.volume_up_rounded, color: Color(0xFF0F172A), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(child: Text('Sound Effects (SFX)', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
                         ),
                         Switch(
                           value: audioService.isSfxEnabled,
@@ -130,16 +134,21 @@ class GameMenuDialog extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.mic_rounded, color: Color(0xFF0F172A), size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Live Voice Chat Room',
-                              style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                          ],
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.mic_rounded, color: Color(0xFF0F172A), size: 18),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Live Voice Chat Room',
+                                  style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -294,12 +303,15 @@ class GameMenuDialog extends ConsumerWidget {
           children: [
             Icon(icon, color: isDestructive ? const Color(0xFFDC2626) : const Color(0xFF0F172A), size: 20),
             const SizedBox(width: 14),
-            Text(
-              title,
-              style: GoogleFonts.outfit(
-                color: isDestructive ? const Color(0xFFDC2626) : const Color(0xFF0F172A),
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.outfit(
+                  color: isDestructive ? const Color(0xFFDC2626) : const Color(0xFF0F172A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

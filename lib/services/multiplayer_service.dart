@@ -206,8 +206,29 @@ class MultiplayerService {
     }
   }
 
-  void broadcastRoomClosed(String roomId) {
-    broadcastHostLeft(roomId);
+  Future<void> broadcastRoomClosed(String roomId) async {
+    // 1. Alert discovery channel to remove room from browser
+    if (_discoveryChannel != null) {
+      try {
+        await _discoveryChannel!.sendBroadcastMessage(
+          event: 'room_closed',
+          payload: {'roomId': roomId},
+        );
+      } catch (_) {}
+    }
+
+    _activeRooms.remove(roomId);
+    _notifyRooms();
+
+    // 2. Automatically and permanently DELETE room from Supabase database
+    final client = _client;
+    if (client != null) {
+      try {
+        await client.from('game_rooms').delete().eq('room_id', roomId);
+      } catch (err) {
+        debugPrint('[MultiplayerService] game_rooms delete error: $err');
+      }
+    }
   }
 
   void sendPlayerKicked(String playerId) {
