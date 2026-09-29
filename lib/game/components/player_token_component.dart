@@ -15,6 +15,8 @@ class PlayerTokenComponent extends PositionComponent {
   bool _isMoving = false;
   double _hopAltitude = 0.0;
 
+  bool get isMoving => _isMoving;
+
   PlayerTokenComponent({
     required this.player,
     required this.playerIndex,
@@ -30,12 +32,18 @@ class PlayerTokenComponent extends PositionComponent {
       int oldPos = player.position;
       int newPos = updated.position;
 
-      // Calculate clockwise forward steps
-      int forwardSteps = (newPos - oldPos) % 40;
-      if (forwardSteps < 0) forwardSteps += 40;
+      // When landing on Police Station (tile 30) and sent to Jail (tile 10), jump BACKWARDS!
+      if (oldPos == 30 && newPos == 10) {
+        _targetTile = _currentTile - 20;
+        _isMoving = true;
+      } else {
+        // Calculate clockwise forward steps
+        int forwardSteps = (newPos - oldPos) % 40;
+        if (forwardSteps < 0) forwardSteps += 40;
 
-      _targetTile = _currentTile + forwardSteps;
-      _isMoving = true;
+        _targetTile = _currentTile + forwardSteps;
+        _isMoving = true;
+      }
     }
     player = updated;
   }
@@ -45,22 +53,34 @@ class PlayerTokenComponent extends PositionComponent {
     super.update(dt);
 
     if (_isMoving) {
-      double speed = 2.8; // Reduced steps per second for clear, smooth jumping animation
-      double step = speed * dt;
-      if (_currentTile < _targetTile) {
+      final isBackward = _targetTile < _currentTile;
+      final speed = isBackward ? 4.5 : 2.8; // 4.5 spaces/sec for backward 20 spaces
+      final step = speed * dt;
+
+      if (isBackward) {
+        _currentTile -= step;
+        if (_currentTile <= _targetTile) {
+          _currentTile = _targetTile;
+          _isMoving = false;
+          _hopAltitude = 0.0;
+          _normalizeTileIndex();
+        } else {
+          final floorTile = _currentTile.floor();
+          final subProgress = _currentTile - floorTile;
+          _hopAltitude = sin(subProgress * pi) * 16.0;
+        }
+      } else {
         _currentTile += step;
         if (_currentTile >= _targetTile) {
           _currentTile = _targetTile;
           _isMoving = false;
           _hopAltitude = 0.0;
+          _normalizeTileIndex();
         } else {
-          // Compute hop arc for each tile step
-          double subProgress = _currentTile % 1.0;
+          final floorTile = _currentTile.floor();
+          final subProgress = _currentTile - floorTile;
           _hopAltitude = sin(subProgress * pi) * 16.0;
         }
-      } else {
-        _isMoving = false;
-        _hopAltitude = 0.0;
       }
     } else {
       _hopAltitude = 0.0;
@@ -69,14 +89,20 @@ class PlayerTokenComponent extends PositionComponent {
     _updatePositionOnBoard();
   }
 
+  void _normalizeTileIndex() {
+    _currentTile = (_currentTile % 40 + 40) % 40;
+    _targetTile = _currentTile;
+  }
+
   void _updatePositionOnBoard() {
     double cornerW = boardWidth * 0.13;
     double cornerH = boardHeight * 0.13;
     double spaceW = (boardWidth - (2 * cornerW)) / 9;
     double spaceH = (boardHeight - (2 * cornerH)) / 9;
 
-    int posIndex = (_currentTile % 40).floor();
-    double subProgress = _currentTile % 1.0;
+    int floorTile = _currentTile.floor();
+    int posIndex = (floorTile % 40 + 40) % 40;
+    double subProgress = _currentTile - floorTile;
 
     Vector2 currentPos = _calculateTileWalkway(posIndex, cornerW, cornerH, spaceW, spaceH);
     Vector2 nextPos = _calculateTileWalkway((posIndex + 1) % 40, cornerW, cornerH, spaceW, spaceH);

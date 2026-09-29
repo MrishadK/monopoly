@@ -83,9 +83,19 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final gameState = ref.watch(gameProvider);
     final currentPlayer = gameState.currentPlayer;
     final voiceService = ref.watch(voiceStreamServiceProvider);
+    final myProfile = ref.watch(userProfileProvider);
+    final multiplayer = ref.watch(multiplayerServiceProvider);
+    final isOnline = multiplayer.isConnected;
+    final isMyTurn = !isOnline || currentPlayer.id == myProfile.id;
 
-    return Stack(
-      children: [
+    return SizedBox.expand(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ==================== TRANSACTION NOTICE (3-SECOND BANNER) ====================
+          if (gameState.activeTransaction != null)
+            _buildTransactionNotice(context, gameState),
+
         // ==================== FLOATING EMOJI DISPLAY ====================
         const Positioned(
           top: 200,
@@ -163,7 +173,18 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                     _dockButton(
                       icon: Icons.swap_horiz_rounded,
                       title: 'Trade',
+                      enabled: isMyTurn,
                       onTap: () {
+                        if (!isMyTurn) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Only ${currentPlayer.name} can make plays during this turn!'),
+                              duration: const Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
                         showDialog(
                           context: context,
                           builder: (_) => const TradeDialog(),
@@ -202,7 +223,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             ],
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -272,46 +294,50 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             ),
           ),
 
-          // 30-Second Turn Timer Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: gameState.turnTimeRemaining <= 10
-                  ? const Color(0xFFFEF2F2)
-                  : const Color(0xFFF0FDF4),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: gameState.turnTimeRemaining <= 10
-                    ? const Color(0xFFEF4444)
-                    : const Color(0xFF10B981),
-                width: 1.2,
+          // 45-Second Turn Timer Badge / Auction Status
+          Builder(builder: (context) {
+            final isAuction = gameState.activeAuction != null;
+            final isWarning = !isAuction && gameState.turnTimeRemaining <= 10;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: isAuction
+                    ? const Color(0xFFFEF3C7)
+                    : (isWarning ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4)),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isAuction
+                      ? const Color(0xFFF59E0B)
+                      : (isWarning ? const Color(0xFFEF4444) : const Color(0xFF10B981)),
+                  width: 1.2,
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.timer_rounded,
-                  size: 13,
-                  color: gameState.turnTimeRemaining <= 10
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFF047857),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${gameState.turnTimeRemaining}s',
-                  style: GoogleFonts.outfit(
-                    color: gameState.turnTimeRemaining <= 10
-                        ? const Color(0xFFDC2626)
-                        : const Color(0xFF047857),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isAuction ? Icons.gavel_rounded : Icons.timer_rounded,
+                    size: 13,
+                    color: isAuction
+                        ? const Color(0xFFB45309)
+                        : (isWarning ? const Color(0xFFDC2626) : const Color(0xFF047857)),
                   ),
-                ),
-              ],
-            ),
-          ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isAuction ? 'AUCTION' : '${gameState.turnTimeRemaining}s',
+                    style: GoogleFonts.outfit(
+                      color: isAuction
+                          ? const Color(0xFFB45309)
+                          : (isWarning ? const Color(0xFFDC2626) : const Color(0xFF047857)),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
 
           // Match / Room Mode Badge & Quick Menu
           Row(
@@ -625,6 +651,110 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
+  Widget _buildTransactionNotice(BuildContext context, GameState gameState) {
+    final notice = gameState.activeTransaction;
+    if (notice == null) return const Positioned(child: SizedBox.shrink());
+
+    return Positioned(
+      top: 130,
+      left: 16,
+      right: 16,
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: notice.color, width: 2.0),
+            boxShadow: [
+              BoxShadow(
+                color: notice.color.withValues(alpha: 0.35),
+                blurRadius: 16,
+                spreadRadius: 2,
+                offset: const Offset(0, 4),
+              ),
+              const BoxShadow(
+                color: Color(0x60000000),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: notice.color.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: notice.color, width: 1.5),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  notice.icon,
+                  style: const TextStyle(fontSize: 18),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          notice.title,
+                          style: GoogleFonts.outfit(
+                            color: notice.color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '3s',
+                            style: GoogleFonts.outfit(
+                              color: const Color(0xFF94A3B8),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      notice.description,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _formatCurrency(int amount) {
     if (amount < 0) return '-${_formatCurrency(-amount)}';
     final str = amount.toString();
@@ -809,8 +939,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             const SizedBox(width: 10),
             Text(
               gameState.phase == GamePhase.roll
-                  ? "Waiting for ${current.name} to roll..."
-                  : "Waiting for ${current.name}'s move...",
+                  ? "Watching ${current.name} roll (45s)..."
+                  : "Watching ${current.name}'s move (45s)...",
               style: GoogleFonts.outfit(
                 color: const Color(0xFF0F172A),
                 fontSize: 13,
@@ -822,7 +952,40 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       );
     }
 
-    // Active Human Player Turn
+    // Active Human Player - Token Moving
+    if (gameState.phase == GamePhase.moving) {
+      return Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(23),
+          border: Border.all(color: current.color, width: 1.5),
+          boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: current.color),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              "${current.name} is moving...",
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF0F172A),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Active Human Player Turn - Roll Phase
     if (gameState.phase == GamePhase.roll) {
       if (current.isInJail) {
         return Container(
@@ -863,49 +1026,60 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         );
       }
 
-      // Normal Roll Button
+      // Normal Roll Button - Protected from horizontal overflow
       final isDoublesBonus = gameState.consecutiveDoubles > 0;
       final rollLabel = isDoublesBonus
-          ? (!isOnline ? '${current.name.toUpperCase()} - ROLL AGAIN 🎲' : 'ROLL AGAIN (DOUBLES!) 🎲')
-          : (!isOnline ? '${current.name.toUpperCase()} - ROLL' : 'ROLL DICE');
+          ? (!isOnline ? '${current.name} • ROLL AGAIN 🎲' : 'ROLL AGAIN (DOUBLES!) 🎲')
+          : (!isOnline ? '${current.name} • ROLL' : 'ROLL DICE');
 
-      return InkWell(
-        onTap: () => ref.read(gameProvider.notifier).rollDice(),
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDoublesBonus
-                  ? const [Color(0xFFFF9800), Color(0xFFE65100)]
-                  : const [Color(0xFFFFD54F), Color(0xFFFFB300)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: isDoublesBonus ? const Color(0x55FF9800) : const Color(0x35FFB300),
-                blurRadius: isDoublesBonus ? 18 : 14,
-                offset: const Offset(0, 4),
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width - 32,
+        ),
+        child: InkWell(
+          onTap: () => ref.read(gameProvider.notifier).rollDice(),
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDoublesBonus
+                    ? const [Color(0xFFFF9800), Color(0xFFE65100)]
+                    : const [Color(0xFFFFD54F), Color(0xFFFFB300)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.casino_rounded, color: isDoublesBonus ? Colors.white : Colors.black87, size: 22),
-              const SizedBox(width: 10),
-              Text(
-                rollLabel,
-                style: GoogleFonts.outfit(
-                  color: isDoublesBonus ? Colors.white : Colors.black87,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: isDoublesBonus ? const Color(0x55FF9800) : const Color(0x35FFB300),
+                  blurRadius: isDoublesBonus ? 18 : 14,
+                  offset: const Offset(0, 4),
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.casino_rounded, color: isDoublesBonus ? Colors.white : Colors.black87, size: 22),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      rollLabel,
+                      style: GoogleFonts.outfit(
+                        color: isDoublesBonus ? Colors.white : Colors.black87,
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -915,21 +1089,30 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       return const SizedBox.shrink();
     }
 
-    if (gameState.phase == GamePhase.turnEnd || gameState.phase == GamePhase.spaceAction) {
+    // Only allow END TURN during turnEnd (never during spaceAction or moving)
+    if (gameState.phase == GamePhase.turnEnd) {
       final isDoublesRoll = gameState.isDoubles && !current.isInJail;
-      return ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isDoublesRoll ? const Color(0xFFE65100) : const Color(0xFF00695C),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-          elevation: 4,
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width - 32,
         ),
-        onPressed: () => ref.read(gameProvider.notifier).endTurn(),
-        icon: Icon(isDoublesRoll ? Icons.casino_rounded : Icons.check_circle_outline_rounded, size: 20),
-        label: Text(
-          isDoublesRoll ? 'ROLL AGAIN (DOUBLES!) 🎲' : 'END TURN',
-          style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isDoublesRoll ? const Color(0xFFE65100) : const Color(0xFF00695C),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            elevation: 4,
+          ),
+          onPressed: () => ref.read(gameProvider.notifier).endTurn(),
+          icon: Icon(isDoublesRoll ? Icons.casino_rounded : Icons.check_circle_outline_rounded, size: 20),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              isDoublesRoll ? 'ROLL AGAIN (DOUBLES!) 🎲' : 'END TURN',
+              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+            ),
+          ),
         ),
       );
     }
@@ -941,6 +1124,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    bool enabled = true,
   }) {
     return InkWell(
       onTap: onTap,
@@ -950,11 +1134,15 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: const Color(0xFF0F172A), size: 20),
+            Icon(icon, color: enabled ? const Color(0xFF0F172A) : const Color(0xFF94A3B8), size: 20),
             const SizedBox(height: 2),
             Text(
               title,
-              style: GoogleFonts.outfit(color: const Color(0xFF475569), fontSize: 11, fontWeight: FontWeight.w700),
+              style: GoogleFonts.outfit(
+                color: enabled ? const Color(0xFF475569) : const Color(0xFF94A3B8),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),

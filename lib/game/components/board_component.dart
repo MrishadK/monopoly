@@ -8,8 +8,8 @@ import '../../models/player.dart';
 import '../../data/game_data.dart';
 
 class BoardComponent extends PositionComponent with TapCallbacks {
-  final Map<String, Property> properties;
-  final List<Player> players;
+  Map<String, Property> properties;
+  List<Player> players;
   List<int> lastDiceRoll;
   bool isDoubles;
   final void Function(Property property)? onPropertyTapped;
@@ -23,6 +23,18 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   });
 
   void updateDice(List<int> dice, bool doubles) {
+    lastDiceRoll = dice;
+    isDoubles = doubles;
+  }
+
+  void updateData({
+    required Map<String, Property> newProperties,
+    required List<Player> newPlayers,
+    required List<int> dice,
+    required bool doubles,
+  }) {
+    properties = newProperties;
+    players = newPlayers;
     lastDiceRoll = dice;
     isDoubles = doubles;
   }
@@ -281,8 +293,27 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   void _drawSingleSpace(Canvas canvas, int index, Rect rect) {
     final space = GameData.spaces[index];
 
-    // Clean white space background
-    final bgPaint = Paint()..color = Colors.white;
+    Property? prop;
+    Player? owner;
+    if (space.propertyId != null) {
+      prop = properties[space.propertyId];
+      final ownerId = prop?.ownerId;
+      if (ownerId != null) {
+        final matches = players.where((p) => p.id == ownerId);
+        if (matches.isNotEmpty) {
+          owner = matches.first;
+        }
+      }
+    }
+
+    // 1. Space background: White by default, lightly tinted with owner's color when owned
+    Color bgColor = Colors.white;
+    if (owner != null) {
+      bgColor = prop!.isMortgaged
+          ? const Color(0xFFF1F5F9)
+          : Color.alphaBlend(owner.color.withValues(alpha: 0.12), Colors.white);
+    }
+    final bgPaint = Paint()..color = bgColor;
     canvas.drawRect(rect, bgPaint);
 
     // Subtle crisp border
@@ -291,6 +322,11 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawRect(rect, borderPaint);
+
+    // 2. Prominent Outer-Edge Owner Stripe (3.5px solid vibrant stripe)
+    if (owner != null) {
+      _drawOwnerOuterStripe(canvas, index, rect, prop!.isMortgaged ? const Color(0xFF64748B) : owner.color);
+    }
 
     // Corners
     if (index == 0) {
@@ -302,13 +338,71 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     } else if (index == 30) {
       _drawGoToJailCorner(canvas, rect);
     } else if (space.type == SpaceType.property) {
-      _drawPropertySpace(canvas, index, rect, space);
+      _drawPropertySpace(canvas, index, rect, space, owner);
     } else {
-      _drawSpecialSpace(canvas, index, rect, space);
+      _drawSpecialSpace(canvas, index, rect, space, owner);
+    }
+
+    // 3. Mortgaged Overlay if mortgaged
+    if (prop != null && prop.isMortgaged) {
+      _drawMortgagedOverlay(canvas, index, rect);
     }
   }
 
-  void _drawPropertySpace(Canvas canvas, int index, Rect rect, BoardSpace space) {
+  void _drawOwnerOuterStripe(Canvas canvas, int index, Rect rect, Color color) {
+    const double stripeThick = 3.5;
+    Rect stripeRect;
+    if (index > 0 && index < 10) {
+      // Bottom edge: outer edge is bottom
+      stripeRect = Rect.fromLTWH(rect.left, rect.bottom - stripeThick, rect.width, stripeThick);
+    } else if (index > 10 && index < 20) {
+      // Left edge: outer edge is left
+      stripeRect = Rect.fromLTWH(rect.left, rect.top, stripeThick, rect.height);
+    } else if (index > 20 && index < 30) {
+      // Top edge: outer edge is top
+      stripeRect = Rect.fromLTWH(rect.left, rect.top, rect.width, stripeThick);
+    } else if (index > 30) {
+      // Right edge: outer edge is right
+      stripeRect = Rect.fromLTWH(rect.right - stripeThick, rect.top, stripeThick, rect.height);
+    } else {
+      return;
+    }
+    canvas.drawRect(stripeRect, Paint()..color = color);
+  }
+
+  void _drawMortgagedOverlay(Canvas canvas, int index, Rect rect) {
+    canvas.save();
+    canvas.clipRect(rect);
+    final hatchPaint = Paint()
+      ..color = const Color(0x3564748B)
+      ..strokeWidth = 1.2;
+    for (double i = -rect.height; i < rect.width + rect.height; i += 7) {
+      canvas.drawLine(
+        Offset(rect.left + i, rect.top),
+        Offset(rect.left + i + rect.height, rect.bottom),
+        hatchPaint,
+      );
+    }
+    // "MORTGAGED" badge in center
+    final badgeW = min(rect.width * 0.9, 44.0);
+    final badgeRect = Rect.fromCenter(center: rect.center, width: badgeW, height: 12);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badgeRect, const Radius.circular(3)),
+      Paint()..color = const Color(0xEE475569),
+    );
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: 'MORTGAGED',
+        style: TextStyle(color: Colors.white, fontSize: 5.5, fontWeight: FontWeight.w900, letterSpacing: 0.3),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    tp.paint(canvas, Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2));
+    canvas.restore();
+  }
+
+  void _drawPropertySpace(Canvas canvas, int index, Rect rect, BoardSpace space, [Player? owner]) {
     final prop = properties[space.propertyId];
     if (prop == null) return;
 
@@ -340,15 +434,28 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     );
 
     // 2. Owner Marker & Houses/Resorts
-    if (prop.ownerId != null) {
-      final owner = players.firstWhere((p) => p.id == prop.ownerId, orElse: () => players.first);
-      // Owner circle in header
-      canvas.drawCircle(headerRect.center, 5.0, Paint()..color = Colors.white);
-      canvas.drawCircle(headerRect.center, 3.8, Paint()..color = owner.color);
-
-      // Houses / Resorts
+    if (owner != null) {
       if (prop.currentLevel > 0) {
+        // Houses / Resorts
         _drawBuildings(canvas, headerRect, prop.currentLevel);
+        // Owner small badge on side of header
+        final badgeCenter = Offset(headerRect.left + 5.0, headerRect.center.dy);
+        canvas.drawCircle(badgeCenter, 3.8, Paint()..color = Colors.white);
+        canvas.drawCircle(badgeCenter, 2.8, Paint()..color = owner.color);
+      } else {
+        // Owner initial badge centered on header
+        canvas.drawCircle(headerRect.center, 5.5, Paint()..color = Colors.white);
+        canvas.drawCircle(headerRect.center, 4.2, Paint()..color = owner.color);
+        final initial = owner.name.trim().isNotEmpty ? owner.name.trim()[0].toUpperCase() : 'P';
+        final tp = TextPainter(
+          text: TextSpan(
+            text: initial,
+            style: const TextStyle(color: Colors.white, fontSize: 5.5, fontWeight: FontWeight.w900),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        tp.layout();
+        tp.paint(canvas, Offset(headerRect.center.dx - tp.width / 2, headerRect.center.dy - tp.height / 2));
       }
     }
 
@@ -406,7 +513,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     );
   }
 
-  void _drawSpecialSpace(Canvas canvas, int index, Rect rect, BoardSpace space) {
+  void _drawSpecialSpace(Canvas canvas, int index, Rect rect, BoardSpace space, [Player? owner]) {
     String sub = '';
     VoidCallback drawIcon;
 
@@ -448,6 +555,32 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       default:
         drawIcon = () {};
         break;
+    }
+
+    // Owner badge on railroad or utility
+    if (owner != null && (space.type == SpaceType.railroad || space.type == SpaceType.utility)) {
+      Offset badgeOffset;
+      if (index > 0 && index < 10) {
+        badgeOffset = Offset(rect.center.dx, rect.top + 7);
+      } else if (index > 10 && index < 20) {
+        badgeOffset = Offset(rect.right - 7, rect.center.dy);
+      } else if (index > 20 && index < 30) {
+        badgeOffset = Offset(rect.center.dx, rect.bottom - 7);
+      } else {
+        badgeOffset = Offset(rect.left + 7, rect.center.dy);
+      }
+      canvas.drawCircle(badgeOffset, 5.0, Paint()..color = Colors.white);
+      canvas.drawCircle(badgeOffset, 3.8, Paint()..color = owner.color);
+      final initial = owner.name.trim().isNotEmpty ? owner.name.trim()[0].toUpperCase() : 'P';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: initial,
+          style: const TextStyle(color: Colors.white, fontSize: 5.0, fontWeight: FontWeight.w900),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(badgeOffset.dx - tp.width / 2, badgeOffset.dy - tp.height / 2));
     }
 
     _drawReadableSpecialText(

@@ -346,14 +346,14 @@ class _AuctionOverlayState extends ConsumerState<AuctionOverlay> {
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFFDC2626),
-                                side: const BorderSide(color: Color(0xFFFCA5A5)),
+                                side: const BorderSide(color: Color(0xFFFCA5A5), width: 1.5),
                                 padding: const EdgeInsets.symmetric(vertical: 10),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () => ref.read(gameProvider.notifier).passBid(currentBidder.id),
                               child: Text(
-                                'PASS',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                                'FOLD',
+                                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
                               ),
                             ),
                           ),

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/property.dart';
 import '../../providers/game_provider.dart';
+import '../../services/user_profile_service.dart';
+import '../../services/multiplayer_service.dart';
 
 class PortfolioSheet extends ConsumerWidget {
   const PortfolioSheet({super.key});
@@ -11,6 +13,10 @@ class PortfolioSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameProvider);
     final current = gameState.currentPlayer;
+    final myProfile = ref.watch(userProfileProvider);
+    final multiplayer = ref.watch(multiplayerServiceProvider);
+    final isOnline = multiplayer.isConnected;
+    final isMyTurn = !isOnline || current.id == myProfile.id;
 
     // Group properties by PropertyGroup
     final Map<PropertyGroup, List<Property>> grouped = {};
@@ -58,6 +64,31 @@ class PortfolioSheet extends ConsumerWidget {
               ],
             ),
           ),
+          if (!isMyTurn)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.visibility_rounded, size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'SPECTATOR VIEW • WAITING FOR ${current.name.toUpperCase()}\'S MOVE (45S)',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFF64748B)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           const Divider(color: Color(0xFFE2E8F0), height: 1),
 
           // Property Groups List
@@ -201,8 +232,8 @@ class PortfolioSheet extends ConsumerWidget {
                                 ),
                               ),
 
-                              // Upgrade / Mortgage Controls
-                              if (isOwnedByMe) ...[
+                              // Upgrade / Mortgage Controls - only allowed during active player's turn!
+                              if (isOwnedByMe && isMyTurn) ...[
                                 if (prop.canUpgrade(gameState.properties, current.cash))
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
@@ -231,6 +262,19 @@ class PortfolioSheet extends ConsumerWidget {
                                   child: Text(
                                     prop.isMortgaged ? 'UNMORTGAGE' : 'MORTGAGE',
                                     style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ] else if (isOwnedByMe && !isMyTurn) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Text(
+                                    'LOCKED',
+                                    style: GoogleFonts.outfit(fontSize: 9.5, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8)),
                                   ),
                                 ),
                               ],

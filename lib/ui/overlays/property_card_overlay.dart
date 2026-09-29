@@ -5,6 +5,8 @@ import '../../providers/game_provider.dart';
 import '../../models/property.dart';
 import '../../models/player.dart';
 import '../../data/game_data.dart';
+import '../../services/user_profile_service.dart';
+import '../../services/multiplayer_service.dart';
 
 class PropertyCardOverlay extends ConsumerWidget {
   const PropertyCardOverlay({super.key});
@@ -17,6 +19,11 @@ class PropertyCardOverlay extends ConsumerWidget {
     if (prop == null) return const SizedBox.shrink();
 
     final current = gameState.currentPlayer;
+    final myProfile = ref.watch(userProfileProvider);
+    final multiplayer = ref.watch(multiplayerServiceProvider);
+    final isOnline = multiplayer.isConnected;
+    final isMyTurn = !isOnline || current.id == myProfile.id;
+
     final isLandedHere = current.position == _getPropertySpaceIndex(prop.id) &&
         gameState.phase == GamePhase.spaceAction &&
         current.type == PlayerType.human;
@@ -29,11 +36,11 @@ class PropertyCardOverlay extends ConsumerWidget {
 
     final groupColor = _getGroupColor(prop.group);
 
-    // Computed property states for action buttons
-    final canBuild = isOwnedByMe && prop.canUpgrade(gameState.properties, current.cash);
-    final canSell = isOwnedByMe && prop.currentLevel > 0;
-    final canMortgage = isOwnedByMe && !prop.isMortgaged && prop.currentLevel == 0;
-    final canRedeem = isOwnedByMe && prop.isMortgaged && current.cash >= prop.unmortgageCost;
+    // Computed property states for action buttons - only allowed during active player's turn!
+    final canBuild = isMyTurn && isOwnedByMe && prop.canUpgrade(gameState.properties, current.cash);
+    final canSell = isMyTurn && isOwnedByMe && prop.currentLevel > 0;
+    final canMortgage = isMyTurn && isOwnedByMe && !prop.isMortgaged && prop.currentLevel == 0;
+    final canRedeem = isMyTurn && isOwnedByMe && prop.isMortgaged && current.cash >= prop.unmortgageCost;
 
     return Center(
       child: Container(
@@ -207,8 +214,48 @@ class PropertyCardOverlay extends ConsumerWidget {
 
                     // ==================== ACTION BUTTONS ====================
 
-                    // CASE 1: Landed on UNOWNED property → Buy / Auction / Pass
-                    if (isLandedHere && isUnowned) ...[
+                    // CASE 0: Spectator View (it is not this player's turn)
+                    if (!isMyTurn) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.visibility_rounded, size: 14, color: Color(0xFF64748B)),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'SPECTATOR VIEW • WAITING FOR ${current.name.toUpperCase()}\'S MOVE',
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFF64748B)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          onPressed: () => ref.read(gameProvider.notifier).inspectProperty(null),
+                          child: Text('CLOSE', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                        ),
+                      ),
+                    ]
+
+                    // CASE 1: Landed on UNOWNED property & my turn → Buy / Auction
+                    else if (isLandedHere && isUnowned) ...[
                       Row(
                         children: [
                           Expanded(

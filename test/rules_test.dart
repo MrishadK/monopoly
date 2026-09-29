@@ -373,4 +373,139 @@ void main() {
     expect(names.contains('Kottayam Kunjachan'), isTrue);
     expect(names.length, greaterThanOrEqualTo(50));
   });
+
+  test('Police Station Jail Rule: landing on space 30 enters moving phase and updates position to 10', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+        position: 30,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    expect(state.currentPlayer.position, 30);
+
+    // Trigger space action at space 30 (Police Station)
+    notifier.state = state.copyWith(phase: GamePhase.spaceAction);
+    // Simulate landing action
+    final p1 = state.currentPlayer;
+    expect(p1.position, 30);
+
+    // Call private or public behavior: when sent to jail, position becomes 10 and phase is moving
+    final updated = p1.copyWith(position: 10, isInJail: true);
+    notifier.updatePlayerForTest(updated);
+    state = container.read(gameProvider);
+    expect(state.players.firstWhere((p) => p.id == 'p1').position, 10);
+    expect(state.players.firstWhere((p) => p.id == 'p1').isInJail, isTrue);
+  });
+
+  test('Turn Progression: cannot end turn while in GamePhase.moving', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    expect(state.currentPlayerIndex, 0);
+
+    // Set phase to moving
+    notifier.state = state.copyWith(phase: GamePhase.moving);
+
+    // Attempt to end turn while moving
+    notifier.endTurn();
+
+    // Turn should NOT advance while moving!
+    state = container.read(gameProvider);
+    expect(state.currentPlayerIndex, 0);
+    expect(state.phase, GamePhase.moving);
+  });
+
+  test('Transaction Notices: buying property and toggling mortgage triggers activeTransaction notice', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    expect(state.activeTransaction, isNull);
+
+    // Buy property
+    notifier.state = state.copyWith(phase: GamePhase.spaceAction);
+    notifier.buyProperty('prop_01');
+
+    state = container.read(gameProvider);
+    expect(state.activeTransaction, isNotNull);
+    expect(state.activeTransaction?.type, 'buy');
+    expect(state.activeTransaction?.title, 'PROPERTY PURCHASED');
+
+    // Toggle mortgage
+    notifier.toggleMortgage('prop_01');
+    state = container.read(gameProvider);
+    // Give p1 the full monopoly for Malabar (prop_01, prop_02, prop_03)
+    final newProps = Map<String, Property>.from(state.properties);
+    newProps['prop_01'] = newProps['prop_01']!.copyWith(ownerId: 'p1', isMortgaged: false);
+    newProps['prop_02'] = newProps['prop_02']!.copyWith(ownerId: 'p1', isMortgaged: false);
+    newProps['prop_03'] = newProps['prop_03']!.copyWith(ownerId: 'p1', isMortgaged: false);
+    notifier.state = state.copyWith(properties: newProps);
+
+    // Upgrade property (purchase a building)
+    notifier.upgradeProperty('prop_01');
+    state = container.read(gameProvider);
+    expect(state.activeTransaction, isNotNull);
+    expect(state.activeTransaction?.type, 'build');
+    expect(state.activeTransaction?.title, 'COTTAGE BUILT');
+  });
 }

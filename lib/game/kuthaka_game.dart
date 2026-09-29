@@ -16,6 +16,8 @@ class KuthakaGame extends FlameGame {
   double _lastWidth = 0;
   double _lastHeight = 0;
 
+  bool get isAnyTokenMoving => tokens.any((t) => t.isMoving);
+
   @override
   Color backgroundColor() => const Color(0xFFF6F4EE); // Light Warm Ivory Linen Studio
 
@@ -91,8 +93,13 @@ class KuthakaGame extends FlameGame {
 
     final gameState = ref.read(gameProvider);
 
-    // Sync board dice state
-    board?.updateDice(gameState.lastDiceRoll, gameState.isDoubles);
+    // Sync board properties, players, and dice state
+    board?.updateData(
+      newProperties: gameState.properties,
+      newPlayers: gameState.players,
+      dice: gameState.lastDiceRoll,
+      doubles: gameState.isDoubles,
+    );
 
     // Sync tokens with state
     for (int i = 0; i < tokens.length && i < gameState.players.length; i++) {

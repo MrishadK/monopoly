@@ -9,6 +9,7 @@ import '../models/event_card.dart';
 import '../models/trade_offer.dart';
 import '../models/bankruptcy_record.dart';
 import '../models/auction_state.dart';
+import '../models/transaction_notice.dart';
 import '../data/game_data.dart';
 import '../services/multiplayer_service.dart';
 import '../services/audio_service.dart';
@@ -16,6 +17,8 @@ import '../services/leaderboard_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum GamePhase { roll, moving, spaceAction, turnEnd, gameOver }
+
+const int kTurnDurationSeconds = 45;
 
 class GameState {
   final List<Player> players;
@@ -30,6 +33,7 @@ class GameState {
   final Property? inspectedProperty;
   final BankruptcyRecord? activeBankruptcyRecord;
   final AuctionState? activeAuction;
+  final TransactionNotice? activeTransaction;
   final List<String> gameLogs;
   final bool isAiThinking;
   final bool isRollingDice;
@@ -48,10 +52,11 @@ class GameState {
     this.inspectedProperty,
     this.activeBankruptcyRecord,
     this.activeAuction,
+    this.activeTransaction,
     this.gameLogs = const [],
     this.isAiThinking = false,
     this.isRollingDice = false,
-    this.turnTimeRemaining = 30,
+    this.turnTimeRemaining = kTurnDurationSeconds,
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -74,6 +79,8 @@ class GameState {
     bool clearBankruptcyRecord = false,
     AuctionState? activeAuction,
     bool clearActiveAuction = false,
+    TransactionNotice? activeTransaction,
+    bool clearActiveTransaction = false,
     List<String>? gameLogs,
     bool? isAiThinking,
     bool? isRollingDice,
@@ -92,6 +99,7 @@ class GameState {
       inspectedProperty: clearInspectedProperty ? null : (inspectedProperty ?? this.inspectedProperty),
       activeBankruptcyRecord: clearBankruptcyRecord ? null : (activeBankruptcyRecord ?? this.activeBankruptcyRecord),
       activeAuction: clearActiveAuction ? null : (activeAuction ?? this.activeAuction),
+      activeTransaction: clearActiveTransaction ? null : (activeTransaction ?? this.activeTransaction),
       gameLogs: gameLogs ?? this.gameLogs,
       isAiThinking: isAiThinking ?? this.isAiThinking,
       isRollingDice: isRollingDice ?? this.isRollingDice,
@@ -111,6 +119,7 @@ class GameState {
       'message': message,
       'activeBankruptcyRecord': activeBankruptcyRecord?.toMap(),
       'activeAuction': activeAuction?.toMap(),
+      'activeTransaction': activeTransaction?.toMap(),
       'gameLogs': gameLogs,
       'isRollingDice': isRollingDice,
       'turnTimeRemaining': turnTimeRemaining,
@@ -133,9 +142,12 @@ class GameState {
       activeAuction: map['activeAuction'] != null
           ? AuctionState.fromMap(Map<String, dynamic>.from(map['activeAuction']))
           : null,
+      activeTransaction: map['activeTransaction'] != null
+          ? TransactionNotice.fromMap(Map<String, dynamic>.from(map['activeTransaction']))
+          : null,
       gameLogs: List<String>.from(map['gameLogs'] ?? []),
       isRollingDice: map['isRollingDice'] ?? false,
-      turnTimeRemaining: (map['turnTimeRemaining'] as num?)?.toInt() ?? 30,
+      turnTimeRemaining: (map['turnTimeRemaining'] as num?)?.toInt() ?? kTurnDurationSeconds,
     );
   }
 }
@@ -145,9 +157,47 @@ class GameNotifier extends Notifier<GameState> {
   bool _isHost = true;
   int _actionLockId = 0;
   Timer? _turnTimer;
+  Timer? _transactionTimer;
+  Timer? _aiTurnTimer;
+  Timer? _aiTurnEndTimer;
+  Timer? _diceRollTimer;
+
+  void _showTransactionNotice({
+    required String type,
+    required String title,
+    required String description,
+    required String icon,
+    Color? color,
+  }) {
+    _transactionTimer?.cancel();
+    final notice = TransactionNotice(
+      id: '${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(1000)}',
+      type: type,
+      title: title,
+      description: description,
+      icon: icon,
+      colorValue: (color ?? const Color(0xFF0F172A)).toARGB32(),
+    );
+    state = state.copyWith(activeTransaction: notice);
+    _broadcastState();
+
+    _transactionTimer = Timer(const Duration(milliseconds: 3200), () {
+      if (state.activeTransaction?.id == notice.id) {
+        state = state.copyWith(clearActiveTransaction: true);
+        _broadcastState();
+      }
+    });
+  }
 
   @override
   GameState build() {
+    ref.onDispose(() {
+      _turnTimer?.cancel();
+      _transactionTimer?.cancel();
+      _aiTurnTimer?.cancel();
+      _aiTurnEndTimer?.cancel();
+      _diceRollTimer?.cancel();
+    });
     return GameState(
       players: [
         const Player(
@@ -189,6 +239,11 @@ class GameNotifier extends Notifier<GameState> {
 
   void initializeGame(List<Player> players, {bool isHost = true}) {
     _actionLockId++;
+    _turnTimer?.cancel();
+    _transactionTimer?.cancel();
+    _aiTurnTimer?.cancel();
+    _aiTurnEndTimer?.cancel();
+    _diceRollTimer?.cancel();
     _isHost = isHost;
     state = GameState(
       players: players,
@@ -295,10 +350,6 @@ class GameNotifier extends Notifier<GameState> {
         final propId = data['propertyId'] as String?;
         if (propId != null) _executeSellBuilding(propId);
         break;
-      case 'start_auction':
-        final propId = data['propertyId'] as String?;
-        if (propId != null) _executeStartAuction(propId);
-        break;
     }
   }
 
@@ -314,6 +365,7 @@ class GameNotifier extends Notifier<GameState> {
     state = state.copyWith(
       inspectedProperty: prop,
       clearInspectedProperty: prop == null,
+      phase: (prop == null && state.phase == GamePhase.spaceAction) ? GamePhase.turnEnd : state.phase,
     );
   }
 
@@ -382,7 +434,8 @@ class GameNotifier extends Notifier<GameState> {
     );
 
     final lockId = _actionLockId;
-    Future.delayed(const Duration(milliseconds: 900), () {
+    _diceRollTimer?.cancel();
+    _diceRollTimer = Timer(const Duration(milliseconds: 900), () {
       if (lockId != _actionLockId) return;
 
       _addLog('${current.name} rolled $d1 & $d2 (${d1 + d2})${isDouble ? " - DOUBLES!" : ""}');
@@ -718,21 +771,35 @@ class GameNotifier extends Notifier<GameState> {
 
   void _sendToJail(Player player) {
     try { ref.read(audioServiceProvider.notifier).playJail(); } catch (_) {}
+    final isPoliceStationJump = player.position == 30;
     final updated = player.copyWith(
       position: 10,
       isInJail: true,
       turnsInJail: 0,
     );
     _updatePlayer(updated);
+
+    final lockId = _actionLockId;
     state = state.copyWith(
-      phase: GamePhase.turnEnd,
+      phase: GamePhase.moving, // Keep in moving phase during the backward jump!
       consecutiveDoubles: 0,
       isDoubles: false,
-      message: '${player.name} is in Police Lockup (Hospital).',
+      message: isPoliceStationJump
+          ? '🚨 Police Station! ${player.name} jumping backwards to Central Jail...'
+          : '${player.name} sent to Central Jail.',
     );
-    if (player.type == PlayerType.ai) {
-      _scheduleAiTurnEnd();
-    }
+
+    final delayMs = isPoliceStationJump ? 4800 : 1500;
+    Future.delayed(Duration(milliseconds: delayMs), () {
+      if (lockId != _actionLockId) return;
+      state = state.copyWith(
+        phase: GamePhase.turnEnd,
+        message: '${player.name} is now locked in Central Jail.',
+      );
+      if (player.type == PlayerType.ai) {
+        _scheduleAiTurnEnd();
+      }
+    });
   }
 
   void _drawEventCard(List<EventCard> cardDeck, String category) {
@@ -831,6 +898,15 @@ class GameNotifier extends Notifier<GameState> {
     if (current.cash >= rent) {
       _transferMoney(current.id, owner.id, rent);
       try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
+
+      _showTransactionNotice(
+        type: 'rent',
+        title: 'RENT PAID',
+        description: '${current.name} paid ₹$rent rent to ${owner.name} for ${prop.name}',
+        icon: '💸',
+        color: const Color(0xFFE11D48),
+      );
+
       if (state.isDoubles && !current.isInJail) {
         _addLog('🎲 Doubles! ${current.name} gets another roll!');
         state = state.copyWith(
@@ -861,6 +937,15 @@ class GameNotifier extends Notifier<GameState> {
     if (current.cash >= amount) {
       _updatePlayer(current.copyWith(cash: current.cash - amount));
       try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
+
+      _showTransactionNotice(
+        type: 'tax',
+        title: 'TAX PAID',
+        description: '${current.name} paid ₹$amount in $taxName',
+        icon: '🏛️',
+        color: const Color(0xFF64748B),
+      );
+
       if (state.isDoubles && !current.isInJail) {
         _addLog('🎲 Doubles! ${current.name} gets another roll!');
         state = state.copyWith(
@@ -950,6 +1035,14 @@ class GameNotifier extends Notifier<GameState> {
       try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
 
       _addLog('${current.name} bought ${prop.name} for ₹${prop.price}');
+
+      _showTransactionNotice(
+        type: 'buy',
+        title: 'PROPERTY PURCHASED',
+        description: '${current.name} bought ${prop.name} for ₹${prop.price}',
+        icon: '🏷️',
+        color: const Color(0xFF16A34A),
+      );
 
       if (state.isDoubles && !updatedPlayer.isInJail) {
         _addLog('🎲 Doubles! ${current.name} gets another roll!');
@@ -1118,7 +1211,7 @@ class GameNotifier extends Notifier<GameState> {
     final passer = state.players.firstWhere((p) => p.id == playerId);
     final remainingBidders = List<String>.from(auction.activeBidderIds)..remove(playerId);
 
-    _addLog('${passer.name} passed in auction for ${state.properties[auction.propertyId]?.name ?? "property"}');
+    _addLog('${passer.name} folded in auction for ${state.properties[auction.propertyId]?.name ?? "property"}');
 
     // Case 1: Only 1 bidder left and there is a highest bidder -> Winner!
     if (remainingBidders.length == 1 && auction.highestBidderId != null) {
@@ -1126,7 +1219,7 @@ class GameNotifier extends Notifier<GameState> {
       final winningBid = auction.highestBid;
       final completedAuction = auction.copyWith(
         activeBidderIds: remainingBidders,
-        bidHistory: [...auction.bidHistory, '${passer.name} passed.'],
+        bidHistory: [...auction.bidHistory, '${passer.name} folded.'],
         isCompleted: true,
         winnerId: winnerId,
         winningBid: winningBid,
@@ -1136,11 +1229,11 @@ class GameNotifier extends Notifier<GameState> {
       return;
     }
 
-    // Case 2: All bidders have passed (nobody placed a bid or all remaining folded)
+    // Case 2: All bidders have folded (nobody placed a bid or all remaining folded)
     if (remainingBidders.isEmpty || (remainingBidders.length == 1 && auction.highestBidderId == null)) {
       final completedAuction = auction.copyWith(
         activeBidderIds: [],
-        bidHistory: [...auction.bidHistory, '${passer.name} passed.'],
+        bidHistory: [...auction.bidHistory, '${passer.name} folded.'],
         isCompleted: true,
       );
       state = state.copyWith(activeAuction: completedAuction);
@@ -1153,12 +1246,12 @@ class GameNotifier extends Notifier<GameState> {
     final updatedAuction = auction.copyWith(
       activeBidderIds: remainingBidders,
       currentBidderIndex: nextIdx,
-      bidHistory: [...auction.bidHistory, '${passer.name} passed.'],
+      bidHistory: [...auction.bidHistory, '${passer.name} folded.'],
     );
 
     state = state.copyWith(
       activeAuction: updatedAuction,
-      message: '${passer.name} passed.',
+      message: '${passer.name} folded.',
     );
 
     final nextBidderId = updatedAuction.currentBidderId;
@@ -1177,6 +1270,14 @@ class GameNotifier extends Notifier<GameState> {
 
     _addLog('🏆 ${winner.name} won ${prop.name} for ₹$winningBid in auction!');
     try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
+
+    _showTransactionNotice(
+      type: 'auction',
+      title: 'AUCTION WON',
+      description: '${winner.name} won ${prop.name} for ₹$winningBid in auction!',
+      icon: '🏆',
+      color: const Color(0xFF7C3AED),
+    );
 
     final newProps = Map<String, Property>.from(state.properties);
     newProps[prop.id] = prop.copyWith(ownerId: winner.id);
@@ -1335,6 +1436,14 @@ class GameNotifier extends Notifier<GameState> {
       final buildingType = newLevel == 5 ? 'Luxury Resort' : 'Cottage ($newLevel/4)';
       _addLog('${owner.name} upgraded ${prop.name} to $buildingType for ₹${prop.upgradeCost}');
 
+      _showTransactionNotice(
+        type: 'build',
+        title: newLevel == 5 ? 'LUXURY RESORT BUILT' : 'COTTAGE BUILT',
+        description: '${owner.name} built $buildingType on ${prop.name} for ₹${prop.upgradeCost}',
+        icon: newLevel == 5 ? '🏨' : '🏡',
+        color: const Color(0xFF0D9488),
+      );
+
       state = state.copyWith(
         properties: newProps,
         message: 'Built $buildingType on ${prop.name}!',
@@ -1363,11 +1472,25 @@ class GameNotifier extends Notifier<GameState> {
       newProps[propertyId] = prop.copyWith(isMortgaged: true);
       _updatePlayer(owner.copyWith(cash: owner.cash + prop.mortgageValue));
       _addLog('${owner.name} mortgaged ${prop.name} (+₹${prop.mortgageValue})');
+      _showTransactionNotice(
+        type: 'mortgage',
+        title: 'MORTGAGE COMPLETED',
+        description: '${owner.name} mortgaged ${prop.name} for +₹${prop.mortgageValue}',
+        icon: '🏦',
+        color: const Color(0xFFD97706),
+      );
       state = state.copyWith(properties: newProps);
     } else if (prop.isMortgaged && prop.canUnmortgage(owner.cash)) {
       newProps[propertyId] = prop.copyWith(isMortgaged: false);
       _updatePlayer(owner.copyWith(cash: owner.cash - prop.unmortgageCost));
       _addLog('${owner.name} unmortgaged ${prop.name} (-₹${prop.unmortgageCost})');
+      _showTransactionNotice(
+        type: 'redeem',
+        title: 'MORTGAGE REDEEMED',
+        description: '${owner.name} unmortgaged ${prop.name} for ₹${prop.unmortgageCost}',
+        icon: '🔓',
+        color: const Color(0xFF059669),
+      );
       state = state.copyWith(properties: newProps);
     }
   }
@@ -1405,6 +1528,14 @@ class GameNotifier extends Notifier<GameState> {
 
     final buildingType = prop.currentLevel == 5 ? 'Luxury Resort' : 'Cottage';
     _addLog('${owner.name} sold $buildingType on ${prop.name} (+₹$refund)');
+
+    _showTransactionNotice(
+      type: 'sell',
+      title: 'SOLD BUILDING',
+      description: '${owner.name} sold $buildingType on ${prop.name} for +₹$refund',
+      icon: '🏠',
+      color: const Color(0xFFEA580C),
+    );
 
     state = state.copyWith(
       properties: newProps,
@@ -1454,6 +1585,15 @@ class GameNotifier extends Notifier<GameState> {
 
     state = state.copyWith(properties: newProps);
     _addLog('🤝 Trade executed between ${sender.name} and ${receiver.name}!');
+
+    _showTransactionNotice(
+      type: 'trade',
+      title: 'TRADE COMPLETED',
+      description: 'Trade executed between ${sender.name} and ${receiver.name}!',
+      icon: '🤝',
+      color: const Color(0xFF2563EB),
+    );
+
     return true;
   }
 
@@ -1488,10 +1628,11 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== INTELLIGENT AI ENGINE ====================
 
   void _scheduleAiTurn() {
+    _aiTurnTimer?.cancel();
     final lockId = _actionLockId;
     state = state.copyWith(isAiThinking: true);
 
-    Future.delayed(const Duration(milliseconds: 1400), () {
+    _aiTurnTimer = Timer(const Duration(milliseconds: 1400), () {
       if (lockId != _actionLockId) return;
       state = state.copyWith(isAiThinking: false);
 
@@ -1592,8 +1733,10 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _scheduleAiTurnEnd() {
+    _aiTurnEndTimer?.cancel();
     final lockId = _actionLockId;
-    Future.delayed(const Duration(milliseconds: 1400), () {
+    final delayMs = state.activeTransaction != null ? 3300 : 1400;
+    _aiTurnEndTimer = Timer(Duration(milliseconds: delayMs), () {
       if (lockId != _actionLockId) return;
       _runAiPropertyManagement();
       _endTurn();
@@ -1603,6 +1746,7 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== TURN PROGRESSION ====================
 
   void endTurn() {
+    if (state.phase == GamePhase.moving) return;
     if (!_isHost) {
       ref.read(multiplayerServiceProvider).sendPlayerAction('end_turn', {
         'playerId': state.currentPlayer.id,
@@ -1622,10 +1766,14 @@ class GameNotifier extends Notifier<GameState> {
     _turnTimer?.cancel();
     if (state.phase == GamePhase.gameOver) return;
 
-    state = state.copyWith(turnTimeRemaining: 30);
+    state = state.copyWith(turnTimeRemaining: kTurnDurationSeconds);
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.phase == GamePhase.gameOver) {
         timer.cancel();
+        return;
+      }
+      // If an auction is active, pause the turn timer so bidders aren't rushed
+      if (state.activeAuction != null) {
         return;
       }
       final remaining = state.turnTimeRemaining - 1;
@@ -1643,7 +1791,7 @@ class GameNotifier extends Notifier<GameState> {
 
     final current = state.currentPlayer;
     final newTimeouts = current.consecutiveTimeouts + 1;
-    _addLog('⏱️ ${current.name}\'s 30s turn timer expired! (Strike $newTimeouts/3)');
+    _addLog('⏱️ ${current.name}\'s 45s turn timer expired! (Strike $newTimeouts/3)');
 
     if (newTimeouts >= 3) {
       _addLog('🚫 ${current.name} did not play for 3 consecutive turns! Removed from game. All tiles are now unowned.');
@@ -1736,7 +1884,7 @@ class GameNotifier extends Notifier<GameState> {
       clearActiveEventCard: true,
       clearInspectedProperty: true,
       clearActiveAuction: true,
-      turnTimeRemaining: 30,
+      turnTimeRemaining: kTurnDurationSeconds,
       message: '${nextPlayer.name}\'s Turn!',
     );
 
@@ -1748,7 +1896,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _endTurn() {
-    if (state.phase == GamePhase.gameOver) return;
+    if (state.phase == GamePhase.gameOver || state.phase == GamePhase.moving) return;
 
     // Reset strike count if current player successfully took action
     final current = state.currentPlayer;
@@ -1762,7 +1910,7 @@ class GameNotifier extends Notifier<GameState> {
       state = state.copyWith(
         phase: GamePhase.roll,
         isDoubles: false,
-        turnTimeRemaining: 30,
+        turnTimeRemaining: kTurnDurationSeconds,
         message: 'DOUBLES! Roll again.',
       );
       _startTurnTimer();
@@ -1789,7 +1937,7 @@ class GameNotifier extends Notifier<GameState> {
       isDoubles: false,
       clearActiveEventCard: true,
       clearInspectedProperty: true,
-      turnTimeRemaining: 30,
+      turnTimeRemaining: kTurnDurationSeconds,
       message: '${nextPlayer.name}\'s Turn!',
     );
 
@@ -1822,6 +1970,9 @@ class GameNotifier extends Notifier<GameState> {
       state = state.copyWith(players: newPlayers);
     }
   }
+
+  @visibleForTesting
+  void updatePlayerForTest(Player updated) => _updatePlayer(updated);
 
   void _declareBankrupt(Player player, {String? creditorId}) {
     try { ref.read(audioServiceProvider.notifier).playBankruptcy(); } catch (_) {}
