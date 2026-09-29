@@ -252,20 +252,7 @@ class PropertyCardOverlay extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF0F172A),
-                                side: const BorderSide(color: Color(0xFFCBD5E1)),
-                                padding: const EdgeInsets.symmetric(vertical: 11),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                              onPressed: () => ref.read(gameProvider.notifier).passProperty(),
-                              icon: const Icon(Icons.skip_next_rounded, size: 16),
-                              label: Text('PASS', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-                            ),
-                          ),
+                          // PASS Button removed as requested
                         ],
                       ),
                     ]

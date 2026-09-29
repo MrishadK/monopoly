@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:audioplayers/audioplayers.dart';
 class AudioState {
   final bool isMusicEnabled;
   final bool isSfxEnabled;
@@ -39,7 +39,9 @@ class AudioNotifier extends Notifier<AudioState> {
 
   @override
   AudioState build() {
-    startLoFiAmbient();
+    Future.microtask(() {
+      startLoFiAmbient();
+    });
     return const AudioState();
   }
 
@@ -81,10 +83,21 @@ class AudioNotifier extends Notifier<AudioState> {
 
   // ==================== SOUND EFFECTS (SFX) ====================
 
+  void _playSound(String fileName) async {
+    if (!state.isSfxEnabled) return;
+    try {
+      final player = AudioPlayer();
+      await player.setVolume(state.sfxVolume);
+      await player.play(AssetSource('audio/$fileName'));
+    } catch (e) {
+      // Ignore audio errors in production
+    }
+  }
+
   void playDiceRoll() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.lightImpact();
-    SystemSound.play(SystemSoundType.click);
+    _playSound('dice.wav');
     Future.delayed(const Duration(milliseconds: 150), () {
       HapticFeedback.mediumImpact();
     });
@@ -93,42 +106,43 @@ class AudioNotifier extends Notifier<AudioState> {
   void playCoins() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.lightImpact();
-    SystemSound.play(SystemSoundType.click);
+    _playSound('coins.wav');
   }
 
   void playBuy() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.mediumImpact();
-    SystemSound.play(SystemSoundType.click);
+    _playSound('buy.wav');
   }
 
   void playUpgrade() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.heavyImpact();
-    SystemSound.play(SystemSoundType.click);
+    _playSound('upgrade.wav');
   }
 
   void playJail() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.heavyImpact();
+    _playSound('jail.wav');
   }
 
   void playCardDraw() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.lightImpact();
-    SystemSound.play(SystemSoundType.click);
+    _playSound('click.wav');
   }
 
   void playVictory() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.vibrate();
-    SystemSound.play(SystemSoundType.alert);
+    _playSound('victory.wav');
   }
 
   void playBankruptcy() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.heavyImpact();
-    SystemSound.play(SystemSoundType.alert);
+    _playSound('bankrupt.wav');
     Future.delayed(const Duration(milliseconds: 200), () {
       HapticFeedback.heavyImpact();
     });

@@ -932,6 +932,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _executeBuyProperty(String propertyId) {
+    try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
     final prop = state.properties[propertyId];
     final current = state.currentPlayer;
     if (prop == null || prop.ownerId != null) return;
@@ -1317,6 +1318,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _executeUpgradeProperty(String propertyId) {
+    try { ref.read(audioServiceProvider.notifier).playUpgrade(); } catch (_) {}
     final prop = state.properties[propertyId];
     if (prop == null || prop.ownerId == null) return;
     final owner = state.players.firstWhere((p) => p.id == prop.ownerId);
@@ -1573,10 +1575,17 @@ class GameNotifier extends Notifier<GameState> {
 
     // Scan for monopolies to upgrade
     for (final propId in ai.ownedPropertyIds) {
-      final prop = state.properties[propId];
-      if (prop != null && prop.isBuildable && prop.isMonopoly(state.properties)) {
-        while (prop.canUpgrade(state.properties, ai.cash) && ai.cash > prop.upgradeCost + 150) {
-          upgradeProperty(prop.id);
+      for (int i = 0; i < 5; i++) { // Max 5 upgrades per property
+        final currentAi = state.players.firstWhere((p) => p.id == ai.id);
+        final currentProp = state.properties[propId];
+        if (currentProp != null && currentProp.isBuildable && currentProp.isMonopoly(state.properties)) {
+          if (currentProp.canUpgrade(state.properties, currentAi.cash) && currentAi.cash > currentProp.upgradeCost + 150) {
+            upgradeProperty(currentProp.id);
+          } else {
+            break; // Cannot afford or max level reached
+          }
+        } else {
+          break; // Not buildable or not monopoly
         }
       }
     }
@@ -1801,6 +1810,7 @@ class GameNotifier extends Notifier<GameState> {
     newPlayers[fromIdx] = newPlayers[fromIdx].copyWith(cash: newPlayers[fromIdx].cash - amount);
     newPlayers[toIdx] = newPlayers[toIdx].copyWith(cash: newPlayers[toIdx].cash + amount);
 
+    try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
     state = state.copyWith(players: newPlayers);
   }
 
@@ -1814,6 +1824,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _declareBankrupt(Player player, {String? creditorId}) {
+    try { ref.read(audioServiceProvider.notifier).playBankruptcy(); } catch (_) {}
     _addLog('${player.name} went bankrupt and surrendered all assets.');
 
     final newProps = Map<String, Property>.from(state.properties);
