@@ -45,11 +45,12 @@ class KuthakaGame extends FlameGame {
       tokens.clear();
     }
 
-    // Calculate optimal board size to preserve clearance for top 2:N friends grid & bottom HUDs
+    // Calculate optimal board size to preserve clearance for top header & bottom HUDs
     final playerCount = ref.read(gameProvider).players.length;
-    double topPadding = size.y > size.x ? (playerCount > 2 ? 172.0 : 120.0) : 40.0;
-    double bottomPadding = size.y > size.x ? 155.0 : 45.0;
-    double availableWidth = size.x - 16;
+    final bool isPortrait = size.y > size.x;
+    double topPadding = isPortrait ? (playerCount > 2 ? 172.0 : 120.0) : 66.0;
+    double bottomPadding = isPortrait ? 165.0 : 160.0;
+    double availableWidth = isPortrait ? (size.x - 16) : (size.x - 40);
     double availableHeight = size.y - (topPadding + bottomPadding);
     double boardSize = min(availableWidth, availableHeight);
     boardSize = max(boardSize, 260); // Minimum sensible size
