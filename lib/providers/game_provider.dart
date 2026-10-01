@@ -1214,7 +1214,9 @@ class GameNotifier extends Notifier<GameState> {
         timer.cancel();
         _executePassBid(auction.currentBidderId);
       } else {
-        state = state.copyWith(
+        // Use super.state to skip _broadcastState() for every tick —
+        // avoids flooding the Realtime channel with countdown messages
+        super.state = state.copyWith(
           activeAuction: auction.copyWith(timeRemaining: remaining),
         );
       }
@@ -1853,7 +1855,8 @@ class GameNotifier extends Notifier<GameState> {
     _turnTimer?.cancel();
     if (state.phase == GamePhase.gameOver) return;
 
-    state = state.copyWith(turnTimeRemaining: kTurnDurationSeconds);
+    // Use super.state to avoid broadcasting timer ticks — only real game events broadcast
+    super.state = state.copyWith(turnTimeRemaining: kTurnDurationSeconds);
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.phase == GamePhase.gameOver) {
         timer.cancel();
@@ -1865,7 +1868,9 @@ class GameNotifier extends Notifier<GameState> {
       }
       final remaining = state.turnTimeRemaining - 1;
       if (remaining > 0) {
-        state = state.copyWith(turnTimeRemaining: remaining);
+        // Use super.state to skip _broadcastState() for every tick —
+        // avoids flooding the Supabase Realtime channel with 45 msgs/turn
+        super.state = state.copyWith(turnTimeRemaining: remaining);
       } else {
         timer.cancel();
         _handleTurnTimeout();
