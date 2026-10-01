@@ -682,12 +682,18 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       painter.layout(maxWidth: maxW);
       offsetX = rect.left + rect.width * 0.3 + (rect.width * 0.7 - painter.width) / 2;
       offsetY = rect.center.dy - painter.height / 2;
-    } else {
-      // Top/Bottom
+    } else if (index > 0 && index < 10) {
+      // Bottom row: Icon is near top. Center text in remaining bottom area
       maxW = rect.width - 2;
       painter.layout(maxWidth: maxW);
       offsetX = rect.center.dx - painter.width / 2;
-      offsetY = (index > 20 && index < 30) ? rect.top + 3 : rect.bottom - painter.height - 3;
+      offsetY = rect.center.dy + 1;
+    } else {
+      // Top row
+      maxW = rect.width - 2;
+      painter.layout(maxWidth: maxW);
+      offsetX = rect.center.dx - painter.width / 2;
+      offsetY = rect.top + 3;
     }
 
     painter.paint(canvas, Offset(offsetX, offsetY));
