@@ -540,18 +540,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     required String title,
     required String priceText,
   }) {
-    canvas.save();
-
-    if (index > 10 && index < 20) {
-      canvas.translate(rect.center.dx, rect.center.dy);
-      canvas.rotate(pi / 2);
-      canvas.translate(-rect.center.dx, -rect.center.dy);
-    } else if (index > 30) {
-      canvas.translate(rect.center.dx, rect.center.dy);
-      canvas.rotate(-pi / 2);
-      canvas.translate(-rect.center.dx, -rect.center.dy);
-    }
-
     final formattedTitle = _formatTileName(title);
 
     final textSpan = TextSpan(
@@ -580,8 +568,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       textDirection: TextDirection.ltr,
     );
 
-    double maxW = (index > 10 && index < 20) || index > 30 ? rect.height - 4 : rect.width - 2;
-    painter.layout(maxWidth: maxW);
+    painter.layout(maxWidth: rect.width - 2);
 
     double offsetY;
     if (index > 0 && index < 10) {
@@ -593,7 +580,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     }
 
     painter.paint(canvas, Offset(rect.center.dx - painter.width / 2, offsetY));
-    canvas.restore();
   }
 
   void _drawSpecialTileText({
@@ -605,16 +591,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     required VoidCallback drawIcon,
   }) {
     canvas.save();
-
-    if (index > 10 && index < 20) {
-      canvas.translate(rect.center.dx, rect.center.dy);
-      canvas.rotate(pi / 2);
-      canvas.translate(-rect.center.dx, -rect.center.dy);
-    } else if (index > 30) {
-      canvas.translate(rect.center.dx, rect.center.dy);
-      canvas.rotate(-pi / 2);
-      canvas.translate(-rect.center.dx, -rect.center.dy);
-    }
 
     drawIcon();
 
@@ -645,8 +621,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       textDirection: TextDirection.ltr,
     );
 
-    double maxW = (index > 10 && index < 20) || index > 30 ? rect.height - 4 : rect.width - 2;
-    painter.layout(maxWidth: maxW);
+    painter.layout(maxWidth: rect.width - 2);
 
     double offsetY = (index > 20 && index < 30) ? rect.top + 3 : rect.bottom - painter.height - 3;
     painter.paint(canvas, Offset(rect.center.dx - painter.width / 2, offsetY));
