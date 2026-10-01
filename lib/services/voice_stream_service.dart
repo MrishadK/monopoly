@@ -132,7 +132,7 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
   @override
   VoiceStreamState build() {
     ref.onDispose(() {
-      disconnectVoice();
+      disconnectVoice(isDisposing: true);
     });
     return const VoiceStreamState();
   }
@@ -491,7 +491,7 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
 
   // ==================== CLEANUP ====================
 
-  void disconnectVoice() {
+  void disconnectVoice({bool isDisposing = false}) {
     _statusBroadcastTimer?.cancel();
     _statusBroadcastTimer = null;
     
@@ -505,7 +505,9 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
     _signalingChannel?.unsubscribe();
     _signalingChannel = null;
 
-    state = const VoiceStreamState();
+    if (!isDisposing) {
+      state = const VoiceStreamState();
+    }
   }
 
   // Expose renderers for the UI to attach to the widget tree

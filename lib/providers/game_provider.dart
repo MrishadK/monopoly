@@ -310,9 +310,13 @@ class GameNotifier extends Notifier<GameState> {
 
   void _handleRemotePlayerAction(Map<String, dynamic> payload) {
     if (!_isHost) return;
-    final actionType = payload['type'] as String?;
+    final actionType = (payload['action'] ?? payload['actionType'] ?? payload['type']) as String?;
     final data = payload['data'] is Map ? Map<String, dynamic>.from(payload['data'] as Map) : <String, dynamic>{};
     final senderPlayerId = data['playerId'] as String?;
+
+    debugPrint('[GameNotifier] Host received remote action: $actionType from sender: $senderPlayerId (active player: ${state.currentPlayer.id})');
+
+    if (actionType == null || actionType == 'broadcast') return;
 
     final turnBasedActions = {
       'roll_dice',

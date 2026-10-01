@@ -445,10 +445,12 @@ class MultiplayerService {
 
   void sendPlayerAction(String actionType, Map<String, dynamic> data) {
     if (_roomChannel != null) {
+      debugPrint('[MultiplayerService] Sending player_action: action=$actionType, data=$data');
       _roomChannel!.sendBroadcastMessage(
         event: 'player_action',
         payload: {
-          'type': actionType,
+          'action': actionType,
+          'actionType': actionType,
           'data': data,
         },
       );
