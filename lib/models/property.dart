@@ -100,6 +100,27 @@ class Property {
   bool canUnmortgage(int ownerCash) => isMortgaged && ownerCash >= unmortgageCost;
   int get unmortgageCost => (mortgageValue * 1.1).round();
 
+  /// Official Monopoly Rule: A property cannot be traded while there are buildings
+  /// on ANY property in its color group.
+  bool hasBuildingsInGroup(Map<String, Property> allProperties) {
+    if (!isBuildable) return false;
+    final groupProps = allProperties.values.where((p) => p.group == group);
+    return groupProps.any((p) => p.currentLevel > 0);
+  }
+
+  /// Mortgaged properties CAN be traded. Only properties whose color group
+  /// contains houses/hotels cannot be traded.
+  bool isTradeable(Map<String, Property> allProperties) {
+    return !hasBuildingsInGroup(allProperties);
+  }
+
+  String getTradeBlockReason(Map<String, Property> allProperties) {
+    if (hasBuildingsInGroup(allProperties)) {
+      return 'Buildings exist in this color group';
+    }
+    return '';
+  }
+
   Property copyWith({
     String? id,
     String? name,

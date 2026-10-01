@@ -952,4 +952,383 @@ void main() {
     expect(container.read(gameProvider).properties['prop_01']?.ownerId, 'p1');
     expect(container.read(gameProvider).properties['prop_02']?.ownerId, 'p2');
   });
+
+  // ==================== OFFICIAL MONOPOLY TRADE EDGE CASES (A - J) ====================
+
+  test('Edge Case A: Simple property trade (prop_01 for trans_01)', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = const TradeOffer(
+      id: 'trade_a',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredPropertyIds: ['prop_01'],
+      requestedPropertyIds: ['trans_01'],
+    );
+
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer?.status, TradeStatus.pending);
+
+    notifier.respondToTrade('trade_a', true);
+    final state = container.read(gameProvider);
+
+    expect(state.properties['prop_01']?.ownerId, 'p2');
+    expect(state.properties['trans_01']?.ownerId, 'p1');
+    expect(state.players.firstWhere((p) => p.id == 'p1').ownedPropertyIds, contains('trans_01'));
+    expect(state.players.firstWhere((p) => p.id == 'p2').ownedPropertyIds, contains('prop_01'));
+  });
+
+  test('Edge Case B: Property + cash (prop_01 + ₹500 for trans_01)', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = const TradeOffer(
+      id: 'trade_b',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 500,
+      offeredPropertyIds: ['prop_01'],
+      requestedPropertyIds: ['trans_01'],
+    );
+
+    notifier.proposeTrade(offer);
+    notifier.respondToTrade('trade_b', true);
+    final state = container.read(gameProvider);
+
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 500);
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 1500);
+    expect(state.properties['prop_01']?.ownerId, 'p2');
+    expect(state.properties['trans_01']?.ownerId, 'p1');
+  });
+
+  test('Edge Case C: Multiple properties (prop_01 + trans_01 for prop_03 + trans_02)', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_01', 'trans_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_03', 'trans_02']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p1');
+    props['prop_03'] = props['prop_03']!.copyWith(ownerId: 'p2');
+    props['trans_02'] = props['trans_02']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = const TradeOffer(
+      id: 'trade_c',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredPropertyIds: ['prop_01', 'trans_01'],
+      requestedPropertyIds: ['prop_03', 'trans_02'],
+    );
+
+    notifier.proposeTrade(offer);
+    notifier.respondToTrade('trade_c', true);
+    final state = container.read(gameProvider);
+
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    final p2 = state.players.firstWhere((p) => p.id == 'p2');
+
+    expect(p1.ownedPropertyIds, containsAll(['prop_03', 'trans_02']));
+    expect(p1.ownedPropertyIds.contains('prop_01'), isFalse);
+    expect(p2.ownedPropertyIds, containsAll(['prop_01', 'trans_01']));
+    expect(p2.ownedPropertyIds.contains('prop_03'), isFalse);
+  });
+
+  test('Edge Case D: Mortgaged property trade (allowed, mortgage remains attached)', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1', isMortgaged: true);
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2', isMortgaged: false);
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = const TradeOffer(
+      id: 'trade_d',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredPropertyIds: ['prop_01'],
+      requestedPropertyIds: ['trans_01'],
+    );
+
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer, isNotNull);
+
+    notifier.respondToTrade('trade_d', true);
+    final state = container.read(gameProvider);
+
+    // Ownership transferred, and prop_01 is STILL mortgaged
+    expect(state.properties['prop_01']?.ownerId, 'p2');
+    expect(state.properties['prop_01']?.isMortgaged, isTrue);
+    expect(state.properties['trans_01']?.ownerId, 'p1');
+    expect(state.properties['trans_01']?.isMortgaged, isFalse);
+  });
+
+  test('Edge Case E: Property with buildings in color group must not be tradeable', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_01', 'prop_02']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    // prop_01 and prop_02 are in PropertyGroup.malabar.
+    // prop_01 has 0 houses, but prop_02 has 2 houses.
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1', currentLevel: 0);
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p1', currentLevel: 2);
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    expect(props['prop_01']!.hasBuildingsInGroup(container.read(gameProvider).properties), isTrue);
+    expect(props['prop_01']!.isTradeable(container.read(gameProvider).properties), isFalse);
+
+    // Attempt to trade prop_01
+    final offer = const TradeOffer(
+      id: 'trade_e',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredPropertyIds: ['prop_01'],
+      requestedPropertyIds: ['trans_01'],
+    );
+
+    notifier.proposeTrade(offer);
+    // Proposal must be rejected!
+    expect(container.read(gameProvider).activeTradeOffer, isNull);
+  });
+
+  test('Edge Case F: Insufficient cash: player has ₹300, attempts to offer ₹500', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 300, ownedPropertyIds: ['prop_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = const TradeOffer(
+      id: 'trade_f',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 500,
+      offeredPropertyIds: ['prop_01'],
+      requestedPropertyIds: ['trans_01'],
+    );
+
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer, isNull);
+  });
+
+  test('Edge Case G: State changes after trade creation: acceptance revalidates and prevents invalid trade', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 500, ownedPropertyIds: ['prop_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    // 1. Propose valid trade with 500 cash
+    final offer = const TradeOffer(
+      id: 'trade_g',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 500,
+      offeredPropertyIds: ['prop_01'],
+      requestedPropertyIds: ['trans_01'],
+    );
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer, isNotNull);
+
+    // 2. Change state: Player 1 spends 400 cash (e.g. rent) -> only 100 left
+    final players = List<Player>.from(container.read(gameProvider).players);
+    players[0] = players[0].copyWith(cash: 100);
+    notifier.state = container.read(gameProvider).copyWith(players: players);
+
+    // 3. Receiver tries to ACCEPT
+    notifier.respondToTrade('trade_g', true);
+    final state = container.read(gameProvider);
+
+    // Acceptance must FAIL revalidation!
+    expect(state.activeTradeOffer, isNull);
+    // No assets transferred!
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 100);
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 1000);
+    expect(state.properties['prop_01']?.ownerId, 'p1');
+    expect(state.properties['trans_01']?.ownerId, 'p2');
+  });
+
+  test('Edge Case H: Reject: rejecting a trade makes no state changes', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = const TradeOffer(
+      id: 'trade_h',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 200,
+      offeredPropertyIds: ['prop_01'],
+      requestedCash: 100,
+      requestedPropertyIds: ['trans_01'],
+    );
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer, isNotNull);
+
+    notifier.respondToTrade('trade_h', false); // REJECT
+    final state = container.read(gameProvider);
+
+    expect(state.activeTradeOffer, isNull);
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 1000);
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 1000);
+    expect(state.properties['prop_01']?.ownerId, 'p1');
+    expect(state.properties['trans_01']?.ownerId, 'p2');
+  });
+
+  test('Edge Case I: Cancel: cancelling a trade makes no state changes', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['prop_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000, ownedPropertyIds: ['trans_01']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = const TradeOffer(
+      id: 'trade_i',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 300,
+      offeredPropertyIds: ['prop_01'],
+      requestedCash: 0,
+      requestedPropertyIds: ['trans_01'],
+    );
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer, isNotNull);
+
+    notifier.cancelTradeOffer(); // CANCEL
+    final state = container.read(gameProvider);
+
+    expect(state.activeTradeOffer, isNull);
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 1000);
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 1000);
+    expect(state.properties['prop_01']?.ownerId, 'p1');
+    expect(state.properties['trans_01']?.ownerId, 'p2');
+  });
+
+  test('Edge Case J: Accept: accepting a valid trade transfers everything atomically', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1200, ownedPropertyIds: ['prop_01', 'trans_01']),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 800, ownedPropertyIds: ['prop_03', 'trans_02']),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['trans_01'] = props['trans_01']!.copyWith(ownerId: 'p1');
+    props['prop_03'] = props['prop_03']!.copyWith(ownerId: 'p2');
+    props['trans_02'] = props['trans_02']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    // p1 gives prop_01 + trans_01 + ₹200
+    // p2 gives prop_03 + trans_02 + ₹100
+    final offer = const TradeOffer(
+      id: 'trade_j',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 200,
+      offeredPropertyIds: ['prop_01', 'trans_01'],
+      requestedCash: 100,
+      requestedPropertyIds: ['prop_03', 'trans_02'],
+    );
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer?.status, TradeStatus.pending);
+
+    notifier.respondToTrade('trade_j', true);
+    final state = container.read(gameProvider);
+
+    expect(state.activeTradeOffer, isNull);
+    // p1 cash: 1200 - 200 + 100 = 1100
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 1100);
+    // p2 cash: 800 - 100 + 200 = 900
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 900);
+
+    // Ownership completely swapped
+    expect(state.properties['prop_01']?.ownerId, 'p2');
+    expect(state.properties['trans_01']?.ownerId, 'p2');
+    expect(state.properties['prop_03']?.ownerId, 'p1');
+    expect(state.properties['trans_02']?.ownerId, 'p1');
+
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    final p2 = state.players.firstWhere((p) => p.id == 'p2');
+    expect(p1.ownedPropertyIds, containsAll(['prop_03', 'trans_02']));
+    expect(p2.ownedPropertyIds, containsAll(['prop_01', 'trans_01']));
+  });
 }

@@ -223,7 +223,7 @@ class TradeProposalOverlay extends ConsumerWidget {
                             },
                             icon: const Icon(Icons.close_rounded, size: 18),
                             label: Text(
-                              'DECLINE',
+                              'REJECT',
                               style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ),
@@ -352,6 +352,20 @@ class TradeProposalOverlay extends ConsumerWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      if (p.isMortgaged) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '⚠️ Mortgaged',
+                            style: TextStyle(color: Color(0xFFDC2626), fontSize: 9.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 );

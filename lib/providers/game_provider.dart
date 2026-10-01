@@ -1732,8 +1732,79 @@ class GameNotifier extends Notifier<GameState> {
 
   // ==================== TRADING SYSTEM ====================
 
+  /// Validates a trade offer against the current GameState.
+  /// Enforces official Monopoly trade rules:
+  /// - Both players must be active (not bankrupt).
+  /// - Offer must contain at least one item (cash or property).
+  /// - Sender must have sufficient cash for offered cash (cash >= 0).
+  /// - Receiver must have sufficient cash for requested cash (cash >= 0).
+  /// - Sender must own all offered properties.
+  /// - Receiver must own all requested properties.
+  /// - No property in a color group with buildings (houses/hotels) can be traded.
+  /// - Mortgaged properties ARE tradeable (mortgage remains attached).
+  String? validateTradeOffer(TradeOffer offer) {
+    final sender = state.players.where((p) => p.id == offer.senderId).firstOrNull;
+    final receiver = state.players.where((p) => p.id == offer.receiverId).firstOrNull;
+
+    if (sender == null || sender.isBankrupt) {
+      return 'Sender is not an active player.';
+    }
+    if (receiver == null || receiver.isBankrupt) {
+      return 'Receiver is not an active player.';
+    }
+
+    // Must offer or request at least one item
+    if (offer.offeredCash == 0 &&
+        offer.requestedCash == 0 &&
+        offer.offeredPropertyIds.isEmpty &&
+        offer.requestedPropertyIds.isEmpty) {
+      return 'Trade must include at least one property or cash amount.';
+    }
+
+    // Cash validation
+    if (offer.offeredCash < 0 || offer.requestedCash < 0) {
+      return 'Cash amounts cannot be negative.';
+    }
+    if (sender.cash < offer.offeredCash) {
+      return '${sender.name} does not have enough cash (needs ₹${offer.offeredCash}, has ₹${sender.cash}).';
+    }
+    if (receiver.cash < offer.requestedCash) {
+      return '${receiver.name} does not have enough cash (needs ₹${offer.requestedCash}, has ₹${receiver.cash}).';
+    }
+
+    // Validate offered properties
+    for (final pId in offer.offeredPropertyIds) {
+      final prop = state.properties[pId];
+      if (prop == null) {
+        return 'Property $pId does not exist.';
+      }
+      if (prop.ownerId != sender.id || !sender.ownedPropertyIds.contains(pId)) {
+        return '${sender.name} does not own ${prop.name}.';
+      }
+      if (!prop.isTradeable(state.properties)) {
+        return 'Cannot trade ${prop.name}: buildings exist in its color group.';
+      }
+    }
+
+    // Validate requested properties
+    for (final pId in offer.requestedPropertyIds) {
+      final prop = state.properties[pId];
+      if (prop == null) {
+        return 'Property $pId does not exist.';
+      }
+      if (prop.ownerId != receiver.id || !receiver.ownedPropertyIds.contains(pId)) {
+        return '${receiver.name} does not own ${prop.name}.';
+      }
+      if (!prop.isTradeable(state.properties)) {
+        return 'Cannot trade ${prop.name}: buildings exist in its color group.';
+      }
+    }
+
+    return null; // Valid!
+  }
+
   bool executeTrade(TradeOffer offer) {
-    // Only the currently active player can propose/execute trades, or offer must match accepted activeTradeOffer
+    // Only the currently active player can initiate trade, or offer must match accepted activeTradeOffer
     if (offer.senderId != state.currentPlayer.id && state.activeTradeOffer?.id != offer.id) {
       debugPrint('[GameNotifier] Trade execution rejected: sender ${offer.senderId} is not active player (${state.currentPlayer.id})');
       return false;
@@ -1747,24 +1818,30 @@ class GameNotifier extends Notifier<GameState> {
       return true;
     }
 
-    final sender = state.players.where((p) => p.id == offer.senderId).firstOrNull;
-    final receiver = state.players.where((p) => p.id == offer.receiverId).firstOrNull;
-    if (sender == null || receiver == null) return false;
-
-    // Validate ownership and cash
-    if (sender.cash < offer.offeredCash || receiver.cash < offer.requestedCash) return false;
-    for (final pId in offer.offeredPropertyIds) {
-      if (!sender.ownedPropertyIds.contains(pId)) return false;
+    final validationError = validateTradeOffer(offer);
+    if (validationError != null) {
+      debugPrint('[GameNotifier] executeTrade validation failed: $validationError');
+      _addLog('❌ Trade failed: $validationError');
+      _showTransactionNotice(
+        type: 'trade_failed',
+        title: 'TRADE FAILED',
+        description: validationError,
+        icon: '⚠️',
+        color: const Color(0xFFEF4444),
+      );
+      state = state.copyWith(clearActiveTradeOffer: true);
+      _broadcastState();
+      return false;
     }
-    for (final pId in offer.requestedPropertyIds) {
-      if (!receiver.ownedPropertyIds.contains(pId)) return false;
-    }
 
-    // Transfer cash
+    final sender = state.players.firstWhere((p) => p.id == offer.senderId);
+    final receiver = state.players.firstWhere((p) => p.id == offer.receiverId);
+
+    // Atomic cash update
     final updatedSenderCash = sender.cash - offer.offeredCash + offer.requestedCash;
     final updatedReceiverCash = receiver.cash - offer.requestedCash + offer.offeredCash;
 
-    // Transfer properties
+    // Atomic property list update
     final updatedSenderProps = List<String>.from(sender.ownedPropertyIds)
       ..removeWhere(offer.offeredPropertyIds.contains)
       ..addAll(offer.requestedPropertyIds);
@@ -1773,20 +1850,26 @@ class GameNotifier extends Notifier<GameState> {
       ..removeWhere(offer.requestedPropertyIds.contains)
       ..addAll(offer.offeredPropertyIds);
 
+    // Atomic ownership update while strictly preserving mortgage status
     final newProps = Map<String, Property>.from(state.properties);
     for (final pId in offer.offeredPropertyIds) {
-      newProps[pId] = newProps[pId]!.copyWith(ownerId: receiver.id);
+      final p = newProps[pId]!;
+      newProps[pId] = p.copyWith(ownerId: receiver.id); // isMortgaged is preserved!
     }
     for (final pId in offer.requestedPropertyIds) {
-      newProps[pId] = newProps[pId]!.copyWith(ownerId: sender.id);
+      final p = newProps[pId]!;
+      newProps[pId] = p.copyWith(ownerId: sender.id); // isMortgaged is preserved!
     }
 
     _updatePlayer(sender.copyWith(cash: updatedSenderCash, ownedPropertyIds: updatedSenderProps));
     _updatePlayer(receiver.copyWith(cash: updatedReceiverCash, ownedPropertyIds: updatedReceiverProps));
 
-    state = state.copyWith(properties: newProps);
-    _addLog('🤝 Trade executed between ${sender.name} and ${receiver.name}!');
+    state = state.copyWith(
+      properties: newProps,
+      clearActiveTradeOffer: true,
+    );
 
+    _addLog('🤝 Trade executed between ${sender.name} and ${receiver.name}!');
     _showTransactionNotice(
       type: 'trade',
       title: 'TRADE COMPLETED',
@@ -1833,6 +1916,20 @@ class GameNotifier extends Notifier<GameState> {
       return;
     }
 
+    final validationError = validateTradeOffer(offer);
+    if (validationError != null) {
+      debugPrint('[GameNotifier] Trade proposal rejected: $validationError');
+      _addLog('⚠️ Trade proposal invalid: $validationError');
+      _showTransactionNotice(
+        type: 'trade_invalid',
+        title: 'INVALID TRADE',
+        description: validationError,
+        icon: '⚠️',
+        color: const Color(0xFFEA580C),
+      );
+      return;
+    }
+
     if (!_isHost) {
       ref.read(multiplayerServiceProvider).sendPlayerAction('propose_trade', {
         'playerId': offer.senderId,
@@ -1855,19 +1952,17 @@ class GameNotifier extends Notifier<GameState> {
       return;
     }
 
-    // Validate ownership and cash
-    if (sender.cash < offer.offeredCash || receiver.cash < offer.requestedCash) return;
-    for (final pId in offer.offeredPropertyIds) {
-      if (!sender.ownedPropertyIds.contains(pId)) return;
-    }
-    for (final pId in offer.requestedPropertyIds) {
-      if (!receiver.ownedPropertyIds.contains(pId)) return;
+    final validationError = validateTradeOffer(offer);
+    if (validationError != null) {
+      debugPrint('[GameNotifier] Trade proposal rejected: $validationError');
+      _addLog('⚠️ Trade proposal invalid: $validationError');
+      return;
     }
 
     if (receiver.type == PlayerType.ai) {
       final isFair = evaluateAiTrade(offer);
       if (isFair) {
-        executeTrade(offer);
+        executeTrade(offer.copyWith(status: TradeStatus.accepted));
       } else {
         _addLog('❌ Deal Rejected! ${receiver.name} wants more value.');
         _showTransactionNotice(
@@ -1882,8 +1977,9 @@ class GameNotifier extends Notifier<GameState> {
       return;
     }
 
-    // Human receiver: set activeTradeOffer so receiver sees proposal overlay to accept or decline
-    state = state.copyWith(activeTradeOffer: offer);
+    // Human receiver: set activeTradeOffer so receiver sees proposal overlay to accept or decline.
+    // Zero state change to cash or ownership while trade is pending.
+    state = state.copyWith(activeTradeOffer: offer.copyWith(status: TradeStatus.pending));
     _addLog('🤝 ${sender.name} proposed a trade to ${receiver.name}!');
     _showTransactionNotice(
       type: 'trade_proposed',
@@ -1914,8 +2010,24 @@ class GameNotifier extends Notifier<GameState> {
     final receiver = state.players.where((p) => p.id == offer.receiverId).firstOrNull;
 
     if (accept) {
+      // CRITICAL OFFICIAL RULE: Revalidate all conditions at the moment of acceptance!
+      final validationError = validateTradeOffer(offer);
+      if (validationError != null) {
+        state = state.copyWith(clearActiveTradeOffer: true);
+        _addLog('❌ Trade failed: $validationError');
+        _showTransactionNotice(
+          type: 'trade_failed',
+          title: 'TRADE FAILED',
+          description: validationError,
+          icon: '⚠️',
+          color: const Color(0xFFEF4444),
+        );
+        _broadcastState();
+        return;
+      }
+
       state = state.copyWith(clearActiveTradeOffer: true);
-      final success = executeTrade(offer);
+      final success = executeTrade(offer.copyWith(status: TradeStatus.accepted));
       if (success) {
         _addLog('🤝 Deal Accepted! ${receiver?.name ?? "Receiver"} accepted ${sender?.name ?? "Sender"}\'s trade offer.');
       } else {
@@ -1923,6 +2035,7 @@ class GameNotifier extends Notifier<GameState> {
         _broadcastState();
       }
     } else {
+      // Rejection: zero changes to cash or properties!
       state = state.copyWith(clearActiveTradeOffer: true);
       _addLog('❌ Trade Declined: ${receiver?.name ?? "Receiver"} declined ${sender?.name ?? "Sender"}\'s trade offer.');
       _showTransactionNotice(
@@ -1947,6 +2060,7 @@ class GameNotifier extends Notifier<GameState> {
     }
 
     if (state.activeTradeOffer != null) {
+      // Cancellation: zero changes to cash or properties!
       state = state.copyWith(clearActiveTradeOffer: true);
       _addLog('Trade offer was cancelled.');
       _broadcastState();
