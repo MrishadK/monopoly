@@ -64,7 +64,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
         final guestData = payload['player'];
         if (guestData != null) {
           final guest = Player.fromMap(Map<String, dynamic>.from(guestData));
-          if (!_roomPlayers.any((p) => p.id == guest.id) && _roomPlayers.length < 4) {
+          if (!_roomPlayers.any((p) => p.id == guest.id) && _roomPlayers.length < 6) {
             setState(() {
               _roomPlayers.add(guest);
             });
@@ -246,7 +246,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
   }
 
   void _addBot() {
-    if (_roomPlayers.length >= 4) return;
+    if (_roomPlayers.length >= 6) return;
     int botIndex = _roomPlayers.length;
     final botName = _botNames[(botIndex - 1) % _botNames.length];
     final personality = AiPersonality.values[(botIndex - 1) % AiPersonality.values.length];
@@ -269,7 +269,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
   }
 
   void _showAddBotSheet() {
-    if (_roomPlayers.length >= 4) return;
+    if (_roomPlayers.length >= 6) return;
     String botName = _botNames[(_roomPlayers.length - 1) % _botNames.length];
     AiPersonality personality = AiPersonality.conservative;
 
@@ -703,7 +703,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'PLAYERS (${_roomPlayers.length}/4)',
+                      'PLAYERS (${_roomPlayers.length}/6)',
                       style: GoogleFonts.outfit(
                         color: const Color(0xFF334155),
                         fontSize: 14,
@@ -711,7 +711,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-                    if (widget.isHost && _roomPlayers.length < 4)
+                    if (widget.isHost && _roomPlayers.length < 6)
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFECFDF5),
@@ -732,7 +732,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                 // ==================== 4 PLAYER SLOTS ====================
                 Expanded(
                   child: ListView.builder(
-                    itemCount: 4,
+                    itemCount: 6,
                     itemBuilder: (context, index) {
                       if (index < _roomPlayers.length) {
                         final p = _roomPlayers[index];
@@ -898,7 +898,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                       onPressed: _roomPlayers.length >= 2 ? _startGame : null,
                       child: Text(
                         _roomPlayers.length >= 2
-                            ? 'START MATCH (${_roomPlayers.length}/4)'
+                            ? 'START MATCH (${_roomPlayers.length}/6)'
                             : 'WAITING FOR PLAYERS (MIN 2)...',
                         style: GoogleFonts.outfit(
                           fontSize: 16,

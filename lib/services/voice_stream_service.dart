@@ -124,20 +124,20 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
   // Ice servers configuration
   final Map<String, dynamic> _rtcConfig = {
     'iceServers': [
-      {'url': 'stun:stun.l.google.com:19302'},
-      {'url': 'stun:stun1.l.google.com:19302'},
+      {'urls': 'stun:stun.l.google.com:19302'},
+      {'urls': 'stun:stun1.l.google.com:19302'},
       {
-        'url': 'turn:openrelay.metered.ca:80',
+        'urls': 'turn:openrelay.metered.ca:80',
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       },
       {
-        'url': 'turn:openrelay.metered.ca:443',
+        'urls': 'turn:openrelay.metered.ca:443',
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       },
       {
-        'url': 'turn:openrelay.metered.ca:443?transport=tcp',
+        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       }
