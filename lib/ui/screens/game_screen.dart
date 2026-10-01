@@ -15,6 +15,7 @@ import '../overlays/event_card_overlay.dart';
 import '../overlays/bankruptcy_overlay.dart';
 import '../overlays/game_over_overlay.dart';
 import '../overlays/auction_overlay.dart';
+import '../overlays/trade_proposal_overlay.dart';
 import '../widgets/banner_ad_widget.dart';
 import '../widgets/webrtc_audio_renderer.dart';
 
@@ -116,8 +117,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                     'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
                     'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
                     'auction': (context, KuthakaGame game) => const AuctionOverlay(),
+                    'trade_proposal': (context, KuthakaGame game) => const TradeProposalOverlay(),
                   },
-                  initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction'],
+                  initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction', 'trade_proposal'],
                 ),
               ),
               const WebrtcAudioRenderer(),

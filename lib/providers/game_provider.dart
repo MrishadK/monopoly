@@ -14,6 +14,7 @@ import '../data/game_data.dart';
 import '../services/multiplayer_service.dart';
 import '../services/audio_service.dart';
 import '../services/leaderboard_service.dart';
+import '../services/user_profile_service.dart';
 import '../ui/overlays/emoji_chat_overlay.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,6 +35,7 @@ class GameState {
   final Property? inspectedProperty;
   final BankruptcyRecord? activeBankruptcyRecord;
   final AuctionState? activeAuction;
+  final TradeOffer? activeTradeOffer;
   final TransactionNotice? activeTransaction;
   final List<String> gameLogs;
   final bool isAiThinking;
@@ -53,6 +55,7 @@ class GameState {
     this.inspectedProperty,
     this.activeBankruptcyRecord,
     this.activeAuction,
+    this.activeTradeOffer,
     this.activeTransaction,
     this.gameLogs = const [],
     this.isAiThinking = false,
@@ -80,6 +83,8 @@ class GameState {
     bool clearBankruptcyRecord = false,
     AuctionState? activeAuction,
     bool clearActiveAuction = false,
+    TradeOffer? activeTradeOffer,
+    bool clearActiveTradeOffer = false,
     TransactionNotice? activeTransaction,
     bool clearActiveTransaction = false,
     List<String>? gameLogs,
@@ -100,6 +105,7 @@ class GameState {
       inspectedProperty: clearInspectedProperty ? null : (inspectedProperty ?? this.inspectedProperty),
       activeBankruptcyRecord: clearBankruptcyRecord ? null : (activeBankruptcyRecord ?? this.activeBankruptcyRecord),
       activeAuction: clearActiveAuction ? null : (activeAuction ?? this.activeAuction),
+      activeTradeOffer: clearActiveTradeOffer ? null : (activeTradeOffer ?? this.activeTradeOffer),
       activeTransaction: clearActiveTransaction ? null : (activeTransaction ?? this.activeTransaction),
       gameLogs: gameLogs ?? this.gameLogs,
       isAiThinking: isAiThinking ?? this.isAiThinking,
@@ -120,6 +126,7 @@ class GameState {
       'message': message,
       'activeBankruptcyRecord': activeBankruptcyRecord?.toMap(),
       'activeAuction': activeAuction?.toMap(),
+      'activeTradeOffer': activeTradeOffer?.toMap(),
       'activeTransaction': activeTransaction?.toMap(),
       'inspectedProperty': inspectedProperty?.toMap(),
       'activeEventCard': activeEventCard?.toMap(),
@@ -144,6 +151,9 @@ class GameState {
           : null,
       activeAuction: map['activeAuction'] != null
           ? AuctionState.fromMap(Map<String, dynamic>.from(map['activeAuction']))
+          : null,
+      activeTradeOffer: map['activeTradeOffer'] != null
+          ? TradeOffer.fromMap(Map<String, dynamic>.from(map['activeTradeOffer']))
           : null,
       activeTransaction: map['activeTransaction'] != null
           ? TransactionNotice.fromMap(Map<String, dynamic>.from(map['activeTransaction']))
@@ -415,6 +425,23 @@ class GameNotifier extends Notifier<GameState> {
           final offer = TradeOffer.fromMap(offerMap);
           executeTrade(offer);
         }
+        break;
+      case 'propose_trade':
+        final offerMap = data['offer'] as Map<String, dynamic>?;
+        if (offerMap != null) {
+          final offer = TradeOffer.fromMap(offerMap);
+          proposeTrade(offer);
+        }
+        break;
+      case 'respond_trade':
+        final offerId = data['offerId'] as String?;
+        final accept = data['accept'] as bool? ?? false;
+        if (offerId != null) {
+          respondToTrade(offerId, accept);
+        }
+        break;
+      case 'cancel_trade':
+        cancelTradeOffer();
         break;
       case 'chat_message':
         final pId = data['playerId'] as String?;
@@ -1792,6 +1819,127 @@ class GameNotifier extends Notifier<GameState> {
     return getValue >= giveValue * 0.95; // Reasonable fairness threshold
   }
 
+  void proposeTrade(TradeOffer offer) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('propose_trade', {
+        'playerId': offer.senderId,
+        'offer': offer.toMap(),
+      });
+      return;
+    }
+
+    _executeProposeTrade(offer);
+  }
+
+  void _executeProposeTrade(TradeOffer offer) {
+    final sender = state.players.where((p) => p.id == offer.senderId).firstOrNull;
+    final receiver = state.players.where((p) => p.id == offer.receiverId).firstOrNull;
+    if (sender == null || receiver == null) return;
+
+    // Requirement: Only the player playing currently can implement/propose trade
+    if (sender.id != state.currentPlayer.id) {
+      debugPrint('[GameNotifier] Trade rejected: sender ${sender.name} is not the active turn player (${state.currentPlayer.name})');
+      return;
+    }
+
+    // Validate ownership and cash
+    if (sender.cash < offer.offeredCash || receiver.cash < offer.requestedCash) return;
+    for (final pId in offer.offeredPropertyIds) {
+      if (!sender.ownedPropertyIds.contains(pId)) return;
+    }
+    for (final pId in offer.requestedPropertyIds) {
+      if (!receiver.ownedPropertyIds.contains(pId)) return;
+    }
+
+    if (receiver.type == PlayerType.ai) {
+      final isFair = evaluateAiTrade(offer);
+      if (isFair) {
+        executeTrade(offer);
+      } else {
+        _addLog('❌ Deal Rejected! ${receiver.name} wants more value.');
+        _showTransactionNotice(
+          type: 'trade_declined',
+          title: 'TRADE REJECTED',
+          description: '${receiver.name} rejected the trade offer.',
+          icon: '❌',
+          color: const Color(0xFFEF4444),
+        );
+        _broadcastState();
+      }
+      return;
+    }
+
+    // Human receiver: set activeTradeOffer so receiver sees proposal overlay to accept or decline
+    state = state.copyWith(activeTradeOffer: offer);
+    _addLog('🤝 ${sender.name} proposed a trade to ${receiver.name}!');
+    _showTransactionNotice(
+      type: 'trade_proposed',
+      title: 'TRADE PROPOSED',
+      description: '${sender.name} sent a trade offer to ${receiver.name}.',
+      icon: '🤝',
+      color: const Color(0xFF2563EB),
+    );
+    _broadcastState();
+  }
+
+  void respondToTrade(String offerId, bool accept) {
+    if (!_isHost) {
+      final myProfile = ref.read(userProfileProvider);
+      final myLocalId = localPlayerId ?? myProfile.id;
+      ref.read(multiplayerServiceProvider).sendPlayerAction('respond_trade', {
+        'playerId': myLocalId,
+        'offerId': offerId,
+        'accept': accept,
+      });
+      return;
+    }
+
+    final offer = state.activeTradeOffer;
+    if (offer == null || offer.id != offerId) return;
+
+    final sender = state.players.where((p) => p.id == offer.senderId).firstOrNull;
+    final receiver = state.players.where((p) => p.id == offer.receiverId).firstOrNull;
+
+    if (accept) {
+      state = state.copyWith(clearActiveTradeOffer: true);
+      final success = executeTrade(offer);
+      if (success) {
+        _addLog('🤝 Deal Accepted! ${receiver?.name ?? "Receiver"} accepted ${sender?.name ?? "Sender"}\'s trade offer.');
+      } else {
+        _addLog('❌ Trade failed: asset balances or ownership changed.');
+        _broadcastState();
+      }
+    } else {
+      state = state.copyWith(clearActiveTradeOffer: true);
+      _addLog('❌ Trade Declined: ${receiver?.name ?? "Receiver"} declined ${sender?.name ?? "Sender"}\'s trade offer.');
+      _showTransactionNotice(
+        type: 'trade_declined',
+        title: 'TRADE DECLINED',
+        description: '${receiver?.name ?? "Receiver"} declined the trade offer.',
+        icon: '❌',
+        color: const Color(0xFFEF4444),
+      );
+      _broadcastState();
+    }
+  }
+
+  void cancelTradeOffer() {
+    if (!_isHost) {
+      final myProfile = ref.read(userProfileProvider);
+      final myLocalId = localPlayerId ?? myProfile.id;
+      ref.read(multiplayerServiceProvider).sendPlayerAction('cancel_trade', {
+        'playerId': myLocalId,
+      });
+      return;
+    }
+
+    if (state.activeTradeOffer != null) {
+      state = state.copyWith(clearActiveTradeOffer: true);
+      _addLog('Trade offer was cancelled.');
+      _broadcastState();
+    }
+  }
+
   // ==================== INTELLIGENT AI ENGINE ====================
 
   void _scheduleAiTurn() {
@@ -1979,6 +2127,7 @@ class GameNotifier extends Notifier<GameState> {
         clearActiveAuction: true,
         clearActiveEventCard: true,
         clearInspectedProperty: true,
+        clearActiveTradeOffer: true,
         message: '${current.name} timed out (Strike $newTimeouts/3). Passing turn.',
       );
       _forcePassTurn();
@@ -2114,6 +2263,7 @@ class GameNotifier extends Notifier<GameState> {
       isDoubles: false,
       clearActiveEventCard: true,
       clearInspectedProperty: true,
+      clearActiveTradeOffer: true,
       turnTimeRemaining: kTurnDurationSeconds,
       message: '${nextPlayer.name}\'s Turn!',
     );

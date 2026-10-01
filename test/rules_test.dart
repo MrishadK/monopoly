@@ -720,4 +720,189 @@ void main() {
     token.updateBoardDimensions(800, 800);
     expect(token.position.x, greaterThan(oldPosX));
   });
+
+  test('Trade proposal: only active player can propose trade', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_02'],
+      ),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    // Current player is p1. p2 tries to propose a trade.
+    expect(container.read(gameProvider).currentPlayer.id, 'p1');
+    final invalidOffer = TradeOffer(
+      id: 'offer_invalid',
+      senderId: 'p2',
+      receiverId: 'p1',
+      offeredCash: 50,
+      offeredPropertyIds: ['prop_02'],
+      requestedCash: 0,
+      requestedPropertyIds: ['prop_01'],
+    );
+    notifier.proposeTrade(invalidOffer);
+
+    // Proposal should be rejected because p2 is not currentPlayer
+    expect(container.read(gameProvider).activeTradeOffer, isNull);
+  });
+
+  test('Trade proposal workflow: propose sets activeTradeOffer, decline does not transfer assets, accept transfers assets', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_02'],
+      ),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = TradeOffer(
+      id: 'offer_1',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 100,
+      offeredPropertyIds: ['prop_01'],
+      requestedCash: 50,
+      requestedPropertyIds: ['prop_02'],
+    );
+
+    // 1. Propose trade
+    notifier.proposeTrade(offer);
+    var state = container.read(gameProvider);
+    expect(state.activeTradeOffer, isNotNull);
+    expect(state.activeTradeOffer?.id, 'offer_1');
+
+    // Assets must NOT have transferred yet
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 1000);
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 1000);
+    expect(state.properties['prop_01']?.ownerId, 'p1');
+    expect(state.properties['prop_02']?.ownerId, 'p2');
+
+    // 2. Decline trade
+    notifier.respondToTrade('offer_1', false);
+    state = container.read(gameProvider);
+    expect(state.activeTradeOffer, isNull);
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 1000);
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 1000);
+    expect(state.properties['prop_01']?.ownerId, 'p1');
+    expect(state.properties['prop_02']?.ownerId, 'p2');
+
+    // 3. Propose again and Accept
+    final offer2 = TradeOffer(
+      id: 'offer_2',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 100,
+      offeredPropertyIds: ['prop_01'],
+      requestedCash: 50,
+      requestedPropertyIds: ['prop_02'],
+    );
+    notifier.proposeTrade(offer2);
+    expect(container.read(gameProvider).activeTradeOffer?.id, 'offer_2');
+
+    notifier.respondToTrade('offer_2', true);
+    state = container.read(gameProvider);
+    expect(state.activeTradeOffer, isNull);
+
+    // p1 gave 100, received 50 -> net -50 => 950
+    expect(state.players.firstWhere((p) => p.id == 'p1').cash, 950);
+    // p2 gave 50, received 100 -> net +50 => 1050
+    expect(state.players.firstWhere((p) => p.id == 'p2').cash, 1050);
+
+    // Properties exchanged
+    expect(state.properties['prop_01']?.ownerId, 'p2');
+    expect(state.properties['prop_02']?.ownerId, 'p1');
+  });
+
+  test('Trade proposal: sender can cancel pending offer', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_02'],
+      ),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    final offer = TradeOffer(
+      id: 'offer_cancel',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 50,
+      offeredPropertyIds: ['prop_01'],
+      requestedCash: 0,
+      requestedPropertyIds: ['prop_02'],
+    );
+
+    notifier.proposeTrade(offer);
+    expect(container.read(gameProvider).activeTradeOffer, isNotNull);
+
+    notifier.cancelTradeOffer();
+    expect(container.read(gameProvider).activeTradeOffer, isNull);
+  });
 }

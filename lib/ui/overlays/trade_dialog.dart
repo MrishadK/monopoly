@@ -285,7 +285,7 @@ class _TradeDialogState extends ConsumerState<TradeDialog> {
                       });
                     }
                   } else {
-                    ref.read(gameProvider.notifier).executeTrade(offer);
+                    ref.read(gameProvider.notifier).proposeTrade(offer);
                     Navigator.pop(context);
                   }
                 },
