@@ -41,10 +41,10 @@ dependencies:
   supabase_flutter: ^2.17.2
   flutter_dotenv: ^6.0.1
   google_mobile_ads: ^9.1.0
-  audioplayers: ^6.0.0
   firebase_core: ^4.15.0
   firebase_crashlytics: ^5.4.0
-  record: ^7.1.1
+  flutter_webrtc: ^1.6.2+hotfix.3
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:

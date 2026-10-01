@@ -314,6 +314,26 @@ class MultiplayerService {
     });
   }
 
+  Future<bool> checkRoomExists(String roomId) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      final response = await client
+          .from('game_rooms')
+          .select('status')
+          .eq('room_id', roomId)
+          .maybeSingle();
+      
+      if (response == null) return false;
+      // You can only join if it's waiting for players
+      return response['status'] == 'waiting';
+    } catch (e) {
+      debugPrint('[MultiplayerService] checkRoomExists error: $e');
+      // If network fails, default to allowing the attempt (Realtime might still connect)
+      return true; 
+    }
+  }
+
   Future<void> joinRoom(String roomId) async {
     final client = _client;
     if (client == null) throw Exception("Network service unavailable");

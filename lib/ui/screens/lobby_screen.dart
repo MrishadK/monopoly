@@ -117,8 +117,16 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     try {
       final profile = ref.read(userProfileProvider);
       final myPlayer = profile.toPlayer(cash: _startingCash);
+      
+      final mpService = ref.read(multiplayerServiceProvider);
+      
+      // Check if room exists and is waiting for players
+      final exists = await mpService.checkRoomExists(roomId);
+      if (!exists) {
+        throw Exception("Room does not exist, or the match has already started.");
+      }
 
-      await ref.read(multiplayerServiceProvider).joinRoom(roomId);
+      await mpService.joinRoom(roomId);
 
       // Connect to Live Voice Room
       await ref.read(voiceStreamServiceProvider.notifier).connectToVoiceRoom(
@@ -143,7 +151,8 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _error = 'Could not connect to room $roomId: $e');
+        final errorMsg = e.toString().replaceAll('Exception: ', '');
+        setState(() => _error = errorMsg);
       }
     } finally {
       if (mounted) {

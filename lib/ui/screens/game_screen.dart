@@ -15,6 +15,7 @@ import '../overlays/bankruptcy_overlay.dart';
 import '../overlays/game_over_overlay.dart';
 import '../overlays/auction_overlay.dart';
 import '../widgets/banner_ad_widget.dart';
+import '../widgets/webrtc_audio_renderer.dart';
 
 class GameScreen extends ConsumerWidget {
   final String? roomId;
@@ -105,6 +106,7 @@ class GameScreen extends ConsumerWidget {
                   initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction'],
                 ),
               ),
+              const WebrtcAudioRenderer(),
               const BannerAdWidget(),
             ],
           ),

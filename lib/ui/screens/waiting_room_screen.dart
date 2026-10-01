@@ -8,6 +8,7 @@ import '../../services/multiplayer_service.dart';
 import '../../services/voice_stream_service.dart';
 import '../../providers/game_provider.dart';
 import 'game_screen.dart';
+import '../widgets/webrtc_audio_renderer.dart';
 
 class WaitingRoomScreen extends ConsumerStatefulWidget {
   final String roomId;
@@ -497,6 +498,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Column(
               children: [
+                const WebrtcAudioRenderer(),
                 // ==================== ROOM PIN CARD ====================
                 Container(
                   width: double.infinity,
