@@ -56,7 +56,7 @@ class _LocalSetupScreenState extends ConsumerState<LocalSetupScreen> {
   };
 
   void _addPlayer() {
-    if (_players.length >= 4) return;
+    if (_players.length >= 6) return;
     HapticFeedback.lightImpact();
     int idx = _players.length + 1;
     const botAliases = ['Aadu Thoma', 'Ranga Annan', 'Dasamoolam Damu', 'Shaji Pappan', 'Manavalan'];

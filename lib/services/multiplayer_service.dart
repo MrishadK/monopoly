@@ -87,7 +87,7 @@ class MultiplayerService {
               roomId: rId,
               hostName: row['host_name']?.toString() ?? 'Host',
               playerCount: row['player_count'] is int ? row['player_count'] as int : 1,
-              maxPlayers: row['max_players'] is int ? row['max_players'] as int : 4,
+              maxPlayers: row['max_players'] is int ? row['max_players'] as int : 6,
               startingCash: row['starting_cash'] is int ? row['starting_cash'] as int : 1000,
               lastSeen: DateTime.now(),
             );
@@ -142,7 +142,7 @@ class MultiplayerService {
           'roomId': roomId,
           'hostName': hostName,
           'playerCount': playerCount,
-          'maxPlayers': 4,
+          'maxPlayers': 6,
           'startingCash': startingCash,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         },
