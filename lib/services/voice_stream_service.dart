@@ -109,6 +109,7 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
   MediaStream? _localStream;
   final Map<String, RTCPeerConnection> _peerConnections = {};
   final Map<String, RTCVideoRenderer> _remoteRenderers = {};
+  final Map<String, List<RTCIceCandidate>> _earlyIceCandidates = {};
   
   Timer? _statusBroadcastTimer;
 
@@ -123,23 +124,20 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
   // Ice servers configuration
   final Map<String, dynamic> _rtcConfig = {
     'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
-      {'urls': 'stun:stun2.l.google.com:19302'},
-      {'urls': 'stun:stun3.l.google.com:19302'},
-      {'urls': 'stun:stun4.l.google.com:19302'},
+      {'url': 'stun:stun.l.google.com:19302'},
+      {'url': 'stun:stun1.l.google.com:19302'},
       {
-        'urls': 'turn:openrelay.metered.ca:80',
+        'url': 'turn:openrelay.metered.ca:80',
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       },
       {
-        'urls': 'turn:openrelay.metered.ca:443',
+        'url': 'turn:openrelay.metered.ca:443',
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       },
       {
-        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+        'url': 'turn:openrelay.metered.ca:443?transport=tcp',
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       }
@@ -290,6 +288,7 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
         await _peerConnections[senderId]!.setRemoteDescription(
           RTCSessionDescription(offerMap['sdp'], offerMap['type'])
         );
+        _flushEarlyCandidates(senderId);
         await _makeAnswer(senderId);
         break;
         
@@ -301,22 +300,42 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
           await pc.setRemoteDescription(
             RTCSessionDescription(answerMap['sdp'], answerMap['type'])
           );
+          _flushEarlyCandidates(senderId);
         }
         break;
         
       case 'ice-candidate':
         final candidateMap = data['candidate'] as Map<String, dynamic>;
+        final candidate = RTCIceCandidate(
+          candidateMap['candidate'],
+          candidateMap['sdpMid'],
+          candidateMap['sdpMLineIndex'],
+        );
+        
         final pc = _peerConnections[senderId];
-        if (pc != null) {
-          await pc.addCandidate(
-            RTCIceCandidate(
-              candidateMap['candidate'],
-              candidateMap['sdpMid'],
-              candidateMap['sdpMLineIndex'],
-            )
-          );
+        // If peer connection doesn't exist yet OR remote description is not set, we queue it
+        if (pc == null || await pc.getRemoteDescription() == null) {
+          debugPrint('[WebRTC] Queueing early ICE candidate from $senderId');
+          _earlyIceCandidates.putIfAbsent(senderId, () => []).add(candidate);
+        } else {
+          debugPrint('[WebRTC] Adding ICE candidate from $senderId');
+          await pc.addCandidate(candidate);
         }
         break;
+    }
+  }
+  
+  Future<void> _flushEarlyCandidates(String peerId) async {
+    final pc = _peerConnections[peerId];
+    if (pc == null) return;
+    
+    final candidates = _earlyIceCandidates[peerId] ?? [];
+    if (candidates.isNotEmpty) {
+      debugPrint('[WebRTC] Flushing ${candidates.length} queued ICE candidates for $peerId');
+      for (final candidate in candidates) {
+        await pc.addCandidate(candidate);
+      }
+      _earlyIceCandidates.remove(peerId);
     }
   }
 
