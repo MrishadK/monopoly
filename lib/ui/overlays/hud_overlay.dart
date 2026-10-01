@@ -123,9 +123,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final voiceService = ref.watch(voiceStreamServiceProvider);
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
-    final isOnline = multiplayer.isConnected;
+    final isOnline = multiplayer.isConnected || multiplayer.activeRoomId != null;
     final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
-    final isMyTurn = !isOnline || currentPlayer.id == myLocalId;
+    final isHumanTurn = currentPlayer.type == PlayerType.human;
+    final isMyTurn = isHumanTurn && (!isOnline || currentPlayer.id == myLocalId);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -259,9 +260,12 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             enabled: isMyTurn,
             onTap: () {
               if (!isMyTurn) {
+                final message = currentPlayer.type == PlayerType.ai
+                    ? 'Wait for ${currentPlayer.name}\'s turn to finish!'
+                    : 'Only ${currentPlayer.name} can make trades during their turn!';
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Only ${currentPlayer.name} can make trades during their turn!'),
+                    content: Text(message),
                     duration: const Duration(seconds: 2),
                     behavior: SnackBarBehavior.floating,
                   ),

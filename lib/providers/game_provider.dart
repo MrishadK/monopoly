@@ -357,6 +357,8 @@ class GameNotifier extends Notifier<GameState> {
       'end_turn',
       'dismiss_event_card',
       'dismiss_bankruptcy',
+      'propose_trade',
+      'execute_trade',
     };
 
     if (turnBasedActions.contains(actionType) && senderPlayerId != null && senderPlayerId != state.currentPlayer.id) {
@@ -1731,6 +1733,12 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== TRADING SYSTEM ====================
 
   bool executeTrade(TradeOffer offer) {
+    // Only the currently active player can propose/execute trades, or offer must match accepted activeTradeOffer
+    if (offer.senderId != state.currentPlayer.id && state.activeTradeOffer?.id != offer.id) {
+      debugPrint('[GameNotifier] Trade execution rejected: sender ${offer.senderId} is not active player (${state.currentPlayer.id})');
+      return false;
+    }
+
     if (!_isHost) {
       ref.read(multiplayerServiceProvider).sendPlayerAction('execute_trade', {
         'playerId': offer.senderId,
@@ -1820,6 +1828,11 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void proposeTrade(TradeOffer offer) {
+    if (offer.senderId != state.currentPlayer.id) {
+      debugPrint('[GameNotifier] Trade proposal rejected: sender ${offer.senderId} is not active player (${state.currentPlayer.id})');
+      return;
+    }
+
     if (!_isHost) {
       ref.read(multiplayerServiceProvider).sendPlayerAction('propose_trade', {
         'playerId': offer.senderId,

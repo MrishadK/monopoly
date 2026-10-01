@@ -905,4 +905,51 @@ void main() {
     notifier.cancelTradeOffer();
     expect(container.read(gameProvider).activeTradeOffer, isNull);
   });
+
+  test('executeTrade: rejected if sender is not active player and offer is not active accepted offer', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_02'],
+      ),
+    ]);
+
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    // Current player is p1. p2 tries to execute trade directly.
+    final invalidOffer = TradeOffer(
+      id: 'offer_direct',
+      senderId: 'p2',
+      receiverId: 'p1',
+      offeredCash: 50,
+      offeredPropertyIds: ['prop_02'],
+      requestedCash: 0,
+      requestedPropertyIds: ['prop_01'],
+    );
+    final executed = notifier.executeTrade(invalidOffer);
+    expect(executed, isFalse);
+    expect(container.read(gameProvider).properties['prop_01']?.ownerId, 'p1');
+    expect(container.read(gameProvider).properties['prop_02']?.ownerId, 'p2');
+  });
 }

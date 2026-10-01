@@ -5,6 +5,7 @@ import '../../models/player.dart';
 import '../../models/trade_offer.dart';
 import '../../providers/game_provider.dart';
 import '../../services/user_profile_service.dart';
+import '../../services/multiplayer_service.dart';
 
 class TradeDialog extends ConsumerStatefulWidget {
   const TradeDialog({super.key});
@@ -24,15 +25,41 @@ class _TradeDialogState extends ConsumerState<TradeDialog> {
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(gameProvider);
+    final currentPlayer = gameState.currentPlayer;
     final myProfile = ref.watch(userProfileProvider);
+    final multiplayer = ref.watch(multiplayerServiceProvider);
+    final isOnline = multiplayer.isConnected || multiplayer.activeRoomId != null;
     final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
-    final myPlayer = gameState.players.firstWhere(
-      (p) => p.id == myLocalId,
-      orElse: () => gameState.players.firstWhere(
-        (p) => p.type == PlayerType.human,
-        orElse: () => gameState.currentPlayer,
-      ),
-    );
+
+    // Strict validation: Only the player currently playing can make trades
+    final isCurrentlyPlaying = currentPlayer.type == PlayerType.human &&
+        (!isOnline || currentPlayer.id == myLocalId);
+
+    if (!isCurrentlyPlaying) {
+      return AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('TRADE RESTRICTED', style: GoogleFonts.outfit(color: const Color(0xFF0F172A), fontWeight: FontWeight.bold)),
+        content: Text(
+          currentPlayer.type == PlayerType.ai
+              ? 'Trading is paused while ${currentPlayer.name} (AI) is playing.'
+              : 'Only the player currently playing (${currentPlayer.name}) can make trades during their turn.',
+          style: GoogleFonts.outfit(color: const Color(0xFF475569)),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CLOSE'),
+          ),
+        ],
+      );
+    }
+
+    final myPlayer = currentPlayer;
     final otherPlayers = gameState.players.where((p) => p.id != myPlayer.id && !p.isBankrupt).toList();
 
     _selectedTarget ??= otherPlayers.isNotEmpty ? otherPlayers.first : null;
@@ -268,26 +295,8 @@ class _TradeDialogState extends ConsumerState<TradeDialog> {
                     requestedPropertyIds: _requestedProps.toList(),
                   );
 
-                  if (target.type == PlayerType.ai) {
-                    final isFair = ref.read(gameProvider.notifier).evaluateAiTrade(offer);
-                    if (isFair) {
-                      ref.read(gameProvider.notifier).executeTrade(offer);
-                      setState(() {
-                        _resultMessage = 'Deal Accepted! ${target.name} agreed to the trade.';
-                      });
-                      final nav = Navigator.of(context);
-                      Future.delayed(const Duration(seconds: 2), () {
-                        if (mounted) nav.pop();
-                      });
-                    } else {
-                      setState(() {
-                        _resultMessage = 'Deal Rejected! ${target.name} wants more value.';
-                      });
-                    }
-                  } else {
-                    ref.read(gameProvider.notifier).proposeTrade(offer);
-                    Navigator.pop(context);
-                  }
+                  ref.read(gameProvider.notifier).proposeTrade(offer);
+                  Navigator.pop(context);
                 },
                 child: Text('PROPOSE TRADE', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
