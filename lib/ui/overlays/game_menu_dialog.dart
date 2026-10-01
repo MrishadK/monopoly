@@ -5,6 +5,7 @@ import '../../providers/game_provider.dart';
 import '../../services/audio_service.dart';
 import '../../services/voice_stream_service.dart';
 import '../../services/multiplayer_service.dart';
+import '../../services/user_profile_service.dart';
 import '../screens/home_screen.dart';
 
 class GameMenuDialog extends ConsumerWidget {
@@ -120,8 +121,74 @@ class GameMenuDialog extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
 
-              // Voice Stream feature removed as requested.
-              const SizedBox(height: 16),
+              if (voiceService.isVoiceStreaming) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'LIVE VOICE CHAT',
+                            style: GoogleFonts.outfit(
+                              color: const Color(0xFF334155),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'PEER VOICE MESH',
+                              style: GoogleFonts.outfit(
+                                color: const Color(0xFF0369A1),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Microphone', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        subtitle: Text(
+                          voiceService.isMicMuted ? 'Muted' : 'Live Streaming',
+                          style: TextStyle(fontSize: 11, color: voiceService.isMicMuted ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                        ),
+                        value: !voiceService.isMicMuted,
+                        activeColor: const Color(0xFF047857),
+                        onChanged: (_) => ref.read(voiceStreamServiceProvider.notifier).toggleMic(),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Voice Audio (Speaker)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        subtitle: Text(
+                          voiceService.isSpeakerMuted ? 'Muted' : 'Hearing Players',
+                          style: TextStyle(fontSize: 11, color: voiceService.isSpeakerMuted ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                        ),
+                        value: !voiceService.isSpeakerMuted,
+                        activeColor: const Color(0xFF047857),
+                        onChanged: (_) => ref.read(voiceStreamServiceProvider.notifier).toggleSpeaker(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // Game Menu Options
               _menuItem(
@@ -168,8 +235,17 @@ class GameMenuDialog extends ConsumerWidget {
                 onTap: () {
                   Navigator.pop(context);
                   final mp = ref.read(multiplayerServiceProvider);
+                  final isHost = ref.read(gameProvider.notifier).isHost;
+                  final myLocalId = ref.read(gameProvider.notifier).localPlayerId ?? ref.read(userProfileProvider).id;
                   if (mp.activeRoomId != null) {
-                    mp.broadcastHostLeft(mp.activeRoomId!);
+                    if (isHost) {
+                      mp.broadcastHostLeft(mp.activeRoomId!);
+                    } else {
+                      // Guest leaving: find player name from game state
+                      final gameState = ref.read(gameProvider);
+                      final myPlayer = gameState.players.where((p) => p.id == myLocalId).firstOrNull;
+                      mp.broadcastPlayerLeft(mp.activeRoomId!, myLocalId, myPlayer?.name ?? 'A player');
+                    }
                     mp.leaveRoom();
                   }
                   ref.read(voiceStreamServiceProvider.notifier).disconnectVoice();

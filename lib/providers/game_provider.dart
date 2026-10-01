@@ -14,6 +14,7 @@ import '../data/game_data.dart';
 import '../services/multiplayer_service.dart';
 import '../services/audio_service.dart';
 import '../services/leaderboard_service.dart';
+import '../ui/overlays/emoji_chat_overlay.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum GamePhase { roll, moving, spaceAction, turnEnd, gameOver }
@@ -128,10 +129,10 @@ class GameState {
 
   factory GameState.fromMap(Map<String, dynamic> map) {
     return GameState(
-      players: List<Player>.from(map['players']?.map((x) => Player.fromMap(x)) ?? []),
+      players: List<Player>.from(map['players']?.map((x) => Player.fromMap(Map<String, dynamic>.from(x))) ?? []),
       currentPlayerIndex: map['currentPlayerIndex'] ?? 0,
       phase: GamePhase.values.firstWhere((e) => e.name == map['phase'], orElse: () => GamePhase.roll),
-      properties: Map<String, Property>.from(map['properties']?.map((k, v) => MapEntry(k, Property.fromMap(v))) ?? {}),
+      properties: Map<String, Property>.from(map['properties']?.map((k, v) => MapEntry(k.toString(), Property.fromMap(Map<String, dynamic>.from(v)))) ?? {}),
       lastDiceRoll: List<int>.from(map['lastDiceRoll'] ?? [1, 1]),
       isDoubles: map['isDoubles'] ?? false,
       consecutiveDoubles: map['consecutiveDoubles'] ?? 0,
@@ -155,12 +156,16 @@ class GameState {
 class GameNotifier extends Notifier<GameState> {
   final Random _random = Random();
   bool _isHost = true;
+  bool get isHost => _isHost;
+  String? _localPlayerId;
+  String? get localPlayerId => _localPlayerId;
   int _actionLockId = 0;
   Timer? _turnTimer;
   Timer? _transactionTimer;
   Timer? _aiTurnTimer;
   Timer? _aiTurnEndTimer;
   Timer? _diceRollTimer;
+  Timer? _auctionTimer;
 
   void _showTransactionNotice({
     required String type,
@@ -197,6 +202,7 @@ class GameNotifier extends Notifier<GameState> {
       _aiTurnTimer?.cancel();
       _aiTurnEndTimer?.cancel();
       _diceRollTimer?.cancel();
+      _auctionTimer?.cancel();
     });
     return GameState(
       players: [
@@ -237,14 +243,16 @@ class GameNotifier extends Notifier<GameState> {
     state = state.copyWith(gameLogs: newLogs);
   }
 
-  void initializeGame(List<Player> players, {bool isHost = true}) {
+  void initializeGame(List<Player> players, {bool isHost = true, String? localPlayerId}) {
     _actionLockId++;
     _turnTimer?.cancel();
     _transactionTimer?.cancel();
     _aiTurnTimer?.cancel();
     _aiTurnEndTimer?.cancel();
     _diceRollTimer?.cancel();
+    _auctionTimer?.cancel();
     _isHost = isHost;
+    _localPlayerId = localPlayerId ?? (isHost ? players.firstWhere((p) => p.type == PlayerType.human, orElse: () => players.first).id : null);
     state = GameState(
       players: players,
       currentPlayerIndex: 0,
@@ -256,6 +264,11 @@ class GameNotifier extends Notifier<GameState> {
 
     if (_isHost) {
       ref.read(multiplayerServiceProvider).onPlayerActionReceived = _handleRemotePlayerAction;
+      ref.read(multiplayerServiceProvider).onEmojiReceived = (emoji, playerName) {
+        // Broadcasts don't reach sender, but if they did we could deduplicate. 
+        // We just invoke the provider.
+        ref.read(emojiReactionProvider.notifier).receiveEmoji(emoji, playerName);
+      };
       _broadcastState();
     }
 
@@ -266,8 +279,9 @@ class GameNotifier extends Notifier<GameState> {
     }
   }
 
-  void initializeOnlineClient([List<Player>? initialPlayers]) {
+  void initializeOnlineClient({List<Player>? initialPlayers, String? localPlayerId}) {
     _isHost = false;
+    _localPlayerId = localPlayerId;
     if (initialPlayers != null && initialPlayers.isNotEmpty) {
       state = state.copyWith(
         players: initialPlayers,
@@ -281,6 +295,9 @@ class GameNotifier extends Notifier<GameState> {
     ref.read(multiplayerServiceProvider).onStateSyncReceived = (data) {
       state = GameState.fromMap(data);
     };
+    ref.read(multiplayerServiceProvider).onEmojiReceived = (emoji, playerName) {
+      ref.read(emojiReactionProvider.notifier).receiveEmoji(emoji, playerName);
+    };
   }
 
   void _handleRemotePlayerAction(Map<String, dynamic> payload) {
@@ -289,8 +306,21 @@ class GameNotifier extends Notifier<GameState> {
     final data = payload['data'] is Map ? Map<String, dynamic>.from(payload['data'] as Map) : <String, dynamic>{};
     final senderPlayerId = data['playerId'] as String?;
 
-    final isAuctionAction = actionType == 'place_bid' || actionType == 'pass_bid';
-    if (!isAuctionAction && senderPlayerId != null && senderPlayerId != state.currentPlayer.id) {
+    final turnBasedActions = {
+      'roll_dice',
+      'buy_property',
+      'pass_property',
+      'upgrade_property',
+      'toggle_mortgage',
+      'sell_building',
+      'pay_jail_bail',
+      'use_jail_card',
+      'end_turn',
+      'dismiss_event_card',
+      'dismiss_bankruptcy',
+    };
+
+    if (turnBasedActions.contains(actionType) && senderPlayerId != null && senderPlayerId != state.currentPlayer.id) {
       debugPrint('[GameNotifier] Ignored $actionType from $senderPlayerId (active: ${state.currentPlayer.id})');
       return;
     }
@@ -349,6 +379,23 @@ class GameNotifier extends Notifier<GameState> {
       case 'sell_building':
         final propId = data['propertyId'] as String?;
         if (propId != null) _executeSellBuilding(propId);
+        break;
+      case 'chat_message':
+        final pId = data['playerId'] as String?;
+        final msg = data['message'] as String?;
+        if (pId != null && msg != null) {
+          final p = state.players.firstWhere((p) => p.id == pId);
+          _addLog('💬 ${p.name}: $msg');
+          try { ref.read(audioServiceProvider.notifier).playClick(); } catch (_) {}
+        }
+        break;
+      case 'emoji_reaction':
+        final pId = data['playerId'] as String?;
+        final emoji = data['emoji'] as String?;
+        if (pId != null && emoji != null) {
+          final p = state.players.firstWhere((p) => p.id == pId, orElse: () => state.players.first);
+          debugPrint('[GameNotifier] Emoji reaction from ${p.name}: $emoji');
+        }
         break;
     }
   }
@@ -1149,6 +1196,29 @@ class GameNotifier extends Notifier<GameState> {
     if (current.type == PlayerType.ai) {
       _scheduleAiAuctionBid();
     }
+    
+    _startAuctionTimer();
+  }
+
+  void _startAuctionTimer() {
+    _auctionTimer?.cancel();
+    _auctionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final auction = state.activeAuction;
+      if (auction == null || auction.isCompleted) {
+        timer.cancel();
+        return;
+      }
+      
+      final remaining = auction.timeRemaining - 1;
+      if (remaining <= 0) {
+        timer.cancel();
+        _executePassBid(auction.currentBidderId);
+      } else {
+        state = state.copyWith(
+          activeAuction: auction.copyWith(timeRemaining: remaining),
+        );
+      }
+    });
   }
 
   void placeBid(String playerId, int amount) {
@@ -1192,6 +1262,8 @@ class GameNotifier extends Notifier<GameState> {
     if (nextBidder.type == PlayerType.ai && !updatedAuction.isCompleted) {
       _scheduleAiAuctionBid();
     }
+    
+    _startAuctionTimer();
   }
 
   void passBid(String playerId) {
@@ -1259,6 +1331,8 @@ class GameNotifier extends Notifier<GameState> {
     if (nextBidder.type == PlayerType.ai) {
       _scheduleAiAuctionBid();
     }
+    
+    _startAuctionTimer();
   }
 
   void _concludeAuction(String winnerId, int winningBid) {
@@ -1460,6 +1534,19 @@ class GameNotifier extends Notifier<GameState> {
       return;
     }
     _executeToggleMortgage(propertyId);
+  }
+
+  void sendChatMessage(String message, String playerId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('chat_message', {
+        'playerId': playerId,
+        'message': message,
+      });
+    } else {
+      final p = state.players.firstWhere((p) => p.id == playerId);
+      _addLog('💬 ${p.name}: $message');
+      try { ref.read(audioServiceProvider.notifier).playClick(); } catch (_) {}
+    }
   }
 
   void _executeToggleMortgage(String propertyId) {

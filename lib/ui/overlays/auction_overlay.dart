@@ -46,6 +46,7 @@ class _AuctionOverlayState extends ConsumerState<AuctionOverlay> {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
 
     final currentBidderId = auction.currentBidderId;
     final currentBidder = gameState.players.firstWhere(
@@ -60,7 +61,7 @@ class _AuctionOverlayState extends ConsumerState<AuctionOverlay> {
           )
         : null;
 
-    final isMyTurnToBid = (!isOnline || currentBidder.id == myProfile.id) &&
+    final isMyTurnToBid = (!isOnline || currentBidder.id == myLocalId) &&
         currentBidder.type == PlayerType.human &&
         !auction.isCompleted;
 
@@ -255,12 +256,12 @@ class _AuctionOverlayState extends ConsumerState<AuctionOverlay> {
                               const SizedBox(width: 8),
                             ],
                             Flexible(
-                              child: Text(
-                                isMyTurnToBid
-                                    ? 'YOUR TURN TO BID (${currentBidder.name}, Cash: ₹${currentBidder.cash})'
-                                    : 'Waiting for ${currentBidder.name} to bid...',
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.outfit(
+                                child: Text(
+                                  isMyTurnToBid
+                                      ? 'YOUR TURN TO BID (${currentBidder.name}, Cash: ₹${currentBidder.cash}) - ${auction.timeRemaining}s'
+                                      : 'Waiting for ${currentBidder.name} to bid... (${auction.timeRemaining}s)',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.outfit(
                                   color: isMyTurnToBid ? const Color(0xFF047857) : const Color(0xFF475569),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,

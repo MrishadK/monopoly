@@ -81,6 +81,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         roomId,
         myPlayer.id,
         myPlayer.name,
+        isHost: true,
       );
 
       if (mounted) {
@@ -124,6 +125,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         roomId,
         myPlayer.id,
         myPlayer.name,
+        isHost: false,
       );
 
       if (mounted) {

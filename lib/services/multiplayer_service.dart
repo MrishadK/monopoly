@@ -32,6 +32,8 @@ class MultiplayerService {
   void Function(Map<String, dynamic>)? onGameStartReceived;
   void Function(Map<String, dynamic>)? onHostLeftReceived;
   void Function(Map<String, dynamic>)? onPlayerKickedReceived;
+  void Function(String playerId, String playerName)? onPlayerLeftReceived;
+  void Function(String emoji, String playerName)? onEmojiReceived;
 
   // ==================== PUBLIC ROOM DISCOVERY ====================
 
@@ -240,6 +242,24 @@ class MultiplayerService {
     }
   }
 
+  Future<void> broadcastPlayerLeft(String roomId, String playerId, String playerName) async {
+    if (_roomChannel != null) {
+      try {
+        await _roomChannel!.sendBroadcastMessage(
+          event: 'player_left',
+          payload: {
+            'roomId': roomId,
+            'playerId': playerId,
+            'playerName': playerName,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          },
+        );
+      } catch (e) {
+        debugPrint('[MultiplayerService] broadcast player_left error: $e');
+      }
+    }
+  }
+
   // ==================== ROOM HOSTING & JOINING ====================
 
   Future<void> hostRoom(String roomId) async {
@@ -271,6 +291,22 @@ class MultiplayerService {
         if (onPlayerActionReceived != null) {
           onPlayerActionReceived!(payload);
         }
+      })
+      .onBroadcast(event: 'player_left', callback: (payload) {
+        final pId = payload['playerId'] as String?;
+        final pName = payload['playerName'] as String?;
+        if (pId != null && pName != null && onPlayerLeftReceived != null) {
+          onPlayerLeftReceived!(pId, pName);
+        }
+      })
+      .onBroadcast(event: 'emoji_reaction', callback: (payload) {
+        if (onEmojiReceived != null) {
+          final emoji = payload['emoji'] as String?;
+          final playerName = payload['playerName'] as String?;
+          if (emoji != null && playerName != null) {
+            onEmojiReceived!(emoji, playerName);
+          }
+        }
       });
 
     _roomChannel!.subscribe((status, [error]) {
@@ -298,6 +334,13 @@ class MultiplayerService {
           onPlayerKickedReceived!(payload);
         }
       })
+      .onBroadcast(event: 'player_left', callback: (payload) {
+        final pId = payload['playerId'] as String?;
+        final pName = payload['playerName'] as String?;
+        if (pId != null && pName != null && onPlayerLeftReceived != null) {
+          onPlayerLeftReceived!(pId, pName);
+        }
+      })
       .onBroadcast(event: 'lobby_sync', callback: (payload) {
         if (onLobbySyncReceived != null) {
           onLobbySyncReceived!(payload);
@@ -316,6 +359,15 @@ class MultiplayerService {
       .onBroadcast(event: 'player_action', callback: (payload) {
         if (onPlayerActionReceived != null) {
           onPlayerActionReceived!(payload);
+        }
+      })
+      .onBroadcast(event: 'emoji_reaction', callback: (payload) {
+        if (onEmojiReceived != null) {
+          final emoji = payload['emoji'] as String?;
+          final playerName = payload['playerName'] as String?;
+          if (emoji != null && playerName != null) {
+            onEmojiReceived!(emoji, playerName);
+          }
         }
       });
 
@@ -383,6 +435,18 @@ class MultiplayerService {
     }
   }
 
+  void broadcastEmoji(String emoji, String playerName) {
+    if (_roomChannel != null) {
+      _roomChannel!.sendBroadcastMessage(
+        event: 'emoji_reaction',
+        payload: {
+          'emoji': emoji,
+          'playerName': playerName,
+        },
+      );
+    }
+  }
+
   Future<void> leaveRoom() async {
     if (_roomChannel != null) {
       try {
@@ -398,6 +462,7 @@ class MultiplayerService {
     onGameStartReceived = null;
     onHostLeftReceived = null;
     onPlayerKickedReceived = null;
+    onPlayerLeftReceived = null;
     activeRoomId = null;
   }
 }

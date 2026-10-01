@@ -16,7 +16,8 @@ class PortfolioSheet extends ConsumerWidget {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
-    final isMyTurn = !isOnline || current.id == myProfile.id;
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final isMyTurn = !isOnline || current.id == myLocalId;
 
     // Group properties by PropertyGroup
     final Map<PropertyGroup, List<Property>> grouped = {};

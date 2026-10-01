@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/game_provider.dart';
+import '../../services/user_profile_service.dart';
+import '../../services/multiplayer_service.dart';
 
 // ==================== EMOJI REACTION STATE ====================
 
@@ -16,10 +18,18 @@ class EmojiReactionNotifier extends Notifier<EmojiReaction?> {
   @override
   EmojiReaction? build() => null;
 
-  void sendEmoji(String emoji, String playerName) {
+  void sendEmoji(String emoji, String playerName, dynamic multiplayerService) {
     state = EmojiReaction(emoji: emoji, playerName: playerName);
     Future.delayed(const Duration(milliseconds: 2500), () {
-      state = null;
+      if (state?.emoji == emoji) state = null;
+    });
+    multiplayerService.broadcastEmoji(emoji, playerName);
+  }
+
+  void receiveEmoji(String emoji, String playerName) {
+    state = EmojiReaction(emoji: emoji, playerName: playerName);
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (state?.emoji == emoji) state = null;
     });
   }
 }
@@ -163,31 +173,34 @@ class EmojiChatPanel extends ConsumerWidget {
               const SizedBox(height: 10),
 
               // Emoji Grid — fixed 5 columns, no scrolling needed
-              GridView.count(
-                crossAxisCount: 5,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                children: _gameEmojis.map((emoji) {
-                  return GestureDetector(
-                    onTap: () {
-                      ref
-                          .read(emojiReactionProvider.notifier)
-                          .sendEmoji(emoji, currentPlayer.name);
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+              Flexible(
+                child: GridView.count(
+                  crossAxisCount: 5,
+                  shrinkWrap: true,
+                  physics: const BouncingScrollPhysics(),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  children: _gameEmojis.map((emoji) {
+                    return GestureDetector(
+                      onTap: () {
+                        final mp = ref.read(multiplayerServiceProvider);
+                        ref
+                            .read(emojiReactionProvider.notifier)
+                            .sendEmoji(emoji, currentPlayer.name, mp);
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(emoji, style: const TextStyle(fontSize: 26)),
                       ),
-                      alignment: Alignment.center,
-                      child: Text(emoji, style: const TextStyle(fontSize: 26)),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+                ),
               ),
             ],
           ),
@@ -197,6 +210,99 @@ class EmojiChatPanel extends ConsumerWidget {
   }
 }
 
-// The floating emoji display widget (shown on the board)
+// ==================== QUICK CHAT PANEL ====================
 
-// The emoji picker panel
+class QuickChatPanel extends ConsumerWidget {
+  const QuickChatPanel({super.key});
+
+  static const List<String> _quickMessages = [
+    "Hello everyone! 👋",
+    "Hurry up! ⏳",
+    "Good roll! 🎲",
+    "Let's trade! 🤝",
+    "I'm broke! 😭",
+    "Thanks! 🙏",
+    "Oops! 😬",
+    "Well played! 👏",
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 100),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        elevation: 12,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Row(
+                children: [
+                  const Icon(Icons.chat_bubble_rounded, color: Color(0xFF16A34A), size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'QUICK CHAT',
+                    style: GoogleFonts.outfit(
+                      color: const Color(0xFF0F172A),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close_rounded, size: 22, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Divider(color: Color(0xFFE2E8F0), height: 1),
+              const SizedBox(height: 10),
+
+              // Messages List
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _quickMessages.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final msg = _quickMessages[index];
+                  return InkWell(
+                    onTap: () {
+                      final myId = ref.read(gameProvider.notifier).localPlayerId ?? ref.read(userProfileProvider).id;
+                      ref.read(gameProvider.notifier).sendChatMessage(msg, myId);
+                      Navigator.pop(context);
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Text(
+                        msg,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

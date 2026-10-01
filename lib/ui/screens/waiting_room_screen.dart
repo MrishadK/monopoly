@@ -188,7 +188,10 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
             );
           }
 
-          ref.read(gameProvider.notifier).initializeOnlineClient(parsedPlayers ?? _roomPlayers);
+          ref.read(gameProvider.notifier).initializeOnlineClient(
+            initialPlayers: parsedPlayers ?? _roomPlayers,
+            localPlayerId: widget.myPlayer.id,
+          );
 
           Navigator.pushReplacement(
             context,
@@ -199,12 +202,24 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
         }
       };
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(voiceStreamServiceProvider.notifier).connectToVoiceRoom(
+        widget.roomId, 
+        widget.myPlayer.id, 
+        widget.myPlayer.name,
+        isHost: widget.isHost,
+        autoStartMic: true,
+      );
+    });
   }
+
+  bool _isStartingGame = false;
 
   @override
   void dispose() {
     _heartbeatTimer?.cancel();
-    if (widget.isHost) {
+    if (widget.isHost && !_isStartingGame) {
       try {
         ref.read(multiplayerServiceProvider).broadcastHostLeft(widget.roomId);
       } catch (_) {}
@@ -418,6 +433,9 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     }
 
     HapticFeedback.heavyImpact();
+    setState(() {
+      _isStartingGame = true;
+    });
 
     // Close room on discovery channel so it disappears from lobby browser
     ref.read(multiplayerServiceProvider).broadcastRoomClosed(widget.roomId);
@@ -432,7 +450,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     });
 
     // Initialize game locally for host
-    ref.read(gameProvider.notifier).initializeGame(configured, isHost: true);
+    ref.read(gameProvider.notifier).initializeGame(configured, isHost: true, localPlayerId: widget.myPlayer.id);
 
     Navigator.pushReplacement(
       context,
@@ -562,59 +580,116 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
-
-                      // Live Voice Chat Pill
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              voiceService.isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                              size: 16,
-                              color: voiceService.isMicMuted ? const Color(0xFFDC2626) : const Color(0xFF10B981),
+                      
+                      // Voice Chat Pill
+                      if (voiceService.isVoiceStreaming)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: voiceService.isSpeaking
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFFE2E8F0),
+                              width: voiceService.isSpeaking ? 1.8 : 1.0,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              voiceService.isMicMuted ? 'Voice Muted' : 'Live Voice Active',
-                              style: GoogleFonts.outfit(
-                                color: const Color(0xFF0F172A),
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            InkWell(
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                ref.read(voiceStreamServiceProvider.notifier).toggleMic();
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: voiceService.isMicMuted
-                                      ? const Color(0xFFECFDF5)
-                                      : const Color(0xFFFEF2F2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  voiceService.isMicMuted ? 'UNMUTE' : 'MUTE',
-                                  style: TextStyle(
-                                    color: voiceService.isMicMuted ? const Color(0xFF047857) : const Color(0xFFDC2626),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Mic Toggle / Push-to-Talk
+                              GestureDetector(
+                                onTap: () {
+                                  ref.read(voiceStreamServiceProvider.notifier).toggleMic();
+                                  HapticFeedback.lightImpact();
+                                },
+                                onLongPressStart: (_) {
+                                  ref.read(voiceStreamServiceProvider.notifier).startPushToTalk();
+                                  HapticFeedback.mediumImpact();
+                                },
+                                onLongPressEnd: (_) {
+                                  ref.read(voiceStreamServiceProvider.notifier).stopPushToTalk();
+                                  HapticFeedback.lightImpact();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: voiceService.isPushToTalkActive
+                                        ? const Color(0xFFDCFCE7)
+                                        : Colors.transparent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    voiceService.isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                                    color: voiceService.isMicMuted ? const Color(0xFFEF4444) : const Color(0xFF047857),
+                                    size: 22,
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              // Live Voice Animation or State
+                              if (!voiceService.isMicMuted && voiceService.isSpeaking)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: List.generate(4, (index) {
+                                    return AnimatedContainer(
+                                      duration: const Duration(milliseconds: 120),
+                                      width: 4,
+                                      height: 8 + (voiceService.myAudioLevel * 18 * (index % 2 == 0 ? 1 : 0.6)),
+                                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF047857),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    );
+                                  }),
+                                )
+                              else
+                                Text(
+                                  voiceService.isPushToTalkActive
+                                      ? 'TALKING...'
+                                      : (voiceService.isMicMuted ? 'Mic Off' : 'Mic Live'),
+                                  style: GoogleFonts.outfit(
+                                    color: voiceService.isMicMuted ? const Color(0xFF64748B) : const Color(0xFF047857),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              const SizedBox(width: 10),
+                              // Speaker Toggle
+                              GestureDetector(
+                                onTap: () {
+                                  ref.read(voiceStreamServiceProvider.notifier).toggleSpeaker();
+                                  HapticFeedback.lightImpact();
+                                },
+                                child: Icon(
+                                  voiceService.isSpeakerMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                                  color: voiceService.isSpeakerMuted ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Serverless / Host Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE0F2FE),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'PEER VOICE MESH',
+                                  style: GoogleFonts.outfit(
+                                    color: const Color(0xFF0369A1),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),

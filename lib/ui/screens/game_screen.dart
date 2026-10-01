@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../game/kuthaka_game.dart';
 import '../../services/multiplayer_service.dart';
 import '../../services/voice_stream_service.dart';
+import '../../services/user_profile_service.dart';
+import '../../providers/game_provider.dart';
 import 'home_screen.dart';
 import '../overlays/hud_overlay.dart';
 import '../overlays/property_card_overlay.dart';
@@ -55,6 +57,11 @@ class GameScreen extends ConsumerWidget {
               if (roomId != null) {
                 if (isHost) {
                   mp.broadcastHostLeft(roomId!);
+                } else {
+                  final myLocalId = ref.read(gameProvider.notifier).localPlayerId ?? ref.read(userProfileProvider).id;
+                  final gameState = ref.read(gameProvider);
+                  final myPlayer = gameState.players.where((p) => p.id == myLocalId).firstOrNull;
+                  mp.broadcastPlayerLeft(roomId!, myLocalId, myPlayer?.name ?? 'A player');
                 }
                 mp.leaveRoom();
               }

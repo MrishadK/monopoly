@@ -133,6 +133,12 @@ class AudioNotifier extends Notifier<AudioState> {
     _playSound('click.wav');
   }
 
+  void playClick() {
+    if (!state.isSfxEnabled) return;
+    HapticFeedback.lightImpact();
+    _playSound('click.wav');
+  }
+
   void playVictory() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.vibrate();

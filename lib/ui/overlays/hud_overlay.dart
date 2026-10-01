@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../game/kuthaka_game.dart';
@@ -29,9 +30,18 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final players = ref.read(gameProvider).players;
-      final human = players.firstWhere((p) => p.type == PlayerType.human, orElse: () => players.first);
-      ref.read(voiceStreamServiceProvider.notifier).connectToVoiceRoom('kuthaka_live', human.id, human.name);
+      final profile = ref.read(userProfileProvider);
+      final mp = ref.read(multiplayerServiceProvider);
+      if (mp.activeRoomId != null) {
+        final isHost = ref.read(gameProvider.notifier).isHost;
+        ref.read(voiceStreamServiceProvider.notifier).connectToVoiceRoom(
+          mp.activeRoomId!,
+          profile.id,
+          profile.name,
+          isHost: isHost,
+          autoStartMic: true,
+        );
+      }
 
       // Listen for host leaving during active online game
       ref.read(multiplayerServiceProvider).onHostLeftReceived = (payload) {
@@ -75,6 +85,32 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           ),
         );
       };
+
+      // Listen for a guest player leaving during active online game (host handles it)
+      ref.read(multiplayerServiceProvider).onPlayerLeftReceived = (playerId, playerName) {
+        if (!mounted) return;
+        final notifier = ref.read(gameProvider.notifier);
+        if (notifier.isHost) {
+          // Host surrenders the leaving player and syncs state
+          notifier.surrenderPlayer(playerId);
+        }
+        // Show a snackbar for all remaining players
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.person_remove_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('$playerName left the match.', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            backgroundColor: const Color(0xFFD97706),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      };
     });
   }
 
@@ -86,12 +122,17 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
-    final isMyTurn = !isOnline || currentPlayer.id == myProfile.id;
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final isMyTurn = !isOnline || currentPlayer.id == myLocalId;
 
-    return SizedBox.expand(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > constraints.maxHeight && constraints.maxWidth > 800;
+        
+        return SizedBox.expand(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
           // ==================== TRANSACTION NOTICE (3-SECOND BANNER) ====================
           if (gameState.activeTransaction != null)
             _buildTransactionNotice(context, gameState),
@@ -116,15 +157,40 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               _buildTopHeader(context, gameState, voiceService),
               const SizedBox(height: 6),
               // 2:N Friends Grid (2 columns wide, responsive N rows)
-              _buildFriendsGrid2N(context, gameState, voiceService),
+              if (!isWide) _buildFriendsGrid2N(context, gameState, voiceService),
               // Notification Banner
-              if (gameState.message != null) ...[
+              if (gameState.message != null && !isWide) ...[
                 const SizedBox(height: 4),
                 _buildNotificationBanner(gameState),
               ],
             ],
           ),
         ),
+
+        if (isWide)
+          Positioned(
+            top: 60,
+            left: 10,
+            width: 250,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSidePlayerList(context, gameState, voiceService, true),
+                if (gameState.message != null) ...[
+                  const SizedBox(height: 12),
+                  _buildNotificationBanner(gameState),
+                ],
+              ],
+            ),
+          ),
+
+        if (isWide)
+          Positioned(
+            top: 60,
+            right: 10,
+            width: 250,
+            child: _buildSidePlayerList(context, gameState, voiceService, false),
+          ),
 
         // ==================== BOTTOM CONTROLS & ACTION BAR ====================
         Positioned(
@@ -224,7 +290,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           ),
         ),
         ],
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -246,49 +314,39 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Live Voice Stream Status Pill
+          // Quick Chat Pill
           InkWell(
-            onTap: () => ref.read(voiceStreamServiceProvider.notifier).toggleMic(),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => const Center(child: QuickChatPanel()),
+              );
+            },
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: voiceService.isMicMuted ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
+                color: const Color(0xFFF0FDF4),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: voiceService.isMicMuted ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                  color: const Color(0xFF16A34A),
                   width: 1.2,
                 ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    voiceService.isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                    size: 13,
-                    color: voiceService.isMicMuted ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-                  ),
-                  const SizedBox(width: 4),
+                  const Icon(Icons.chat_bubble_rounded, size: 14, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 5),
                   Text(
-                    voiceService.isMicMuted ? 'VOICE MUTED' : 'LIVE VOICE',
+                    'QUICK CHAT',
                     style: GoogleFonts.outfit(
-                      color: voiceService.isMicMuted ? const Color(0xFFDC2626) : const Color(0xFF047857),
-                      fontSize: 10,
+                      color: const Color(0xFF15803D),
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  if (!voiceService.isMicMuted) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF10B981),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -338,6 +396,74 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               ),
             );
           }),
+
+          // Live In-Match Voice Chat Pill
+          if (isOnline && voiceService.isVoiceStreaming) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: voiceService.isSpeaking ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: voiceService.isSpeaking ? const Color(0xFF10B981) : const Color(0xFFCBD5E1),
+                  width: voiceService.isSpeaking ? 1.5 : 1.0,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      ref.read(voiceStreamServiceProvider.notifier).toggleMic();
+                      HapticFeedback.lightImpact();
+                    },
+                    onLongPressStart: (_) {
+                      ref.read(voiceStreamServiceProvider.notifier).startPushToTalk();
+                      HapticFeedback.mediumImpact();
+                    },
+                    onLongPressEnd: (_) {
+                      ref.read(voiceStreamServiceProvider.notifier).stopPushToTalk();
+                      HapticFeedback.lightImpact();
+                    },
+                    child: Icon(
+                      voiceService.isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                      size: 16,
+                      color: voiceService.isMicMuted ? const Color(0xFFEF4444) : const Color(0xFF047857),
+                    ),
+                  ),
+                  if (!voiceService.isMicMuted && voiceService.isSpeaking) ...[
+                    const SizedBox(width: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(3, (i) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 100),
+                        width: 3,
+                        height: 6 + (voiceService.myAudioLevel * 10 * (i == 1 ? 1.2 : 0.6)),
+                        margin: const EdgeInsets.symmetric(horizontal: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF047857),
+                          borderRadius: BorderRadius.circular(1.5),
+                        ),
+                      )),
+                    ),
+                  ],
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () {
+                      ref.read(voiceStreamServiceProvider.notifier).toggleSpeaker();
+                      HapticFeedback.lightImpact();
+                    },
+                    child: Icon(
+                      voiceService.isSpeakerMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                      size: 16,
+                      color: voiceService.isSpeakerMuted ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
 
           // Match / Room Mode Badge & Quick Menu
           Row(
@@ -429,9 +555,27 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
+  Widget _buildSidePlayerList(BuildContext context, GameState gameState, VoiceStreamState voiceService, bool isLeft) {
+    final players = gameState.players;
+    final half = (players.length / 2).ceil();
+    final sidePlayers = isLeft ? players.take(half).toList() : players.skip(half).toList();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: sidePlayers.map((p) {
+        final index = players.indexOf(p);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: _buildPlayerCard(p, index, gameState, voiceService),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildPlayerCard(Player player, int index, GameState gameState, VoiceStreamState voiceService) {
     final isTurn = index == gameState.currentPlayerIndex;
-    final isSpeaking = player.type == PlayerType.human
+    final isMe = player.id == voiceService.myPlayerId;
+    final isSpeaking = isMe
         ? voiceService.isSpeaking
         : (voiceService.participants[player.id]?.isSpeaking ?? false);
 
@@ -772,7 +916,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
-    final isMyTurn = !isOnline || current.id == myProfile.id;
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final isMyTurn = !isOnline || current.id == myLocalId;
     final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && current.type == PlayerType.human;
 
     return GestureDetector(
@@ -887,7 +1032,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
-    final isMyTurn = !isOnline || current.id == myProfile.id;
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final isMyTurn = !isOnline || current.id == myLocalId;
 
     if (current.type == PlayerType.ai) {
       return Container(
@@ -1036,10 +1182,12 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width - 32,
         ),
-        child: InkWell(
-          onTap: () => ref.read(gameProvider.notifier).rollDice(),
-          borderRadius: BorderRadius.circular(28),
-          child: Container(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => ref.read(gameProvider.notifier).rollDice(),
+            borderRadius: BorderRadius.circular(28),
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1081,6 +1229,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               ],
             ),
           ),
+        ),
         ),
       );
     }

@@ -9,6 +9,7 @@ class AuctionState {
   final bool isCompleted;
   final String? winnerId;
   final int winningBid;
+  final int timeRemaining;
 
   const AuctionState({
     required this.propertyId,
@@ -21,6 +22,7 @@ class AuctionState {
     this.isCompleted = false,
     this.winnerId,
     this.winningBid = 0,
+    this.timeRemaining = 15,
   });
 
   String get currentBidderId {
@@ -42,6 +44,7 @@ class AuctionState {
     bool? isCompleted,
     String? winnerId,
     int? winningBid,
+    int? timeRemaining,
   }) {
     return AuctionState(
       propertyId: propertyId ?? this.propertyId,
@@ -54,6 +57,7 @@ class AuctionState {
       isCompleted: isCompleted ?? this.isCompleted,
       winnerId: winnerId ?? this.winnerId,
       winningBid: winningBid ?? this.winningBid,
+      timeRemaining: timeRemaining ?? this.timeRemaining,
     );
   }
 
@@ -69,6 +73,7 @@ class AuctionState {
       'isCompleted': isCompleted,
       'winnerId': winnerId,
       'winningBid': winningBid,
+      'timeRemaining': timeRemaining,
     };
   }
 
@@ -84,6 +89,7 @@ class AuctionState {
       isCompleted: map['isCompleted'] as bool? ?? false,
       winnerId: map['winnerId'] as String?,
       winningBid: (map['winningBid'] as num?)?.toInt() ?? 0,
+      timeRemaining: (map['timeRemaining'] as num?)?.toInt() ?? 15,
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'web_ad.dart';
 
 class BannerAdWidget extends StatefulWidget {
   const BannerAdWidget({super.key});
@@ -13,14 +15,20 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isLoaded = false;
 
-  final adUnitId = Platform.isAndroid
-      ? 'ca-app-pub-8355736208842576/9287383916'
-      : 'ca-app-pub-3940256099942544/2934735716';
+  final adUnitId = kIsWeb
+      ? ''
+      : Platform.isAndroid
+          ? 'ca-app-pub-8355736208842576/9287383916'
+          : 'ca-app-pub-3940256099942544/2934735716';
 
   @override
   void initState() {
     super.initState();
-    _loadAd();
+    if (kIsWeb) {
+      registerWebAd();
+    } else {
+      _loadAd();
+    }
   }
 
   void _loadAd() {
@@ -51,6 +59,14 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return const SizedBox(
+        width: 320,
+        height: 50,
+        child: HtmlElementView(viewType: 'ad-view'),
+      );
+    }
+
     if (_isLoaded && _bannerAd != null) {
       return Container(
         color: Colors.transparent,
