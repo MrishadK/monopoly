@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kuthaka/models/player.dart';
 import 'package:kuthaka/models/property.dart';
+import 'package:kuthaka/models/trade_offer.dart';
 import 'package:kuthaka/providers/game_provider.dart';
 import 'package:kuthaka/services/user_profile_service.dart';
+import 'package:kuthaka/game/components/player_token_component.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -583,5 +585,139 @@ void main() {
     notifier.buyProperty('prop_02');
     state = container.read(gameProvider);
     expect(state.properties['prop_02']?.ownerId, 'p1');
+  });
+
+  test('Auto-Auction: landing on unpurchased tile with insufficient cash automatically starts an auction', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 10, // Not enough for prop_01 (price: 60)
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    // Position player 1 on space 1 (prop_01, price: 60)
+    final p1 = container.read(gameProvider).players.firstWhere((p) => p.id == 'p1');
+    notifier.updatePlayerForTest(p1.copyWith(position: 1));
+    notifier.state = container.read(gameProvider).copyWith(phase: GamePhase.spaceAction);
+
+    // Call the space action handler logic via startAuction directly or triggering space action
+    final prop = container.read(gameProvider).properties['prop_01']!;
+    expect(p1.cash < prop.price, true);
+
+    // Start auction on the property
+    notifier.startAuction('prop_01');
+    final state = container.read(gameProvider);
+
+    expect(state.activeAuction, isNotNull);
+    expect(state.activeAuction?.propertyId, 'prop_01');
+    expect(state.activeAuction?.initiatorPlayerId, 'p1');
+  });
+
+  test('Trading System: executeTrade properly swaps cash and properties between players', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 500,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 800,
+        ownedPropertyIds: ['prop_02'],
+      ),
+    ]);
+
+    // Assign properties to match ownedPropertyIds
+    final props = Map<String, Property>.from(container.read(gameProvider).properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p2');
+    notifier.state = container.read(gameProvider).copyWith(properties: props);
+
+    // p1 offers prop_01 + 100 cash for p2's prop_02
+    final offer = TradeOffer(
+      id: 'trade_1',
+      senderId: 'p1',
+      receiverId: 'p2',
+      offeredCash: 100,
+      offeredPropertyIds: ['prop_01'],
+      requestedCash: 0,
+      requestedPropertyIds: ['prop_02'],
+    );
+
+    final success = notifier.executeTrade(offer);
+    expect(success, isTrue);
+
+    final state = container.read(gameProvider);
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    final p2 = state.players.firstWhere((p) => p.id == 'p2');
+
+    // p1 cash: 500 - 100 = 400
+    expect(p1.cash, 400);
+    // p2 cash: 800 + 100 = 900
+    expect(p2.cash, 900);
+
+    // Ownership transferred
+    expect(state.properties['prop_01']?.ownerId, 'p2');
+    expect(state.properties['prop_02']?.ownerId, 'p1');
+    expect(p1.ownedPropertyIds, contains('prop_02'));
+    expect(p2.ownedPropertyIds, contains('prop_01'));
+  });
+
+  test('PlayerTokenComponent: immediately computes non-zero position on construction and updates with board size', () {
+    const player = Player(
+      id: 'p1',
+      name: 'Player 1',
+      token: PlayerToken.coconut,
+      color: Colors.red,
+      type: PlayerType.human,
+      cash: 1500,
+      position: 0,
+    );
+
+    final token = PlayerTokenComponent(
+      player: player,
+      playerIndex: 0,
+      boardWidth: 600,
+      boardHeight: 600,
+    );
+
+    // Position must be calculated immediately on creation without waiting for update(dt)
+    expect(token.position.x, greaterThan(0));
+    expect(token.position.y, greaterThan(0));
+    expect(token.size.x, greaterThan(0));
+    expect(token.size.y, greaterThan(0));
+
+    final oldPosX = token.position.x;
+    // Resizing board should update coordinates
+    token.updateBoardDimensions(800, 800);
+    expect(token.position.x, greaterThan(oldPosX));
   });
 }

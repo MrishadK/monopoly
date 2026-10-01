@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/player.dart';
 import '../../models/trade_offer.dart';
 import '../../providers/game_provider.dart';
+import '../../services/user_profile_service.dart';
 
 class TradeDialog extends ConsumerStatefulWidget {
   const TradeDialog({super.key});
@@ -23,8 +24,16 @@ class _TradeDialogState extends ConsumerState<TradeDialog> {
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(gameProvider);
-    final current = gameState.currentPlayer;
-    final otherPlayers = gameState.players.where((p) => p.id != current.id && !p.isBankrupt).toList();
+    final myProfile = ref.watch(userProfileProvider);
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final myPlayer = gameState.players.firstWhere(
+      (p) => p.id == myLocalId,
+      orElse: () => gameState.players.firstWhere(
+        (p) => p.type == PlayerType.human,
+        orElse: () => gameState.currentPlayer,
+      ),
+    );
+    final otherPlayers = gameState.players.where((p) => p.id != myPlayer.id && !p.isBankrupt).toList();
 
     _selectedTarget ??= otherPlayers.isNotEmpty ? otherPlayers.first : null;
 
@@ -40,7 +49,7 @@ class _TradeDialogState extends ConsumerState<TradeDialog> {
     }
 
     final target = _selectedTarget!;
-    final myProps = current.ownedPropertyIds.map((id) => gameState.properties[id]!).toList();
+    final myProps = myPlayer.ownedPropertyIds.map((id) => gameState.properties[id]!).toList();
     final targetProps = target.ownedPropertyIds.map((id) => gameState.properties[id]!).toList();
 
     return Dialog(
@@ -154,10 +163,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog> {
                           const SizedBox(height: 4),
                           Text('Cash: ₹${_offeredCash.toInt()}', style: GoogleFonts.outfit(color: const Color(0xFF475569), fontSize: 12, fontWeight: FontWeight.w600)),
                           Slider(
-                            value: _offeredCash.clamp(0.0, current.cash.toDouble()),
+                            value: _offeredCash.clamp(0.0, myPlayer.cash.toDouble()),
                             min: 0,
-                            max: current.cash.toDouble().clamp(1.0, double.infinity),
-                            divisions: current.cash > 0 ? 20 : 1,
+                            max: myPlayer.cash.toDouble().clamp(1.0, double.infinity),
+                            divisions: myPlayer.cash > 0 ? 20 : 1,
                             activeColor: const Color(0xFFD97706),
                             onChanged: (val) => setState(() => _offeredCash = val),
                           ),
@@ -251,7 +260,7 @@ class _TradeDialogState extends ConsumerState<TradeDialog> {
                 onPressed: () {
                   final offer = TradeOffer(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    senderId: current.id,
+                    senderId: myPlayer.id,
                     receiverId: target.id,
                     offeredCash: _offeredCash.toInt(),
                     offeredPropertyIds: _offeredProps.toList(),

@@ -18,13 +18,26 @@ import '../overlays/auction_overlay.dart';
 import '../widgets/banner_ad_widget.dart';
 import '../widgets/webrtc_audio_renderer.dart';
 
-class GameScreen extends ConsumerWidget {
+class GameScreen extends ConsumerStatefulWidget {
   final String? roomId;
   final bool isHost;
 
   const GameScreen({super.key, this.roomId, this.isHost = true});
 
-  void _confirmExit(BuildContext context, WidgetRef ref) {
+  @override
+  ConsumerState<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends ConsumerState<GameScreen> {
+  late final KuthakaGame _game;
+
+  @override
+  void initState() {
+    super.initState();
+    _game = KuthakaGame(ref);
+  }
+
+  void _confirmExit(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -38,7 +51,7 @@ class GameScreen extends ConsumerWidget {
           ),
         ),
         content: Text(
-          (roomId != null && isHost)
+          (widget.roomId != null && widget.isHost)
               ? 'You are the host. Leaving will delete this room and end the match for everyone.'
               : 'Are you sure you want to quit the current match?',
           style: GoogleFonts.outfit(color: const Color(0xFF64748B)),
@@ -56,14 +69,14 @@ class GameScreen extends ConsumerWidget {
             onPressed: () {
               Navigator.pop(ctx);
               final mp = ref.read(multiplayerServiceProvider);
-              if (roomId != null) {
-                if (isHost) {
-                  mp.broadcastHostLeft(roomId!);
+              if (widget.roomId != null) {
+                if (widget.isHost) {
+                  mp.broadcastHostLeft(widget.roomId!);
                 } else {
                   final myLocalId = ref.read(gameProvider.notifier).localPlayerId ?? ref.read(userProfileProvider).id;
                   final gameState = ref.read(gameProvider);
                   final myPlayer = gameState.players.where((p) => p.id == myLocalId).firstOrNull;
-                  mp.broadcastPlayerLeft(roomId!, myLocalId, myPlayer?.name ?? 'A player');
+                  mp.broadcastPlayerLeft(widget.roomId!, myLocalId, myPlayer?.name ?? 'A player');
                 }
                 mp.leaveRoom();
               }
@@ -82,11 +95,11 @@ class GameScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _confirmExit(context, ref);
+        if (!didPop) _confirmExit(context);
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F4EE),
@@ -95,7 +108,7 @@ class GameScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: GameWidget(
-                  game: KuthakaGame(ref),
+                  game: _game,
                   overlayBuilderMap: {
                     'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
                     'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),

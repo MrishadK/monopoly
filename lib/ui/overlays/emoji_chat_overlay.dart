@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../providers/game_provider.dart';
 import '../../services/user_profile_service.dart';
 import '../../services/multiplayer_service.dart';
+import '../../models/player.dart';
 
 // ==================== EMOJI REACTION STATE ====================
 
@@ -125,7 +126,16 @@ class EmojiChatPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameProvider);
-    final currentPlayer = gameState.currentPlayer;
+    final myProfile = ref.watch(userProfileProvider);
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final myPlayer = gameState.players.firstWhere(
+      (p) => p.id == myLocalId,
+      orElse: () => gameState.players.firstWhere(
+        (p) => p.type == PlayerType.human,
+        orElse: () => gameState.currentPlayer,
+      ),
+    );
+    final myName = myPlayer.name.trim().isNotEmpty ? myPlayer.name : myProfile.name;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -186,7 +196,7 @@ class EmojiChatPanel extends ConsumerWidget {
                         final mp = ref.read(multiplayerServiceProvider);
                         ref
                             .read(emojiReactionProvider.notifier)
-                            .sendEmoji(emoji, currentPlayer.name, mp);
+                            .sendEmoji(emoji, myName, mp);
                         Navigator.pop(context);
                       },
                       child: Container(

@@ -409,6 +409,13 @@ class GameNotifier extends Notifier<GameState> {
         final propId = data['propertyId'] as String?;
         if (propId != null) _executeSellBuilding(propId);
         break;
+      case 'execute_trade':
+        final offerMap = data['offer'] as Map<String, dynamic>?;
+        if (offerMap != null) {
+          final offer = TradeOffer.fromMap(offerMap);
+          executeTrade(offer);
+        }
+        break;
       case 'chat_message':
         final pId = data['playerId'] as String?;
         final msg = data['message'] as String?;
@@ -709,11 +716,17 @@ class GameNotifier extends Notifier<GameState> {
           if (current.type == PlayerType.ai) {
             _runAiBuyDecision(prop);
           } else {
-            // Human player: show property card or prompt
-            state = state.copyWith(
-              inspectedProperty: prop,
-              message: 'Land on ${prop.name}! Buy for ₹${prop.price}?',
-            );
+            // Human player: If not enough money, automatically send to auction
+            if (current.cash < prop.price) {
+              _addLog('${current.name} lands on ${prop.name} but cannot afford ₹${prop.price} (has ₹${current.cash}). Sent automatically to Auction! 🔨');
+              _executeStartAuction(prop.id);
+            } else {
+              // Has enough money: show property card with Buy / Auction choices
+              state = state.copyWith(
+                inspectedProperty: prop,
+                message: 'Land on ${prop.name}! Buy for ₹${prop.price} or Auction?',
+              );
+            }
           }
         } else if (prop.ownerId == current.id) {
           _addLog('${current.name} visited their own property (${prop.name})');
@@ -1691,8 +1704,17 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== TRADING SYSTEM ====================
 
   bool executeTrade(TradeOffer offer) {
-    final sender = state.players.firstWhere((p) => p.id == offer.senderId);
-    final receiver = state.players.firstWhere((p) => p.id == offer.receiverId);
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('execute_trade', {
+        'playerId': offer.senderId,
+        'offer': offer.toMap(),
+      });
+      return true;
+    }
+
+    final sender = state.players.where((p) => p.id == offer.senderId).firstOrNull;
+    final receiver = state.players.where((p) => p.id == offer.receiverId).firstOrNull;
+    if (sender == null || receiver == null) return false;
 
     // Validate ownership and cash
     if (sender.cash < offer.offeredCash || receiver.cash < offer.requestedCash) return false;
@@ -1738,6 +1760,7 @@ class GameNotifier extends Notifier<GameState> {
       color: const Color(0xFF2563EB),
     );
 
+    _broadcastState();
     return true;
   }
 
@@ -1942,6 +1965,16 @@ class GameNotifier extends Notifier<GameState> {
       _removePlayerForTimeouts(current);
     } else {
       _updatePlayer(current.copyWith(consecutiveTimeouts: newTimeouts));
+
+      // If player timed out while on an unpurchased tile, send it to auction
+      final currentSpace = current.position < GameData.spaces.length ? GameData.spaces[current.position] : null;
+      final propId = currentSpace?.propertyId;
+      final prop = propId != null ? state.properties[propId] : state.inspectedProperty;
+      if (prop != null && prop.ownerId == null && state.phase == GamePhase.spaceAction) {
+        _addLog('⏱️ ${current.name} timed out on ${prop.name}. Sent to Auction!');
+        _executeStartAuction(prop.id);
+        return;
+      }
       state = state.copyWith(
         clearActiveAuction: true,
         clearActiveEventCard: true,

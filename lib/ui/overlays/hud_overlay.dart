@@ -256,18 +256,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           _dockButton(
             icon: Icons.swap_horiz_rounded,
             title: 'Trade',
-            enabled: isMyTurn,
             onTap: () {
-              if (!isMyTurn) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Only ${currentPlayer.name} can make plays during this turn!'),
-                    duration: const Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                return;
-              }
               showDialog(
                 context: context,
                 builder: (_) => const TradeDialog(),

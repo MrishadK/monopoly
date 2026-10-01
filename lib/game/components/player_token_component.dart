@@ -6,8 +6,8 @@ import '../../models/player.dart';
 class PlayerTokenComponent extends PositionComponent {
   Player player;
   final int playerIndex;
-  final double boardWidth;
-  final double boardHeight;
+  double boardWidth;
+  double boardHeight;
 
   // Hop stepping animation
   double _currentTile = 0.0;
@@ -25,6 +25,19 @@ class PlayerTokenComponent extends PositionComponent {
   }) {
     _currentTile = player.position.toDouble();
     _targetTile = player.position.toDouble();
+    _updatePositionOnBoard();
+  }
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    _updatePositionOnBoard();
+  }
+
+  void updateBoardDimensions(double width, double height) {
+    boardWidth = width;
+    boardHeight = height;
+    _updatePositionOnBoard();
   }
 
   void updatePlayer(Player updated) {
