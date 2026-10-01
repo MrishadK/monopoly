@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -193,9 +194,17 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             child: _buildSidePlayerList(context, gameState, voiceService, false),
           ),
 
+        // ==================== BOTTOM NAVIGATION DOCK ====================
+        Positioned(
+          bottom: 4,
+          left: isWide ? max(10.0, (constraints.maxWidth - 580) / 2) : 10,
+          right: isWide ? max(10.0, (constraints.maxWidth - 580) / 2) : 10,
+          child: _buildBottomNavDock(context, gameState, currentPlayer, isMyTurn),
+        ),
+
         // ==================== BOTTOM CONTROLS & ACTION BAR ====================
         Positioned(
-          bottom: 8,
+          bottom: 56,
           left: 10,
           right: 10,
           child: Column(
@@ -204,89 +213,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               // Dedicated Prominent Dice Tray
               _buildDiceTray(context, gameState, currentPlayer),
 
-              const SizedBox(height: 6),
+              const SizedBox(height: 5),
 
               // Main Turn Button
               _buildMainActionButton(context, gameState, currentPlayer),
-
-              const SizedBox(height: 8),
-
-              // Bottom Navigation Dock
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x10000000), blurRadius: 10, offset: Offset(0, 3)),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _dockButton(
-                      icon: Icons.holiday_village_rounded,
-                      title: 'Properties',
-                      onTap: () {
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => const PortfolioSheet(),
-                        );
-                      },
-                    ),
-                    _dockButton(
-                      icon: Icons.swap_horiz_rounded,
-                      title: 'Trade',
-                      enabled: isMyTurn,
-                      onTap: () {
-                        if (!isMyTurn) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Only ${currentPlayer.name} can make plays during this turn!'),
-                              duration: const Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                          return;
-                        }
-                        showDialog(
-                          context: context,
-                          builder: (_) => const TradeDialog(),
-                        );
-                      },
-                    ),
-                    _dockButton(
-                      icon: Icons.history_edu_rounded,
-                      title: 'Logs',
-                      onTap: () => _showLogsDialog(context, gameState),
-                    ),
-                    _dockButton(
-                      icon: Icons.emoji_emotions_rounded,
-                      title: 'Emoji',
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          barrierColor: Colors.black26,
-                          builder: (_) => const Center(child: EmojiChatPanel()),
-                        );
-                      },
-                    ),
-                    _dockButton(
-                      icon: Icons.settings_rounded,
-                      title: 'Settings',
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (_) => const GameMenuDialog(),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
@@ -294,6 +224,84 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildBottomNavDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x12000000), blurRadius: 10, offset: Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _dockButton(
+            icon: Icons.holiday_village_rounded,
+            title: 'Properties',
+            onTap: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const PortfolioSheet(),
+              );
+            },
+          ),
+          _dockButton(
+            icon: Icons.swap_horiz_rounded,
+            title: 'Trade',
+            enabled: isMyTurn,
+            onTap: () {
+              if (!isMyTurn) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Only ${currentPlayer.name} can make plays during this turn!'),
+                    duration: const Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+              showDialog(
+                context: context,
+                builder: (_) => const TradeDialog(),
+              );
+            },
+          ),
+          _dockButton(
+            icon: Icons.history_edu_rounded,
+            title: 'Logs',
+            onTap: () => _showLogsDialog(context, gameState),
+          ),
+          _dockButton(
+            icon: Icons.emoji_emotions_rounded,
+            title: 'Emoji',
+            onTap: () {
+              showDialog(
+                context: context,
+                barrierColor: Colors.black26,
+                builder: (_) => const Center(child: EmojiChatPanel()),
+              );
+            },
+          ),
+          _dockButton(
+            icon: Icons.settings_rounded,
+            title: 'Settings',
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => const GameMenuDialog(),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
