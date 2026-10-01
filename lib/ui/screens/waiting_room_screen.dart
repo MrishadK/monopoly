@@ -49,6 +49,8 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     Color(0xFF4CAF50),
     Color(0xFFFF9800),
     Color(0xFF9C27B0),
+    Color(0xFFE91E63),
+    Color(0xFF009688),
   ];
 
   @override

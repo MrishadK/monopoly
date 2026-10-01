@@ -124,20 +124,25 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
   // Ice servers configuration
   final Map<String, dynamic> _rtcConfig = {
     'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
       {
-        'urls': 'turn:openrelay.metered.ca:80',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
+        'urls': [
+          'stun:stun.l.google.com:19302',
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302',
+          'stun:stun3.l.google.com:19302',
+          'stun:stun4.l.google.com:19302',
+          'stun:stun.cloudflare.com:3478',
+        ],
       },
       {
-        'urls': 'turn:openrelay.metered.ca:443',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+        'urls': [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+          'turn:relay.metered.ca:80',
+          'turn:relay.metered.ca:443',
+          'turn:relay.metered.ca:443?transport=tcp',
+        ],
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
       }
@@ -305,20 +310,24 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
         break;
         
       case 'ice-candidate':
-        final candidateMap = data['candidate'] as Map<String, dynamic>;
+        final candidateMap = data['candidate'] as Map<String, dynamic>?;
+        if (candidateMap == null) break;
+        final cStr = candidateMap['candidate'] as String?;
+        if (cStr == null || cStr.trim().isEmpty) break;
+        
         final candidate = RTCIceCandidate(
-          candidateMap['candidate'],
-          candidateMap['sdpMid'],
-          candidateMap['sdpMLineIndex'],
+          cStr,
+          candidateMap['sdpMid'] as String?,
+          candidateMap['sdpMLineIndex'] as int?,
         );
         
         final pc = _peerConnections[senderId];
         // If peer connection doesn't exist yet OR remote description is not set, we queue it
         if (pc == null || await pc.getRemoteDescription() == null) {
-          debugPrint('[WebRTC] Queueing early ICE candidate from $senderId');
+          debugPrint('[WebRTC] Queueing early ICE candidate from $senderId: $cStr');
           _earlyIceCandidates.putIfAbsent(senderId, () => []).add(candidate);
         } else {
-          debugPrint('[WebRTC] Adding ICE candidate from $senderId');
+          debugPrint('[WebRTC] Adding ICE candidate from $senderId: $cStr');
           await pc.addCandidate(candidate);
         }
         break;
@@ -352,6 +361,11 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
     }
 
     pc.onIceCandidate = (candidate) {
+      if (candidate.candidate == null || candidate.candidate!.trim().isEmpty) {
+        debugPrint('[WebRTC] ICE candidate gathering finished for $peerId');
+        return;
+      }
+      debugPrint('[WebRTC] Gathered candidate for $peerId: ${candidate.candidate}');
       _broadcastSignaling({
         'type': 'ice-candidate',
         'target_id': peerId,
@@ -361,6 +375,10 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
           'sdpMLineIndex': candidate.sdpMLineIndex,
         },
       });
+    };
+
+    pc.onIceConnectionState = (iceState) {
+      debugPrint('[WebRTC] ICE connection state with $peerId: $iceState');
     };
 
     pc.onTrack = (event) async {
@@ -394,8 +412,7 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
     
     pc.onConnectionState = (rtcState) {
       debugPrint('[WebRTC] Connection state with $peerId: $rtcState');
-      if (rtcState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
-          rtcState == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+      if (rtcState == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
           rtcState == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
         _removePeer(peerId);
       }

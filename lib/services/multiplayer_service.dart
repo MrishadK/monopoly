@@ -157,7 +157,7 @@ class MultiplayerService {
         'host_id': client.auth.currentUser?.id ?? 'host_$roomId',
         'host_name': hostName,
         'player_count': playerCount,
-        'max_players': 4,
+        'max_players': 6,
         'starting_cash': startingCash,
         'status': 'waiting',
         'updated_at': DateTime.now().toIso8601String(),

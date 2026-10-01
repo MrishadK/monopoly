@@ -603,7 +603,7 @@ class _LocalSetupScreenState extends ConsumerState<LocalSetupScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'PLAYERS (${_players.length}/4)',
+                    'PLAYERS (${_players.length}/6)',
                     style: GoogleFonts.outfit(
                       color: const Color(0xFF64748B),
                       fontSize: 12,
@@ -612,7 +612,7 @@ class _LocalSetupScreenState extends ConsumerState<LocalSetupScreen> {
                     ),
                   ),
                   Text(
-                    'Min 2 • Max 4 Players',
+                    'Min 2 • Max 6 Players',
                     style: GoogleFonts.outfit(
                       color: const Color(0xFF94A3B8),
                       fontSize: 11,
@@ -769,7 +769,7 @@ class _LocalSetupScreenState extends ConsumerState<LocalSetupScreen> {
               const SizedBox(height: 12),
 
               // ==================== ADD PLAYER BUTTON ====================
-              if (_players.length < 4)
+              if (_players.length < 6)
                 OutlinedButton.icon(
                   onPressed: _addPlayer,
                   icon: const Icon(
@@ -778,7 +778,7 @@ class _LocalSetupScreenState extends ConsumerState<LocalSetupScreen> {
                     color: Color(0xFF047857),
                   ),
                   label: Text(
-                    'ADD PLAYER (${_players.length}/4)',
+                    'ADD PLAYER (${_players.length}/6)',
                     style: GoogleFonts.outfit(
                       color: const Color(0xFF047857),
                       fontWeight: FontWeight.w800,
