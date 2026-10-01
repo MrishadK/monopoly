@@ -121,6 +121,8 @@ class GameState {
       'activeBankruptcyRecord': activeBankruptcyRecord?.toMap(),
       'activeAuction': activeAuction?.toMap(),
       'activeTransaction': activeTransaction?.toMap(),
+      'inspectedProperty': inspectedProperty?.toMap(),
+      'activeEventCard': activeEventCard?.toMap(),
       'gameLogs': gameLogs,
       'isRollingDice': isRollingDice,
       'turnTimeRemaining': turnTimeRemaining,
@@ -145,6 +147,12 @@ class GameState {
           : null,
       activeTransaction: map['activeTransaction'] != null
           ? TransactionNotice.fromMap(Map<String, dynamic>.from(map['activeTransaction']))
+          : null,
+      inspectedProperty: map['inspectedProperty'] != null
+          ? Property.fromMap(Map<String, dynamic>.from(map['inspectedProperty']))
+          : null,
+      activeEventCard: map['activeEventCard'] != null
+          ? EventCard.fromMap(Map<String, dynamic>.from(map['activeEventCard']))
           : null,
       gameLogs: List<String>.from(map['gameLogs'] ?? []),
       isRollingDice: map['isRollingDice'] ?? false,
@@ -430,8 +438,10 @@ class GameNotifier extends Notifier<GameState> {
       state = state.copyWith(
         phase: GamePhase.roll,
         isDoubles: false,
+        turnTimeRemaining: kTurnDurationSeconds,
         message: 'DOUBLES! ${current.name} rolls again! 🎲',
       );
+      _startTurnTimer();
       if (current.type == PlayerType.ai) {
         _scheduleAiTurn();
       }
@@ -477,6 +487,8 @@ class GameNotifier extends Notifier<GameState> {
     // Trigger dynamic rolling animation across all clients & overlays
     state = state.copyWith(
       isRollingDice: true,
+      clearInspectedProperty: true,
+      clearActiveEventCard: true,
       message: '${current.name} is rolling the dice...',
     );
 
@@ -492,6 +504,8 @@ class GameNotifier extends Notifier<GameState> {
         state = state.copyWith(
           isRollingDice: false,
           lastDiceRoll: [d1, d2],
+          clearInspectedProperty: true,
+          clearActiveEventCard: true,
         );
         _sendToJail(current);
         return;
@@ -502,6 +516,8 @@ class GameNotifier extends Notifier<GameState> {
         isDoubles: isDouble,
         consecutiveDoubles: newConsecutive,
         isRollingDice: false,
+        clearInspectedProperty: true,
+        clearActiveEventCard: true,
         phase: GamePhase.moving,
         message: '${current.name} rolled ${d1 + d2}! Moving spaces...',
       );
@@ -685,8 +701,10 @@ class GameNotifier extends Notifier<GameState> {
             state = state.copyWith(
               phase: GamePhase.roll,
               isDoubles: false,
+              turnTimeRemaining: kTurnDurationSeconds,
               message: 'You own ${prop.name}. Rolled DOUBLES! Roll again! 🎲',
             );
+            _startTurnTimer();
             if (current.type == PlayerType.ai) {
               _scheduleAiTurn();
             }
@@ -710,8 +728,10 @@ class GameNotifier extends Notifier<GameState> {
               state = state.copyWith(
                 phase: GamePhase.roll,
                 isDoubles: false,
+                turnTimeRemaining: kTurnDurationSeconds,
                 message: '${prop.name} is mortgaged. Rolled DOUBLES! Roll again! 🎲',
               );
+              _startTurnTimer();
               if (current.type == PlayerType.ai) {
                 _scheduleAiTurn();
               }
@@ -753,8 +773,10 @@ class GameNotifier extends Notifier<GameState> {
           state = state.copyWith(
             phase: GamePhase.roll,
             isDoubles: false,
+            turnTimeRemaining: kTurnDurationSeconds,
             message: 'Enjoyed Meter Chaya! Rolled DOUBLES! Roll again! 🎲',
           );
+          _startTurnTimer();
           if (current.type == PlayerType.ai) {
             _scheduleAiTurn();
           }
@@ -776,8 +798,10 @@ class GameNotifier extends Notifier<GameState> {
           state = state.copyWith(
             phase: GamePhase.roll,
             isDoubles: false,
+            turnTimeRemaining: kTurnDurationSeconds,
             message: 'Just visiting. Rolled DOUBLES! Roll again! 🎲',
           );
+          _startTurnTimer();
           if (current.type == PlayerType.ai) {
             _scheduleAiTurn();
           }
@@ -798,8 +822,10 @@ class GameNotifier extends Notifier<GameState> {
           state = state.copyWith(
             phase: GamePhase.roll,
             isDoubles: false,
+            turnTimeRemaining: kTurnDurationSeconds,
             message: 'At Naattile Thudakkam! Rolled DOUBLES! Roll again! 🎲',
           );
+          _startTurnTimer();
           if (current.type == PlayerType.ai) {
             _scheduleAiTurn();
           }
@@ -959,8 +985,10 @@ class GameNotifier extends Notifier<GameState> {
         state = state.copyWith(
           phase: GamePhase.roll,
           isDoubles: false,
+          turnTimeRemaining: kTurnDurationSeconds,
           message: 'Paid ₹$rent rent to ${owner.name}. Rolled DOUBLES! Roll again! 🎲',
         );
+        _startTurnTimer();
         if (current.type == PlayerType.ai) {
           _scheduleAiTurn();
         }
@@ -998,8 +1026,10 @@ class GameNotifier extends Notifier<GameState> {
         state = state.copyWith(
           phase: GamePhase.roll,
           isDoubles: false,
+          turnTimeRemaining: kTurnDurationSeconds,
           message: 'Paid ₹$amount in $taxName. Rolled DOUBLES! Roll again! 🎲',
         );
+        _startTurnTimer();
         if (current.type == PlayerType.ai) {
           _scheduleAiTurn();
         }
@@ -1098,8 +1128,10 @@ class GameNotifier extends Notifier<GameState> {
           clearInspectedProperty: true,
           phase: GamePhase.roll,
           isDoubles: false,
+          turnTimeRemaining: kTurnDurationSeconds,
           message: '${current.name} purchased ${prop.name}! Rolled DOUBLES! Roll again! 🎲',
         );
+        _startTurnTimer();
         if (updatedPlayer.type == PlayerType.ai) {
           _scheduleAiTurn();
         }
@@ -1214,9 +1246,7 @@ class GameNotifier extends Notifier<GameState> {
         timer.cancel();
         _executePassBid(auction.currentBidderId);
       } else {
-        // Use super.state to skip _broadcastState() for every tick —
-        // avoids flooding the Realtime channel with countdown messages
-        super.state = state.copyWith(
+        state = state.copyWith(
           activeAuction: auction.copyWith(timeRemaining: remaining),
         );
       }
@@ -1379,8 +1409,10 @@ class GameNotifier extends Notifier<GameState> {
         state = state.copyWith(
           phase: GamePhase.roll,
           isDoubles: false,
+          turnTimeRemaining: kTurnDurationSeconds,
           message: 'DOUBLES! ${current.name} rolls again! 🎲',
         );
+        _startTurnTimer();
         if (current.type == PlayerType.ai) {
           _scheduleAiTurn();
         }
@@ -1408,8 +1440,10 @@ class GameNotifier extends Notifier<GameState> {
         state = state.copyWith(
           phase: GamePhase.roll,
           isDoubles: false,
+          turnTimeRemaining: kTurnDurationSeconds,
           message: 'DOUBLES! ${current.name} rolls again! 🎲',
         );
+        _startTurnTimer();
         if (current.type == PlayerType.ai) {
           _scheduleAiTurn();
         }
@@ -1855,8 +1889,7 @@ class GameNotifier extends Notifier<GameState> {
     _turnTimer?.cancel();
     if (state.phase == GamePhase.gameOver) return;
 
-    // Use super.state to avoid broadcasting timer ticks — only real game events broadcast
-    super.state = state.copyWith(turnTimeRemaining: kTurnDurationSeconds);
+    state = state.copyWith(turnTimeRemaining: kTurnDurationSeconds);
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.phase == GamePhase.gameOver) {
         timer.cancel();
@@ -1868,9 +1901,7 @@ class GameNotifier extends Notifier<GameState> {
       }
       final remaining = state.turnTimeRemaining - 1;
       if (remaining > 0) {
-        // Use super.state to skip _broadcastState() for every tick —
-        // avoids flooding the Supabase Realtime channel with 45 msgs/turn
-        super.state = state.copyWith(turnTimeRemaining: remaining);
+        state = state.copyWith(turnTimeRemaining: remaining);
       } else {
         timer.cancel();
         _handleTurnTimeout();

@@ -14,6 +14,7 @@ import 'game_menu_dialog.dart';
 import 'emoji_chat_overlay.dart';
 import '../widgets/dice_widget.dart';
 import '../screens/home_screen.dart';
+import '../../data/game_data.dart';
 
 class HudOverlay extends ConsumerStatefulWidget {
   final KuthakaGame game;
@@ -1234,7 +1235,38 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       );
     }
 
-    if (gameState.phase == GamePhase.spaceAction && gameState.inspectedProperty != null) {
+    if (gameState.phase == GamePhase.spaceAction) {
+      if (gameState.inspectedProperty != null) {
+        return const SizedBox.shrink();
+      }
+      // Fallback: If on an unowned property during spaceAction but card was closed/null
+      final currentSpace = GameData.spaces[current.position];
+      if (currentSpace.propertyId != null) {
+        final prop = gameState.properties[currentSpace.propertyId];
+        if (prop != null && prop.ownerId == null) {
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 32),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF047857),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                elevation: 4,
+              ),
+              onPressed: () => ref.read(gameProvider.notifier).inspectProperty(prop),
+              icon: const Icon(Icons.shopping_cart_rounded, size: 20),
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'BUY / AUCTION ${prop.name.toUpperCase()} (₹${prop.price})',
+                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+          );
+        }
+      }
       return const SizedBox.shrink();
     }
 

@@ -508,4 +508,80 @@ void main() {
     expect(state.activeTransaction?.type, 'build');
     expect(state.activeTransaction?.title, 'COTTAGE BUILT');
   });
+
+  test('GameState serialization preserves inspectedProperty and activeEventCard for multiplayer', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000),
+    ]);
+
+    var state = container.read(gameProvider);
+    final prop = state.properties['prop_01'];
+    notifier.state = state.copyWith(
+      inspectedProperty: prop,
+      phase: GamePhase.spaceAction,
+    );
+
+    state = container.read(gameProvider);
+    final map = state.toMap();
+    expect(map['inspectedProperty'], isNotNull);
+    expect(map['inspectedProperty']['id'], 'prop_01');
+
+    final restored = GameState.fromMap(map);
+    expect(restored.inspectedProperty, isNotNull);
+    expect(restored.inspectedProperty?.id, 'prop_01');
+    expect(restored.phase, GamePhase.spaceAction);
+  });
+
+  test('Doubles Rule: rolling again after doubles lands on unpurchased tile with purchase option', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', token: PlayerToken.coconut, color: Colors.red, type: PlayerType.human, cash: 1000),
+      const Player(id: 'p2', name: 'Player 2', token: PlayerToken.elephant, color: Colors.blue, type: PlayerType.human, cash: 1000),
+    ]);
+
+    var state = container.read(gameProvider);
+
+    // Roll 1: Player lands on prop_01 (space 1) with doubles
+    notifier.state = state.copyWith(
+      isDoubles: true,
+      consecutiveDoubles: 1,
+      phase: GamePhase.spaceAction,
+    );
+
+    // Buy prop_01
+    notifier.buyProperty('prop_01');
+    state = container.read(gameProvider);
+
+    // Player gets another roll (phase is roll, isDoubles is false, consecutiveDoubles is 1)
+    expect(state.phase, GamePhase.roll);
+    expect(state.isDoubles, false);
+    expect(state.consecutiveDoubles, 1);
+    expect(state.inspectedProperty, isNull);
+
+    // Roll 2: Player rolls again and lands on prop_02 (space 3, Beypore, unowned)
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    notifier.updatePlayerForTest(p1.copyWith(position: 3));
+    notifier.state = state.copyWith(
+      phase: GamePhase.spaceAction,
+      inspectedProperty: state.properties['prop_02'],
+    );
+
+    state = container.read(gameProvider);
+    expect(state.phase, GamePhase.spaceAction);
+    expect(state.inspectedProperty, isNotNull);
+    expect(state.inspectedProperty?.id, 'prop_02');
+    expect(state.inspectedProperty?.ownerId, isNull);
+
+    // Can purchase prop_02
+    notifier.buyProperty('prop_02');
+    state = container.read(gameProvider);
+    expect(state.properties['prop_02']?.ownerId, 'p1');
+  });
 }
