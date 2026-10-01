@@ -462,40 +462,51 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     String sub = '';
     VoidCallback drawIcon;
 
+    Offset iconCenter;
+    if (index > 0 && index < 10) {
+      iconCenter = Offset(rect.center.dx, rect.top + rect.height * 0.45);
+    } else if (index > 10 && index < 20) {
+      iconCenter = Offset(rect.right - rect.width * 0.25, rect.center.dy);
+    } else if (index > 20 && index < 30) {
+      iconCenter = Offset(rect.center.dx, rect.bottom - rect.height * 0.45);
+    } else {
+      iconCenter = Offset(rect.left + rect.width * 0.25, rect.center.dy);
+    }
+
     switch (space.type) {
       case SpaceType.railroad:
         final prop = properties[space.propertyId];
         sub = '₹${prop?.price ?? 135}';
         if (space.name.contains('Metro')) {
-          drawIcon = () => _drawMetroIcon(canvas, rect.center);
+          drawIcon = () => _drawMetroIcon(canvas, iconCenter);
         } else if (space.name.contains('Airport')) {
-          drawIcon = () => _drawPlaneIcon(canvas, rect.center);
+          drawIcon = () => _drawPlaneIcon(canvas, iconCenter);
         } else if (space.name.contains('Ferry')) {
-          drawIcon = () => _drawFerryIcon(canvas, rect.center);
+          drawIcon = () => _drawFerryIcon(canvas, iconCenter);
         } else {
-          drawIcon = () => _drawBusIcon(canvas, rect.center);
+          drawIcon = () => _drawBusIcon(canvas, iconCenter);
         }
         break;
       case SpaceType.utility:
         final prop = properties[space.propertyId];
         sub = '₹${prop?.price ?? 100}';
         if (space.name.contains('KSEB')) {
-          drawIcon = () => _drawLightningIcon(canvas, rect.center);
+          drawIcon = () => _drawLightningIcon(canvas, iconCenter);
         } else {
-          drawIcon = () => _drawWaterDropIcon(canvas, rect.center);
+          drawIcon = () => _drawWaterDropIcon(canvas, iconCenter);
         }
         break;
       case SpaceType.chance:
         sub = 'MONSOON';
-        drawIcon = () => _drawRainCloudIcon(canvas, rect.center);
+        drawIcon = () => _drawRainCloudIcon(canvas, iconCenter);
         break;
       case SpaceType.communityChest:
         sub = 'FESTIVAL';
-        drawIcon = () => _drawLampIcon(canvas, rect.center);
+        drawIcon = () => _drawLampIcon(canvas, iconCenter);
         break;
       case SpaceType.tax:
         sub = '₹${space.feeAmount ?? 50}';
-        drawIcon = () => _drawTaxIcon(canvas, rect.center);
+        drawIcon = () => _drawTaxIcon(canvas, iconCenter);
         break;
       default:
         drawIcon = () {};
@@ -568,18 +579,31 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       textDirection: TextDirection.ltr,
     );
 
-    painter.layout(maxWidth: rect.width - 2);
-
+    double maxW;
+    double offsetX;
     double offsetY;
-    if (index > 0 && index < 10) {
-      offsetY = rect.bottom - painter.height - 4;
-    } else if (index > 20 && index < 30) {
-      offsetY = rect.top + 4;
-    } else {
+
+    if (index > 10 && index < 20) {
+      // Left side: Text on the left, color band on the right (width * 0.3)
+      maxW = rect.width * 0.65;
+      painter.layout(maxWidth: maxW);
+      offsetX = rect.left + (rect.width * 0.7 - painter.width) / 2;
       offsetY = rect.center.dy - painter.height / 2;
+    } else if (index > 30) {
+      // Right side: Text on the right, color band on the left (width * 0.3)
+      maxW = rect.width * 0.65;
+      painter.layout(maxWidth: maxW);
+      offsetX = rect.left + rect.width * 0.3 + (rect.width * 0.7 - painter.width) / 2;
+      offsetY = rect.center.dy - painter.height / 2;
+    } else {
+      // Top/Bottom
+      maxW = rect.width - 2;
+      painter.layout(maxWidth: maxW);
+      offsetX = rect.center.dx - painter.width / 2;
+      offsetY = (index > 0 && index < 10) ? (rect.bottom - painter.height - 4) : (rect.top + 4);
     }
 
-    painter.paint(canvas, Offset(rect.center.dx - painter.width / 2, offsetY));
+    painter.paint(canvas, Offset(offsetX, offsetY));
   }
 
   void _drawSpecialTileText({
@@ -621,10 +645,31 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       textDirection: TextDirection.ltr,
     );
 
-    painter.layout(maxWidth: rect.width - 2);
+    double maxW;
+    double offsetX;
+    double offsetY;
 
-    double offsetY = (index > 20 && index < 30) ? rect.top + 3 : rect.bottom - painter.height - 3;
-    painter.paint(canvas, Offset(rect.center.dx - painter.width / 2, offsetY));
+    if (index > 10 && index < 20) {
+      // Left side: Text on the left, icon on the right
+      maxW = rect.width * 0.65;
+      painter.layout(maxWidth: maxW);
+      offsetX = rect.left + (rect.width * 0.7 - painter.width) / 2;
+      offsetY = rect.center.dy - painter.height / 2;
+    } else if (index > 30) {
+      // Right side: Text on the right, icon on the left
+      maxW = rect.width * 0.65;
+      painter.layout(maxWidth: maxW);
+      offsetX = rect.left + rect.width * 0.3 + (rect.width * 0.7 - painter.width) / 2;
+      offsetY = rect.center.dy - painter.height / 2;
+    } else {
+      // Top/Bottom
+      maxW = rect.width - 2;
+      painter.layout(maxWidth: maxW);
+      offsetX = rect.center.dx - painter.width / 2;
+      offsetY = (index > 20 && index < 30) ? rect.top + 3 : rect.bottom - painter.height - 3;
+    }
+
+    painter.paint(canvas, Offset(offsetX, offsetY));
     canvas.restore();
   }
 
