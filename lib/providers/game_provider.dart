@@ -251,6 +251,16 @@ class GameNotifier extends Notifier<GameState> {
     state = state.copyWith(gameLogs: newLogs);
   }
 
+  // Curated palette for auto-assigning unique colors per match
+  static const List<Color> _matchColors = [
+    Color(0xFFFFD54F), // Kasavu Gold
+    Color(0xFFE91E63), // Malabar Crimson
+    Color(0xFF00E676), // Kerala Palm Green
+    Color(0xFF29B6F6), // Backwater Sky Blue
+    Color(0xFFFF7043), // Sunset Terracotta
+    Color(0xFFAB47BC), // Royal Orchid
+  ];
+
   void initializeGame(List<Player> players, {bool isHost = true, String? localPlayerId}) {
     _actionLockId++;
     _turnTimer?.cancel();
@@ -261,13 +271,20 @@ class GameNotifier extends Notifier<GameState> {
     _auctionTimer?.cancel();
     _isHost = isHost;
     _localPlayerId = localPlayerId ?? (isHost ? players.firstWhere((p) => p.type == PlayerType.human, orElse: () => players.first).id : null);
+
+    // Auto-assign unique colors so no two players share a color
+    final coloredPlayers = <Player>[];
+    for (int i = 0; i < players.length; i++) {
+      coloredPlayers.add(players[i].copyWith(color: _matchColors[i % _matchColors.length]));
+    }
+
     state = GameState(
-      players: players,
+      players: coloredPlayers,
       currentPlayerIndex: 0,
       phase: GamePhase.roll,
       properties: GameData.initialProperties,
-      gameLogs: ['Match started with ${players.length} players!'],
-      message: '${players.first.name}\'s Turn to Roll!',
+      gameLogs: ['Match started with ${coloredPlayers.length} players!'],
+      message: '${coloredPlayers.first.name}\'s Turn to Roll!',
     );
 
     if (_isHost) {

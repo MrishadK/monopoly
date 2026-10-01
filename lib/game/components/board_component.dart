@@ -42,87 +42,53 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-
     final rect = size.toRect();
-
-    // 1. Draw Blonde Teak Frame with Inlay
     _drawFrame(canvas, rect);
-
-    // 2. Draw Elegant Light Board Center Canvas
     _drawBoardCenter(canvas, rect);
-
-    // 3. Draw All 40 Spaces with High-Contrast Typography & Vector Icons
     _drawAllSpaces(canvas);
   }
 
+  // ==================== FRAME ====================
+
   void _drawFrame(Canvas canvas, Rect rect) {
-    // Outer frame: Clean blonde wood / champagne teak
-    final woodPaint = Paint()..color = const Color(0xFFD7CCC8);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(10)), woodPaint);
-
-    // Gold Kasavu inner trim line
-    final brassPaint = Paint()
-      ..color = const Color(0xFFC5A049)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-    canvas.drawRRect(RRect.fromRectAndRadius(rect.deflate(3), const Radius.circular(8)), brassPaint);
-
-    // Porcelain play surface
-    final boardInner = rect.deflate(6);
+    // Clean white board surface
     final surfacePaint = Paint()..color = const Color(0xFFFFFFFF);
-    canvas.drawRect(boardInner, surfacePaint);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), surfacePaint);
+
+    // Thin elegant border
+    final borderPaint = Paint()
+      ..color = const Color(0xFFD1D5DB)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), borderPaint);
   }
+
+  // ==================== CENTER ====================
 
   void _drawBoardCenter(Canvas canvas, Rect rect) {
     final inner = rect.deflate(rect.width * 0.13);
 
-    // Clean, light ivory/linen central mat
-    final centerPaint = Paint()
-      ..shader = const RadialGradient(
-        colors: [Color(0xFFFCFBF7), Color(0xFFF3EEE3)],
-        radius: 0.85,
-      ).createShader(inner);
-    canvas.drawRRect(RRect.fromRectAndRadius(inner, const Radius.circular(16)), centerPaint);
+    // Soft cream fill
+    final centerPaint = Paint()..color = const Color(0xFFFAF9F6);
+    canvas.drawRRect(RRect.fromRectAndRadius(inner, const Radius.circular(10)), centerPaint);
 
-    // Fine Kasavu gold inner border
-    final goldBorderPaint = Paint()
-      ..color = const Color(0xFFC5A049)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-    canvas.drawRRect(RRect.fromRectAndRadius(inner.deflate(5), const Radius.circular(12)), goldBorderPaint);
-
-    // Delicate corner accents
-    final cornerAccent = Paint()
-      ..color = const Color(0x66C5A049)
+    // Thin border
+    final borderPaint = Paint()
+      ..color = const Color(0xFFE5E7EB)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
-    canvas.drawCircle(inner.topLeft + const Offset(14, 14), 6, cornerAccent);
-    canvas.drawCircle(inner.topRight + const Offset(-14, 14), 6, cornerAccent);
-    canvas.drawCircle(inner.bottomLeft + const Offset(14, -14), 6, cornerAccent);
-    canvas.drawCircle(inner.bottomRight + const Offset(-14, -14), 6, cornerAccent);
+    canvas.drawRRect(RRect.fromRectAndRadius(inner, const Radius.circular(10)), borderPaint);
 
-    // Title: KUTHAKA in deep Kerala forest green
+    // Compact title
     final titleSpan = TextSpan(
-      text: 'KUTHAKA\n',
+      text: 'KUTHAKA',
       style: const TextStyle(
-        color: Color(0xFF133E2B),
-        fontSize: 30,
+        color: Color(0xFF1E293B),
+        fontSize: 22,
         fontWeight: FontWeight.w900,
-        letterSpacing: 6,
+        letterSpacing: 5,
       ),
-      children: const [
-        TextSpan(
-          text: 'A KERALA REAL ESTATE GAME',
-          style: TextStyle(
-            color: Color(0xFF5A786B),
-            fontSize: 9.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 2.5,
-          ),
-        ),
-      ],
     );
-
     final titlePainter = TextPainter(
       text: titleSpan,
       textAlign: TextAlign.center,
@@ -131,41 +97,96 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     titlePainter.layout(maxWidth: inner.width);
     titlePainter.paint(
       canvas,
-      Offset(inner.center.dx - titlePainter.width / 2, inner.top + inner.height * 0.16),
+      Offset(inner.center.dx - titlePainter.width / 2, inner.top + inner.height * 0.12),
     );
 
-    // Center Traditional Emblem: Clean Vector Medallion (NO EMOJIS)
-    _drawCenterEmblem(canvas, Offset(inner.center.dx, inner.top + inner.height * 0.44));
+    // Subtitle
+    final subSpan = const TextSpan(
+      text: 'KERALA REAL ESTATE',
+      style: TextStyle(
+        color: Color(0xFF94A3B8),
+        fontSize: 8,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 3,
+      ),
+    );
+    final subPainter = TextPainter(
+      text: subSpan,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    );
+    subPainter.layout(maxWidth: inner.width);
+    subPainter.paint(
+      canvas,
+      Offset(inner.center.dx - subPainter.width / 2, inner.top + inner.height * 0.12 + 26),
+    );
 
+    // Dice display in center
+    if (lastDiceRoll.isNotEmpty && lastDiceRoll.length >= 2) {
+      _drawDice(canvas, inner.center);
+    }
   }
 
-  void _drawCenterEmblem(Canvas canvas, Offset center) {
-    final goldPaint = Paint()
-      ..color = const Color(0xFFC5A049)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+  void _drawDice(Canvas canvas, Offset center) {
+    final d1 = lastDiceRoll[0];
+    final d2 = lastDiceRoll[1];
+    const sz = 28.0;
+    const gap = 8.0;
 
-    // Concentric emblem rings
-    canvas.drawCircle(center, 22, goldPaint);
-    canvas.drawCircle(center, 18, Paint()..color = const Color(0x22C5A049));
+    _drawOneDie(canvas, Offset(center.dx - sz / 2 - gap / 2, center.dy), sz, d1);
+    _drawOneDie(canvas, Offset(center.dx + sz / 2 + gap / 2, center.dy), sz, d2);
 
-    // Vector Traditional Boat / Sun rays inside emblem
-    final path = Path();
-    // Boat hull curve
-    path.moveTo(center.dx - 12, center.dy + 3);
-    path.quadraticBezierTo(center.dx, center.dy + 10, center.dx + 12, center.dy + 3);
-    path.close();
-
-    // Sail triangle
-    path.moveTo(center.dx, center.dy - 10);
-    path.lineTo(center.dx + 8, center.dy + 1);
-    path.lineTo(center.dx, center.dy + 1);
-    path.close();
-
-    final emblemFill = Paint()..color = const Color(0xFF133E2B);
-    canvas.drawPath(path, emblemFill);
+    if (isDoubles) {
+      final tp = TextPainter(
+        text: const TextSpan(
+          text: 'DOUBLES!',
+          style: TextStyle(color: Color(0xFFEA580C), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy + sz / 2 + 8));
+    }
   }
 
+  void _drawOneDie(Canvas canvas, Offset center, double sz, int value) {
+    final r = Rect.fromCenter(center: center, width: sz, height: sz);
+    // White die with shadow
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(r.shift(const Offset(1, 2)), const Radius.circular(5)),
+      Paint()..color = const Color(0x22000000),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(r, const Radius.circular(5)),
+      Paint()..color = Colors.white,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(r, const Radius.circular(5)),
+      Paint()..color = const Color(0xFFD1D5DB)..style = PaintingStyle.stroke..strokeWidth = 1,
+    );
+
+    final dotPaint = Paint()..color = const Color(0xFF1E293B);
+    final dotR = sz * 0.09;
+    final cx = center.dx;
+    final cy = center.dy;
+    final off = sz * 0.25;
+
+    if (value == 1 || value == 3 || value == 5) canvas.drawCircle(Offset(cx, cy), dotR, dotPaint);
+    if (value >= 2) {
+      canvas.drawCircle(Offset(cx - off, cy - off), dotR, dotPaint);
+      canvas.drawCircle(Offset(cx + off, cy + off), dotR, dotPaint);
+    }
+    if (value >= 4) {
+      canvas.drawCircle(Offset(cx + off, cy - off), dotR, dotPaint);
+      canvas.drawCircle(Offset(cx - off, cy + off), dotR, dotPaint);
+    }
+    if (value == 6) {
+      canvas.drawCircle(Offset(cx - off, cy), dotR, dotPaint);
+      canvas.drawCircle(Offset(cx + off, cy), dotR, dotPaint);
+    }
+  }
+
+  // ==================== ALL SPACES ====================
 
   void _drawAllSpaces(Canvas canvas) {
     double cornerW = size.x * 0.13;
@@ -178,7 +199,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       _drawSingleSpace(canvas, i, rect);
     }
 
-    // Draw prominent inward ownership extensions so owners are crystal-clear
+    // Ownership extensions
     for (int i = 0; i < 40; i++) {
       final space = GameData.spaces[i];
       if (space.propertyId != null) {
@@ -195,64 +216,31 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     if (prop.ownerId == null) return;
     final owner = players.firstWhere((p) => p.id == prop.ownerId, orElse: () => players.first);
 
-    const double extDepth = 13.0; // Inward extension depth
+    const double extDepth = 13.0;
     Rect extRect;
     RRect rrect;
 
     if (index > 0 && index < 10) {
-      // Bottom edge: inward is UP
       extRect = Rect.fromLTWH(spaceRect.left + 1, spaceRect.top - extDepth, spaceRect.width - 2, extDepth);
-      rrect = RRect.fromRectAndCorners(
-        extRect,
-        topLeft: const Radius.circular(5),
-        topRight: const Radius.circular(5),
-      );
+      rrect = RRect.fromRectAndCorners(extRect, topLeft: const Radius.circular(5), topRight: const Radius.circular(5));
     } else if (index > 10 && index < 20) {
-      // Left edge: inward is RIGHT
       extRect = Rect.fromLTWH(spaceRect.right, spaceRect.top + 1, extDepth, spaceRect.height - 2);
-      rrect = RRect.fromRectAndCorners(
-        extRect,
-        topRight: const Radius.circular(5),
-        bottomRight: const Radius.circular(5),
-      );
+      rrect = RRect.fromRectAndCorners(extRect, topRight: const Radius.circular(5), bottomRight: const Radius.circular(5));
     } else if (index > 20 && index < 30) {
-      // Top edge: inward is DOWN
       extRect = Rect.fromLTWH(spaceRect.left + 1, spaceRect.bottom, spaceRect.width - 2, extDepth);
-      rrect = RRect.fromRectAndCorners(
-        extRect,
-        bottomLeft: const Radius.circular(5),
-        bottomRight: const Radius.circular(5),
-      );
+      rrect = RRect.fromRectAndCorners(extRect, bottomLeft: const Radius.circular(5), bottomRight: const Radius.circular(5));
     } else if (index > 30) {
-      // Right edge: inward is LEFT
       extRect = Rect.fromLTWH(spaceRect.left - extDepth, spaceRect.top + 1, extDepth, spaceRect.height - 2);
-      rrect = RRect.fromRectAndCorners(
-        extRect,
-        topLeft: const Radius.circular(5),
-        bottomLeft: const Radius.circular(5),
-      );
+      rrect = RRect.fromRectAndCorners(extRect, topLeft: const Radius.circular(5), bottomLeft: const Radius.circular(5));
     } else {
-      return; // Corners don't have ownership
+      return;
     }
 
-    // Shadow
-    canvas.drawRRect(
-      rrect.shift(const Offset(0, 1)),
-      Paint()..color = const Color(0x30000000),
-    );
+    canvas.drawRRect(rrect.shift(const Offset(0, 1)), Paint()..color = const Color(0x30000000));
+    final fillColor = prop.isMortgaged ? const Color(0xFF64748B) : owner.color;
+    canvas.drawRRect(rrect, Paint()..color = fillColor);
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xFFC5A049)..style = PaintingStyle.stroke..strokeWidth = 1.0);
 
-    // Extension fill with owner color
-    final fillPaint = Paint()..color = prop.isMortgaged ? const Color(0xFF64748B) : owner.color;
-    canvas.drawRRect(rrect, fillPaint);
-
-    // Gold Kasavu border
-    final borderPaint = Paint()
-      ..color = const Color(0xFFC5A049)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawRRect(rrect, borderPaint);
-
-    // Centered owner initial badge
     final badgeRadius = min(extRect.width, extRect.height) * 0.32;
     canvas.drawCircle(extRect.center, badgeRadius, Paint()..color = Colors.white);
 
@@ -290,6 +278,8 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     }
   }
 
+  // ==================== SINGLE SPACE ====================
+
   void _drawSingleSpace(Canvas canvas, int index, Rect rect) {
     final space = GameData.spaces[index];
 
@@ -300,35 +290,28 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       final ownerId = prop?.ownerId;
       if (ownerId != null) {
         final matches = players.where((p) => p.id == ownerId);
-        if (matches.isNotEmpty) {
-          owner = matches.first;
-        }
+        if (matches.isNotEmpty) owner = matches.first;
       }
     }
 
-    // 1. Space background: White by default, lightly tinted with owner's color when owned
+    // White background, tinted if owned
     Color bgColor = Colors.white;
     if (owner != null) {
       bgColor = prop!.isMortgaged
           ? const Color(0xFFF1F5F9)
           : Color.alphaBlend(owner.color.withValues(alpha: 0.12), Colors.white);
     }
-    final bgPaint = Paint()..color = bgColor;
-    canvas.drawRect(rect, bgPaint);
+    canvas.drawRect(rect, Paint()..color = bgColor);
 
-    // Subtle crisp border
-    final borderPaint = Paint()
-      ..color = const Color(0xFFCFD8DC)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawRect(rect, borderPaint);
+    // Grid border
+    canvas.drawRect(rect, Paint()..color = const Color(0xFFCFD8DC)..style = PaintingStyle.stroke..strokeWidth = 1.0);
 
-    // 2. Prominent Outer-Edge Owner Stripe (3.5px solid vibrant stripe)
+    // Owner stripe on outer edge
     if (owner != null) {
       _drawOwnerOuterStripe(canvas, index, rect, prop!.isMortgaged ? const Color(0xFF64748B) : owner.color);
     }
 
-    // Corners
+    // Draw content
     if (index == 0) {
       _drawStartCorner(canvas, rect);
     } else if (index == 10) {
@@ -343,7 +326,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       _drawSpecialSpace(canvas, index, rect, space, owner);
     }
 
-    // 3. Mortgaged Overlay if mortgaged
     if (prop != null && prop.isMortgaged) {
       _drawMortgagedOverlay(canvas, index, rect);
     }
@@ -353,16 +335,12 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     const double stripeThick = 3.5;
     Rect stripeRect;
     if (index > 0 && index < 10) {
-      // Bottom edge: outer edge is bottom
       stripeRect = Rect.fromLTWH(rect.left, rect.bottom - stripeThick, rect.width, stripeThick);
     } else if (index > 10 && index < 20) {
-      // Left edge: outer edge is left
       stripeRect = Rect.fromLTWH(rect.left, rect.top, stripeThick, rect.height);
     } else if (index > 20 && index < 30) {
-      // Top edge: outer edge is top
       stripeRect = Rect.fromLTWH(rect.left, rect.top, rect.width, stripeThick);
     } else if (index > 30) {
-      // Right edge: outer edge is right
       stripeRect = Rect.fromLTWH(rect.right - stripeThick, rect.top, stripeThick, rect.height);
     } else {
       return;
@@ -373,9 +351,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   void _drawMortgagedOverlay(Canvas canvas, int index, Rect rect) {
     canvas.save();
     canvas.clipRect(rect);
-    final hatchPaint = Paint()
-      ..color = const Color(0x3564748B)
-      ..strokeWidth = 1.2;
+    final hatchPaint = Paint()..color = const Color(0x3564748B)..strokeWidth = 1.2;
     for (double i = -rect.height; i < rect.width + rect.height; i += 7) {
       canvas.drawLine(
         Offset(rect.left + i, rect.top),
@@ -383,13 +359,9 @@ class BoardComponent extends PositionComponent with TapCallbacks {
         hatchPaint,
       );
     }
-    // "MORTGAGED" badge in center
     final badgeW = min(rect.width * 0.9, 44.0);
     final badgeRect = Rect.fromCenter(center: rect.center, width: badgeW, height: 12);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(badgeRect, const Radius.circular(3)),
-      Paint()..color = const Color(0xEE475569),
-    );
+    canvas.drawRRect(RRect.fromRectAndRadius(badgeRect, const Radius.circular(3)), Paint()..color = const Color(0xEE475569));
     final tp = TextPainter(
       text: const TextSpan(
         text: 'MORTGAGED',
@@ -402,56 +374,42 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.restore();
   }
 
+  // ==================== PROPERTY SPACE ====================
+
   void _drawPropertySpace(Canvas canvas, int index, Rect rect, BoardSpace space, [Player? owner]) {
     final prop = properties[space.propertyId];
     if (prop == null) return;
 
     final groupColor = _getGroupColor(prop.group);
 
-    // 1. Color Category Header Band (Always on the INNER side of the track)
+    // Thick color band on inner edge (takes ~30% of the tile)
     Rect headerRect;
     if (index > 0 && index < 10) {
-      // Bottom edge: header is on top (inner edge)
-      headerRect = Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.28);
+      headerRect = Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.30);
     } else if (index > 10 && index < 20) {
-      // Left edge: header is on right (inner edge)
-      headerRect = Rect.fromLTWH(rect.right - rect.width * 0.28, rect.top, rect.width * 0.28, rect.height);
+      headerRect = Rect.fromLTWH(rect.right - rect.width * 0.30, rect.top, rect.width * 0.30, rect.height);
     } else if (index > 20 && index < 30) {
-      // Top edge: header is on bottom (inner edge)
-      headerRect = Rect.fromLTWH(rect.left, rect.bottom - rect.height * 0.28, rect.width, rect.height * 0.28);
+      headerRect = Rect.fromLTWH(rect.left, rect.bottom - rect.height * 0.30, rect.width, rect.height * 0.30);
     } else {
-      // Right edge: header is on left (inner edge)
-      headerRect = Rect.fromLTWH(rect.left, rect.top, rect.width * 0.28, rect.height);
+      headerRect = Rect.fromLTWH(rect.left, rect.top, rect.width * 0.30, rect.height);
     }
 
     canvas.drawRect(headerRect, Paint()..color = groupColor);
-    canvas.drawRect(
-      headerRect,
-      Paint()
-        ..color = const Color(0x33000000)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
-    );
+    canvas.drawRect(headerRect, Paint()..color = const Color(0x33000000)..style = PaintingStyle.stroke..strokeWidth = 0.5);
 
-    // 2. Owner Marker & Houses/Resorts
+    // Buildings or owner badge on the color band
     if (owner != null) {
       if (prop.currentLevel > 0) {
-        // Houses / Resorts
         _drawBuildings(canvas, headerRect, prop.currentLevel);
-        // Owner small badge on side of header
         final badgeCenter = Offset(headerRect.left + 5.0, headerRect.center.dy);
         canvas.drawCircle(badgeCenter, 3.8, Paint()..color = Colors.white);
         canvas.drawCircle(badgeCenter, 2.8, Paint()..color = owner.color);
       } else {
-        // Owner initial badge centered on header
         canvas.drawCircle(headerRect.center, 5.5, Paint()..color = Colors.white);
         canvas.drawCircle(headerRect.center, 4.2, Paint()..color = owner.color);
         final initial = owner.name.trim().isNotEmpty ? owner.name.trim()[0].toUpperCase() : 'P';
         final tp = TextPainter(
-          text: TextSpan(
-            text: initial,
-            style: const TextStyle(color: Colors.white, fontSize: 5.5, fontWeight: FontWeight.w900),
-          ),
+          text: TextSpan(text: initial, style: const TextStyle(color: Colors.white, fontSize: 5.5, fontWeight: FontWeight.w900)),
           textDirection: TextDirection.ltr,
         );
         tp.layout();
@@ -459,59 +417,46 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       }
     }
 
-    // 3. Crisp, High-Contrast Space Name and Price Tag
-    _drawReadableText(
-      canvas: canvas,
-      rect: rect,
-      index: index,
-      title: prop.name,
-      priceText: '₹${prop.price}',
+    // Name + Price text — LARGE and readable
+    _drawTileText(
+      canvas: canvas, rect: rect, index: index,
+      title: prop.name, priceText: '₹${prop.price}',
     );
   }
 
   void _drawBuildings(Canvas canvas, Rect headerRect, int level) {
     if (level == 5) {
-      // Resort (Hotel Level): Gold Resort shape
       _drawResort(canvas, headerRect.center, 12, const Color(0xFFFFD54F));
     } else {
-      // 1-4 Cottages: Crisp green house shapes
-      double size = 5.0;
+      double sz = 5.0;
       double spacing = 2.5;
-      double totalW = level * size + (level - 1) * spacing;
+      double totalW = level * sz + (level - 1) * spacing;
       double startX = headerRect.center.dx - totalW / 2;
-
       for (int i = 0; i < level; i++) {
-        _drawCottage(
-          canvas,
-          Offset(startX + i * (size + spacing) + size / 2, headerRect.center.dy),
-          size,
-          const Color(0xFF1B5E20),
-        );
+        _drawCottage(canvas, Offset(startX + i * (sz + spacing) + sz / 2, headerRect.center.dy), sz, const Color(0xFF1B5E20));
       }
     }
   }
 
-  void _drawCottage(Canvas canvas, Offset center, double size, Color color) {
+  void _drawCottage(Canvas canvas, Offset center, double sz, Color color) {
     final path = Path();
-    path.moveTo(center.dx, center.dy - size / 2);
-    path.lineTo(center.dx + size / 2, center.dy);
-    path.lineTo(center.dx + size / 2, center.dy + size / 2);
-    path.lineTo(center.dx - size / 2, center.dy + size / 2);
-    path.lineTo(center.dx - size / 2, center.dy);
+    path.moveTo(center.dx, center.dy - sz / 2);
+    path.lineTo(center.dx + sz / 2, center.dy);
+    path.lineTo(center.dx + sz / 2, center.dy + sz / 2);
+    path.lineTo(center.dx - sz / 2, center.dy + sz / 2);
+    path.lineTo(center.dx - sz / 2, center.dy);
     path.close();
-
     canvas.drawPath(path, Paint()..color = color);
     canvas.drawPath(path, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 0.5);
   }
 
-  void _drawResort(Canvas canvas, Offset center, double size, Color color) {
-    final r = Rect.fromCenter(center: center, width: size, height: size * 0.8);
+  void _drawResort(Canvas canvas, Offset center, double sz, Color color) {
+    final r = Rect.fromCenter(center: center, width: sz, height: sz * 0.8);
     canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), Paint()..color = color);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(2)),
-      Paint()..color = const Color(0xFF8D6E63)..style = PaintingStyle.stroke..strokeWidth = 1,
-    );
+    canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), Paint()..color = const Color(0xFF8D6E63)..style = PaintingStyle.stroke..strokeWidth = 1);
   }
+
+  // ==================== SPECIAL SPACES ====================
 
   void _drawSpecialSpace(Canvas canvas, int index, Rect rect, BoardSpace space, [Player? owner]) {
     String sub = '';
@@ -557,7 +502,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
         break;
     }
 
-    // Owner badge on railroad or utility
+    // Owner badge for transport/utility
     if (owner != null && (space.type == SpaceType.railroad || space.type == SpaceType.utility)) {
       Offset badgeOffset;
       if (index > 0 && index < 10) {
@@ -573,30 +518,22 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       canvas.drawCircle(badgeOffset, 3.8, Paint()..color = owner.color);
       final initial = owner.name.trim().isNotEmpty ? owner.name.trim()[0].toUpperCase() : 'P';
       final tp = TextPainter(
-        text: TextSpan(
-          text: initial,
-          style: const TextStyle(color: Colors.white, fontSize: 5.0, fontWeight: FontWeight.w900),
-        ),
+        text: TextSpan(text: initial, style: const TextStyle(color: Colors.white, fontSize: 5.0, fontWeight: FontWeight.w900)),
         textDirection: TextDirection.ltr,
       );
       tp.layout();
       tp.paint(canvas, Offset(badgeOffset.dx - tp.width / 2, badgeOffset.dy - tp.height / 2));
     }
 
-    _drawReadableSpecialText(
-      canvas: canvas,
-      rect: rect,
-      index: index,
-      title: space.name,
-      subText: sub,
-      drawIcon: drawIcon,
+    _drawSpecialTileText(
+      canvas: canvas, rect: rect, index: index,
+      title: space.name, subText: sub, drawIcon: drawIcon,
     );
   }
 
-  // ==================== READABLE TEXT ENGINE ====================
-  // Keeps text completely legible, properly sized, and never upside-down!
+  // ==================== TEXT RENDERING (READABLE) ====================
 
-  void _drawReadableText({
+  void _drawTileText({
     required Canvas canvas,
     required Rect rect,
     required int index,
@@ -605,8 +542,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   }) {
     canvas.save();
 
-    // Bottom Row (1-9) & Top Row (21-29) are painted upright so player reads naturally!
-    // Left (11-19) & Right (31-39) are turned inwards cleanly with generous margins
     if (index > 10 && index < 20) {
       canvas.translate(rect.center.dx, rect.center.dy);
       canvas.rotate(pi / 2);
@@ -617,7 +552,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       canvas.translate(-rect.center.dx, -rect.center.dy);
     }
 
-    // Format title cleanly (split if long)
     final formattedTitle = _formatTileName(title);
 
     final textSpan = TextSpan(
@@ -646,27 +580,23 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       textDirection: TextDirection.ltr,
     );
 
-    // Compute vertical positioning depending on edge
     double maxW = (index > 10 && index < 20) || index > 30 ? rect.height - 4 : rect.width - 2;
     painter.layout(maxWidth: maxW);
 
     double offsetY;
     if (index > 0 && index < 10) {
-      // Header is top, text is lower
       offsetY = rect.bottom - painter.height - 4;
     } else if (index > 20 && index < 30) {
-      // Header is bottom, text is upper
       offsetY = rect.top + 4;
     } else {
       offsetY = rect.center.dy - painter.height / 2;
     }
 
     painter.paint(canvas, Offset(rect.center.dx - painter.width / 2, offsetY));
-
     canvas.restore();
   }
 
-  void _drawReadableSpecialText({
+  void _drawSpecialTileText({
     required Canvas canvas,
     required Rect rect,
     required int index,
@@ -686,7 +616,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       canvas.translate(-rect.center.dx, -rect.center.dy);
     }
 
-    // Draw the Vector Icon in upper area
     drawIcon();
 
     final textSpan = TextSpan(
@@ -721,7 +650,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
 
     double offsetY = (index > 20 && index < 30) ? rect.top + 3 : rect.bottom - painter.height - 3;
     painter.paint(canvas, Offset(rect.center.dx - painter.width / 2, offsetY));
-
     canvas.restore();
   }
 
@@ -734,13 +662,12 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     return name.toUpperCase();
   }
 
-  // ==================== VECTOR ICONS (NO EMOJIS) ====================
+  // ==================== VECTOR ICONS ====================
 
   void _drawBusIcon(Canvas canvas, Offset center) {
     final p = Paint()..color = const Color(0xFFE65100);
     final rect = Rect.fromCenter(center: center - const Offset(0, 10), width: 14, height: 10);
     canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2)), p);
-    // Wheels
     canvas.drawCircle(rect.bottomLeft + const Offset(3, 1), 1.8, Paint()..color = Colors.black);
     canvas.drawCircle(rect.bottomRight + const Offset(-3, 1), 1.8, Paint()..color = Colors.black);
   }
@@ -812,7 +739,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawCircle(c, 4, cloudPaint);
     canvas.drawCircle(c + const Offset(-4, 2), 3, cloudPaint);
     canvas.drawCircle(c + const Offset(4, 2), 3, cloudPaint);
-
     final rainPaint = Paint()..color = const Color(0xFF29B6F6)..strokeWidth = 1.2;
     canvas.drawLine(c + const Offset(-3, 6), c + const Offset(-4, 9), rainPaint);
     canvas.drawLine(c + const Offset(0, 6), c + const Offset(-1, 9), rainPaint);
@@ -822,11 +748,9 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   void _drawLampIcon(Canvas canvas, Offset center) {
     final c = center - const Offset(0, 10);
     final brassPaint = Paint()..color = const Color(0xFFD4AF37);
-    // Base & Stem
     canvas.drawOval(Rect.fromCenter(center: c + const Offset(0, 5), width: 10, height: 3), brassPaint);
     canvas.drawRect(Rect.fromLTWH(c.dx - 1.5, c.dy - 2, 3, 7), brassPaint);
     canvas.drawOval(Rect.fromCenter(center: c - const Offset(0, 2), width: 8, height: 3), brassPaint);
-    // Flame
     final flamePaint = Paint()..color = const Color(0xFFFF5722);
     final path = Path();
     path.moveTo(c.dx, c.dy - 7);
@@ -850,7 +774,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawRect(r, Paint()..color = const Color(0xFFF1F8E9));
     canvas.drawRect(r, Paint()..color = const Color(0xFF2E7D32)..style = PaintingStyle.stroke..strokeWidth = 2);
 
-    // Checkered Banner Vector
     final flagPaint = Paint()..color = const Color(0xFF1B5E20);
     canvas.drawRect(Rect.fromLTWH(r.center.dx - 10, r.top + 8, 20, 5), flagPaint);
 
@@ -868,7 +791,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
         ),
       ],
     );
-
     final painter = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
     painter.layout(maxWidth: r.width);
     painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.top + 18));
@@ -877,11 +799,9 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   void _drawJailCorner(Canvas canvas, Rect r) {
     canvas.drawRect(r, Paint()..color = const Color(0xFFECEFF1));
 
-    // Inner cell
     final innerCell = Rect.fromLTWH(r.left + r.width * 0.35, r.top, r.width * 0.65, r.height * 0.65);
     canvas.drawRect(innerCell, Paint()..color = const Color(0xFFFFE0B2));
 
-    // Jail bars
     final barPaint = Paint()..color = const Color(0xFF37474F)..strokeWidth = 1.2;
     canvas.drawLine(Offset(innerCell.left + 5, innerCell.top), Offset(innerCell.left + 5, innerCell.bottom), barPaint);
     canvas.drawLine(Offset(innerCell.left + 11, innerCell.top), Offset(innerCell.left + 11, innerCell.bottom), barPaint);
@@ -906,7 +826,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawRect(r, Paint()..color = const Color(0xFFFFFDE7));
     canvas.drawRect(r, Paint()..color = const Color(0xFFFBC02D)..style = PaintingStyle.stroke..strokeWidth = 1.5);
 
-    // Vector Cup
     final c = r.center - const Offset(0, 10);
     canvas.drawRect(Rect.fromLTWH(c.dx - 6, c.dy - 3, 12, 10), Paint()..color = const Color(0xFF795548));
 
@@ -929,7 +848,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawRect(r, Paint()..color = const Color(0xFFFFEBEE));
     canvas.drawRect(r, Paint()..color = const Color(0xFFD32F2F)..style = PaintingStyle.stroke..strokeWidth = 2);
 
-    // Vector Siren / Badge
     final c = r.center - const Offset(0, 10);
     canvas.drawCircle(c, 7, Paint()..color = const Color(0xFFC62828));
 
@@ -952,17 +870,19 @@ class BoardComponent extends PositionComponent with TapCallbacks {
 
   Color _getGroupColor(PropertyGroup group) {
     switch (group) {
-      case PropertyGroup.malabar: return const Color(0xFF8D5524); // Warm Mahogany
-      case PropertyGroup.thrissur: return const Color(0xFF0288D1); // Coastal Cerulean
-      case PropertyGroup.kochi: return const Color(0xFFD81B60); // Vibrant Magenta
-      case PropertyGroup.backwaters: return const Color(0xFFF57C00); // Heritage Amber
-      case PropertyGroup.highlands: return const Color(0xFFD32F2F); // Royal Crimson
-      case PropertyGroup.southKerala: return const Color(0xFFFBC02D); // Saffron Gold
-      case PropertyGroup.premium: return const Color(0xFF2E7D32); // Tea Garden Emerald
-      case PropertyGroup.luxury: return const Color(0xFF1565C0); // Arabian Sea Navy
+      case PropertyGroup.malabar: return const Color(0xFF8D5524);
+      case PropertyGroup.thrissur: return const Color(0xFF0288D1);
+      case PropertyGroup.kochi: return const Color(0xFFD81B60);
+      case PropertyGroup.backwaters: return const Color(0xFFF57C00);
+      case PropertyGroup.highlands: return const Color(0xFFD32F2F);
+      case PropertyGroup.southKerala: return const Color(0xFFFBC02D);
+      case PropertyGroup.premium: return const Color(0xFF2E7D32);
+      case PropertyGroup.luxury: return const Color(0xFF1565C0);
       default: return Colors.blueGrey;
     }
   }
+
+  // ==================== TAP HANDLING ====================
 
   @override
   void onTapDown(TapDownEvent event) {

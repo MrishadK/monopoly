@@ -19,7 +19,7 @@ class KuthakaGame extends FlameGame {
   bool get isAnyTokenMoving => tokens.any((t) => t.isMoving);
 
   @override
-  Color backgroundColor() => const Color(0xFFF6F4EE); // Light Warm Ivory Linen Studio
+  Color backgroundColor() => const Color(0xFFF6F4EE);
 
   @override
   Future<void> onLoad() async {
