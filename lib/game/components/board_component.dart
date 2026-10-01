@@ -216,11 +216,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     if (prop.ownerId == null) return;
     final owner = players.firstWhere((p) => p.id == prop.ownerId, orElse: () => players.first);
 
-<<<<<<< HEAD
-    const double extDepth = 13.0;
-=======
     const double extDepth = 15.0; // Inward extension depth
->>>>>>> 481a1b0 (Fix web board alignment, clearance margins, lower row text & ownership visibility)
     Rect extRect;
     RRect rrect;
 
@@ -241,13 +237,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     }
 
     canvas.drawRRect(rrect.shift(const Offset(0, 1)), Paint()..color = const Color(0x30000000));
-    final fillColor = prop.isMortgaged ? const Color(0xFF64748B) : owner.color;
-    canvas.drawRRect(rrect, Paint()..color = fillColor);
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xFFC5A049)..style = PaintingStyle.stroke..strokeWidth = 1.0);
-
-<<<<<<< HEAD
-    final badgeRadius = min(extRect.width, extRect.height) * 0.32;
-=======
     // Extension fill with owner color
     final fillPaint = Paint()..color = prop.isMortgaged ? const Color(0xFF64748B) : owner.color;
     canvas.drawRRect(rrect, fillPaint);
@@ -259,9 +248,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       ..strokeWidth = 1.0;
     canvas.drawRRect(rrect, borderPaint);
 
-    // Centered owner initial badge
     final badgeRadius = min(extRect.width, extRect.height) * 0.38;
->>>>>>> 481a1b0 (Fix web board alignment, clearance margins, lower row text & ownership visibility)
     canvas.drawCircle(extRect.center, badgeRadius, Paint()..color = Colors.white);
 
     final initial = owner.name.trim().isNotEmpty ? owner.name.trim()[0].toUpperCase() : 'P';
@@ -421,17 +408,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     if (owner != null) {
       if (prop.currentLevel > 0) {
         _drawBuildings(canvas, headerRect, prop.currentLevel);
-<<<<<<< HEAD
-        final badgeCenter = Offset(headerRect.left + 5.0, headerRect.center.dy);
-        canvas.drawCircle(badgeCenter, 3.8, Paint()..color = Colors.white);
-        canvas.drawCircle(badgeCenter, 2.8, Paint()..color = owner.color);
-      } else {
-        canvas.drawCircle(headerRect.center, 5.5, Paint()..color = Colors.white);
-        canvas.drawCircle(headerRect.center, 4.2, Paint()..color = owner.color);
-        final initial = owner.name.trim().isNotEmpty ? owner.name.trim()[0].toUpperCase() : 'P';
-        final tp = TextPainter(
-          text: TextSpan(text: initial, style: const TextStyle(color: Colors.white, fontSize: 5.5, fontWeight: FontWeight.w900)),
-=======
         // Owner small badge on side of header
         final badgeCenter = Offset(headerRect.left + 7.0, headerRect.center.dy);
         canvas.drawCircle(badgeCenter, 4.8, Paint()..color = Colors.white);
@@ -446,7 +422,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
             text: initial,
             style: const TextStyle(color: Colors.white, fontSize: 7.2, fontWeight: FontWeight.w900),
           ),
->>>>>>> 481a1b0 (Fix web board alignment, clearance margins, lower row text & ownership visibility)
           textDirection: TextDirection.ltr,
         );
         tp.layout();
@@ -695,7 +670,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     double offsetX;
     double offsetY;
 
-<<<<<<< HEAD
     if (index > 10 && index < 20) {
       // Left side: Text on the left, icon on the right
       maxW = rect.width * 0.65;
@@ -715,17 +689,6 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       offsetX = rect.center.dx - painter.width / 2;
       offsetY = (index > 20 && index < 30) ? rect.top + 3 : rect.bottom - painter.height - 3;
     }
-=======
-    double offsetY;
-    if (index > 0 && index < 10) {
-      offsetY = rect.center.dy + 1;
-    } else if (index > 20 && index < 30) {
-      offsetY = rect.top + 3;
-    } else {
-      offsetY = rect.bottom - painter.height - 3;
-    }
-    painter.paint(canvas, Offset(rect.center.dx - painter.width / 2, offsetY));
->>>>>>> 481a1b0 (Fix web board alignment, clearance margins, lower row text & ownership visibility)
 
     painter.paint(canvas, Offset(offsetX, offsetY));
     canvas.restore();
