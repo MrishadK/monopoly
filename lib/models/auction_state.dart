@@ -1,3 +1,5 @@
+const int kAuctionDurationSeconds = 15;
+
 class AuctionState {
   final String propertyId;
   final String initiatorPlayerId;
@@ -22,7 +24,7 @@ class AuctionState {
     this.isCompleted = false,
     this.winnerId,
     this.winningBid = 0,
-    this.timeRemaining = 15,
+    this.timeRemaining = kAuctionDurationSeconds,
   });
 
   String get currentBidderId {

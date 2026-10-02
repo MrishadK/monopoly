@@ -465,9 +465,12 @@ class GameNotifier extends Notifier<GameState> {
         _executeRollDice();
         break;
       case 'buy_property':
-      case 'redeem_property':
         final propId = data['propertyId'] as String?;
         if (propId != null) _executeBuyProperty(propId);
+        break;
+      case 'redeem_property':
+        final propId = data['propertyId'] as String?;
+        if (propId != null) _executeRedeemProperty(propId);
         break;
       case 'start_auction':
         final propId = data['propertyId'] as String?;
@@ -650,10 +653,8 @@ class GameNotifier extends Notifier<GameState> {
     _diceRollTimer = Timer(const Duration(milliseconds: 900), () async {
       if (lockId != _actionLockId) return;
 
-      _addLog('${current.name} rolled $d1 & $d2 (${d1 + d2})${isDouble ? " - DOUBLES!" : ""}');
-
       if (newConsecutive >= 3) {
-        _addLog('${current.name} rolled 3 doubles in a row! Sent to Police Station.');
+        _addLog('${current.name} rolled 3 doubles in a row ($d1 & $d2)!');
         state = state.copyWith(
           isRollingDice: false,
           lastDiceRoll: [d1, d2],
@@ -806,8 +807,15 @@ class GameNotifier extends Notifier<GameState> {
   Future<void> _movePlayerStepwise(int totalSteps) async {
     final lockId = _actionLockId;
     final current = state.currentPlayer;
-    final targetPos = (current.position + totalSteps) % 40;
-    final passedStart = targetPos < current.position;
+    final startPos = current.position;
+    final fromTileName = startPos < GameData.spaces.length
+        ? GameData.spaces[startPos].name
+        : 'Space $startPos';
+    final targetPos = (startPos + totalSteps) % 40;
+    final toTileName = targetPos < GameData.spaces.length
+        ? GameData.spaces[targetPos].name
+        : 'Space $targetPos';
+    final passedStart = targetPos < startPos;
 
     int newCash = current.cash;
     if (passedStart) {
@@ -825,6 +833,12 @@ class GameNotifier extends Notifier<GameState> {
     await _awaitPlayerMovement(current.id);
 
     if (lockId != _actionLockId) return;
+
+    final diceRoll = state.lastDiceRoll;
+    final diceDesc = diceRoll.length == 2 ? '${diceRoll[0]} & ${diceRoll[1]} ($totalSteps)' : '$totalSteps';
+    final doublesSuffix = state.isDoubles ? ' (DOUBLES!)' : '';
+    _addLog('${current.name} rolled $diceDesc and moved from $fromTileName to $toTileName.$doublesSuffix');
+
     state = state.copyWith(phase: GamePhase.spaceAction);
     _handleSpaceAction();
   }
@@ -917,7 +931,6 @@ class GameNotifier extends Notifier<GameState> {
         break;
 
       case SpaceType.goToJail:
-        _addLog('${current.name} landed on Police Station! Sent to Jail.');
         _sendToJail(current);
         break;
 
@@ -1007,6 +1020,9 @@ class GameNotifier extends Notifier<GameState> {
 
   Future<void> _sendToJail(Player player) async {
     final lockId = _actionLockId;
+    final fromTileName = player.position < GameData.spaces.length
+        ? GameData.spaces[player.position].name
+        : 'Space ${player.position}';
     try { ref.read(audioServiceProvider.notifier).playJail(); } catch (_) {}
     final isPoliceStationJump = player.position == 30;
     final updated = player.copyWith(
@@ -1031,6 +1047,7 @@ class GameNotifier extends Notifier<GameState> {
     await _awaitPlayerMovement(player.id);
 
     if (lockId != _actionLockId) return;
+    _addLog('${player.name} was sent from $fromTileName to Police Station / Jail.');
     state = state.copyWith(
       phase: GamePhase.turnEnd,
       message: '${player.name} is now locked in Central Jail.',
@@ -1076,13 +1093,18 @@ class GameNotifier extends Notifier<GameState> {
 
       case EventCardType.moveToSpace:
         final dest = card.destinationIndex ?? 0;
+        final fromTileName = current.position < GameData.spaces.length
+            ? GameData.spaces[current.position].name
+            : 'Space ${current.position}';
+        final toTileName = dest < GameData.spaces.length
+            ? GameData.spaces[dest].name
+            : 'Space $dest';
         final willPassStart = dest < current.position && dest != 10;
         int newCash = current.cash;
         if (willPassStart) {
           newCash += 200;
           _addLog('${current.name} passed Start! +₹200 💰');
         }
-        _addLog('${current.name} moved to ${GameData.spaces[dest].name}');
         final updated = current.copyWith(position: dest, cash: newCash);
         state = state.copyWith(phase: GamePhase.moving);
         _updatePlayer(updated);
@@ -1091,6 +1113,7 @@ class GameNotifier extends Notifier<GameState> {
         }
         await _awaitPlayerMovement(current.id);
         if (lockId != _actionLockId) return;
+        _addLog('${current.name} moved from $fromTileName to $toTileName due to ${card.title}.');
         state = state.copyWith(phase: GamePhase.spaceAction);
         _handleSpaceAction();
         return;
@@ -1269,7 +1292,49 @@ class GameNotifier extends Notifier<GameState> {
     _executeBuyProperty(propertyId);
   }
 
-  void redeemProperty(String propertyId) => buyProperty(propertyId);
+  void redeemProperty(String propertyId) {
+    if (!_isHost) {
+      ref.read(multiplayerServiceProvider).sendPlayerAction('redeem_property', {
+        'playerId': state.currentPlayer.id,
+        'propertyId': propertyId,
+      });
+      return;
+    }
+    _executeRedeemProperty(propertyId);
+  }
+
+  void _executeRedeemProperty(String propertyId) {
+    final prop = state.properties[propertyId];
+    final current = state.currentPlayer;
+    if (prop == null || prop.ownerId != current.id || !prop.isMortgaged) return;
+
+    final cost = prop.unmortgageCost;
+    if (current.cash < cost) return;
+
+    final updatedPlayer = current.copyWith(
+      cash: current.cash - cost,
+    );
+    _updatePlayer(updatedPlayer);
+
+    final newProps = Map<String, Property>.from(state.properties);
+    newProps[propertyId] = prop.copyWith(isMortgaged: false);
+
+    _addLog('${current.name} redeemed the mortgage on ${prop.name} for ₹$cost.');
+    try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
+
+    _showTransactionNotice(
+      type: 'redeem',
+      title: 'MORTGAGE REDEEMED',
+      description: '${current.name} redeemed the mortgage on ${prop.name} for ₹$cost.',
+      icon: '🔓',
+      color: const Color(0xFF10B981),
+    );
+
+    state = state.copyWith(
+      properties: newProps,
+      message: '${current.name} redeemed the mortgage on ${prop.name} for ₹$cost.',
+    );
+  }
 
   void _executeBuyProperty(String propertyId) {
     try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
@@ -1289,12 +1354,12 @@ class GameNotifier extends Notifier<GameState> {
       _updatePlayer(updatedPlayer);
       try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
 
-      _addLog('${current.name} redeemed ${prop.name} for ₹${prop.price}');
+      _addLog('${current.name} bought ${prop.name} for ₹${prop.price}');
 
       _showTransactionNotice(
         type: 'buy',
         title: 'PROPERTY PURCHASED',
-        description: '${current.name} redeemed ${prop.name} for ₹${prop.price}',
+        description: '${current.name} bought ${prop.name} for ₹${prop.price}',
         icon: '🏷️',
         color: const Color(0xFF16A34A),
       );
@@ -1308,7 +1373,7 @@ class GameNotifier extends Notifier<GameState> {
             phase: GamePhase.roll,
             isDoubles: false,
             turnTimeRemaining: kTurnDurationSeconds,
-            message: '${current.name} redeemed ${prop.name}! Rolled DOUBLES! Roll again! 🎲',
+            message: '${current.name} bought ${prop.name}! Rolled DOUBLES! Roll again! 🎲',
           );
           _startTurnTimer();
           if (updatedPlayer.type == PlayerType.ai) {
@@ -1319,7 +1384,7 @@ class GameNotifier extends Notifier<GameState> {
             properties: newProps,
             clearInspectedProperty: true,
             phase: GamePhase.turnEnd,
-            message: '${current.name} redeemed ${prop.name} for ₹${prop.price}!',
+            message: '${current.name} bought ${prop.name} for ₹${prop.price}!',
           );
           if (updatedPlayer.type == PlayerType.ai) {
             _scheduleAiTurnEnd();
@@ -1329,7 +1394,7 @@ class GameNotifier extends Notifier<GameState> {
         state = state.copyWith(
           properties: newProps,
           clearInspectedProperty: true,
-          message: '${current.name} redeemed ${prop.name} for ₹${prop.price}!',
+          message: '${current.name} bought ${prop.name} for ₹${prop.price}!',
         );
       }
     }
@@ -1422,20 +1487,26 @@ class GameNotifier extends Notifier<GameState> {
 
   void _startAuctionTimer() {
     _auctionTimer?.cancel();
+    _auctionTimer = null;
+    final auction = state.activeAuction;
+    if (auction == null || auction.isCompleted) return;
+
     _auctionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      final auction = state.activeAuction;
-      if (auction == null || auction.isCompleted) {
+      final currentAuction = state.activeAuction;
+      if (currentAuction == null || currentAuction.isCompleted) {
         timer.cancel();
+        _auctionTimer = null;
         return;
       }
       
-      final remaining = auction.timeRemaining - 1;
+      final remaining = currentAuction.timeRemaining - 1;
       if (remaining <= 0) {
         timer.cancel();
-        _executePassBid(auction.currentBidderId);
+        _auctionTimer = null;
+        _executePassBid(currentAuction.currentBidderId);
       } else {
         state = state.copyWith(
-          activeAuction: auction.copyWith(timeRemaining: remaining),
+          activeAuction: currentAuction.copyWith(timeRemaining: remaining),
         );
       }
     });
@@ -1456,8 +1527,15 @@ class GameNotifier extends Notifier<GameState> {
     final auction = state.activeAuction;
     if (auction == null || auction.isCompleted) return;
 
-    final bidder = state.players.firstWhere((p) => p.id == playerId);
-    if (amount <= auction.highestBid || bidder.cash < amount) return;
+    // Validate bidder is authorized and active
+    if (!auction.activeBidderIds.contains(playerId)) return;
+    if (auction.currentBidderId != playerId) return;
+
+    final bidder = state.players.firstWhere((p) => p.id == playerId, orElse: () => state.players.first);
+    if (bidder.id != playerId || bidder.isBankrupt) return;
+
+    // Validate bid meets minimum and player has sufficient cash
+    if (amount < auction.minimumNextBid || bidder.cash < amount) return;
 
     _addLog('🔨 ${bidder.name} bid ₹$amount on ${state.properties[auction.propertyId]?.name ?? "property"}');
     try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
@@ -1465,11 +1543,13 @@ class GameNotifier extends Notifier<GameState> {
     // Advance to next active bidder
     final nextIdx = (auction.currentBidderIndex + 1) % auction.activeBidderIds.length;
 
+    // Reset countdown timer to full duration on valid accepted bid
     final updatedAuction = auction.copyWith(
       highestBid: amount,
       highestBidderId: playerId,
       currentBidderIndex: nextIdx,
       bidHistory: [...auction.bidHistory, '${bidder.name} bid ₹$amount'],
+      timeRemaining: kAuctionDurationSeconds,
     );
 
     state = state.copyWith(
@@ -1539,6 +1619,7 @@ class GameNotifier extends Notifier<GameState> {
       activeBidderIds: remainingBidders,
       currentBidderIndex: nextIdx,
       bidHistory: [...auction.bidHistory, '${passer.name} folded.'],
+      timeRemaining: kAuctionDurationSeconds,
     );
 
     state = state.copyWith(
@@ -1556,6 +1637,8 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _concludeAuction(String winnerId, int winningBid) {
+    _auctionTimer?.cancel();
+    _auctionTimer = null;
     final auction = state.activeAuction;
     if (auction == null) return;
     final prop = state.properties[auction.propertyId];
@@ -1617,6 +1700,8 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _concludeAuctionNoBids() {
+    _auctionTimer?.cancel();
+    _auctionTimer = null;
     final current = state.currentPlayer;
     _addLog('No bids received. Property remains unowned.');
 
@@ -2324,6 +2409,8 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void closeAuction() {
+    _auctionTimer?.cancel();
+    _auctionTimer = null;
     if (state.activeAuction != null) {
       state = state.copyWith(clearActiveAuction: true);
     }

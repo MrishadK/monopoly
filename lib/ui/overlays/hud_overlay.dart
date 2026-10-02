@@ -49,35 +49,15 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       return;
     }
 
-    final unownedProps = gameState.properties.values
-        .where((p) => p.ownerId == null && p.price > 0)
+    final mortgagedProps = gameState.properties.values
+        .where((p) => p.ownerId == currentPlayer.id && p.isMortgaged)
         .toList();
 
-    if (unownedProps.isEmpty) {
+    if (mortgagedProps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'All properties on the board have already been redeemed.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFF10B981),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    final eligibleIds = unownedProps
-        .where((p) => currentPlayer.cash >= p.price)
-        .map((p) => p.id)
-        .toSet();
-
-    if (eligibleIds.isEmpty) {
-      final minPrice = unownedProps.map((p) => p.price).reduce(min);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Insufficient funds: You need at least ₹$minPrice to redeem any available property.',
+            'No mortgaged properties available to redeem.',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           ),
           backgroundColor: const Color(0xFFEF4444),
@@ -87,6 +67,27 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       return;
     }
 
+    final affordableProps = mortgagedProps
+        .where((p) => currentPlayer.cash >= p.unmortgageCost)
+        .toList();
+
+    if (affordableProps.isEmpty) {
+      final minCost = mortgagedProps.map((p) => p.unmortgageCost).reduce(min);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Insufficient funds: You need at least ₹$minCost to redeem any mortgaged property.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final eligibleIds = affordableProps.map((p) => p.id).toSet();
+
     setState(() => _interactionMode = BoardInteractionMode.redeem);
     widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF10B981));
     widget.game.onPropertyTappedCustom = (Property prop) {
@@ -94,15 +95,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final currentP = currentGs.currentPlayer;
       final currentProp = currentGs.properties[prop.id] ?? prop;
 
-      if (currentProp.ownerId != null) {
-        final owner = currentGs.players.firstWhere(
-          (p) => p.id == currentProp.ownerId,
-          orElse: () => const Player(id: '', name: 'Another player', color: Colors.grey, token: PlayerToken.coconut, type: PlayerType.human),
-        );
+      if (currentProp.ownerId != currentP.id) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${currentProp.name} is already owned by ${owner.name}.',
+              'You can only redeem properties that you own.',
               style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
             ),
             backgroundColor: const Color(0xFFEF4444),
@@ -112,11 +109,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         return;
       }
 
-      if (currentP.cash < currentProp.price) {
+      if (!currentProp.isMortgaged) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Insufficient funds: ${currentProp.name} costs ₹${currentProp.price}, but you have ₹${currentP.cash}.',
+              '${currentProp.name} is not mortgaged.',
               style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
             ),
             backgroundColor: const Color(0xFFEF4444),
@@ -126,12 +123,27 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         return;
       }
 
-      ref.read(gameProvider.notifier).buyProperty(currentProp.id);
+      final redeemCost = currentProp.unmortgageCost;
+      if (currentP.cash < redeemCost) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Insufficient funds: Redeeming ${currentProp.name} costs ₹$redeemCost, but you have ₹${currentP.cash}.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      ref.read(gameProvider.notifier).redeemProperty(currentProp.id);
 
       final updatedGs = ref.read(gameProvider);
       final updatedP = updatedGs.currentPlayer;
       final newEligible = updatedGs.properties.values
-          .where((p) => p.ownerId == null && p.price > 0 && updatedP.cash >= p.price)
+          .where((p) => p.ownerId == updatedP.id && p.isMortgaged && updatedP.cash >= p.unmortgageCost)
           .map((p) => p.id)
           .toSet();
 
@@ -902,7 +914,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         children: [
           _buildRightDockButton(
             context,
-            Icons.shopping_cart_rounded,
+            Icons.lock_open_rounded,
             'Redeem',
             const Color(0xFF10B981),
             () => _activateRedeemMode(gameState, currentPlayer),
@@ -1374,7 +1386,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                       : null,
                   icon: const Icon(Icons.shopping_cart_rounded, size: 14),
                   label: Text(
-                    'REDEEM ₹${prop.price}',
+                    'BUY ₹${prop.price}',
                     style: GoogleFonts.outfit(
                       fontWeight: FontWeight.w800,
                       fontSize: 11.5,
@@ -1506,9 +1518,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     switch (_interactionMode) {
       case BoardInteractionMode.redeem:
         title = 'REDEEM MODE';
-        icon = Icons.shopping_cart_rounded;
+        icon = Icons.lock_open_rounded;
         accentColor = const Color(0xFF10B981);
-        description = 'Select an available property to redeem. You can purchase an unowned property by paying its listed price.';
+        description = 'Select a mortgaged property to redeem it. Redeeming a property removes its mortgage after paying the mortgage value plus 10% interest.';
         break;
       case BoardInteractionMode.build:
         title = 'BUILD MODE';

@@ -6,6 +6,8 @@ import 'package:kuthaka/models/player.dart';
 import 'package:kuthaka/models/property.dart';
 import 'package:kuthaka/models/trade_offer.dart';
 import 'package:kuthaka/providers/game_provider.dart';
+import 'package:kuthaka/models/auction_state.dart';
+import 'package:kuthaka/data/game_data.dart';
 import 'package:kuthaka/services/user_profile_service.dart';
 import 'package:kuthaka/game/components/player_token_component.dart';
 
@@ -1332,7 +1334,7 @@ void main() {
     expect(p2.ownedPropertyIds, containsAll(['prop_01', 'trans_01']));
   });
 
-  test('Redeem property: verifies unowned status, cash deduction, ownership update, and logs', () {
+  test('Redeem property: unmortgages active player mortgaged property, pays mortgage + 10%, updates flag and logs', () {
     final container = ProviderContainer();
     final notifier = container.read(gameProvider.notifier);
 
@@ -1344,6 +1346,7 @@ void main() {
         color: Colors.red,
         type: PlayerType.human,
         cash: 500,
+        ownedPropertyIds: ['prop_01'],
       ),
       const Player(
         id: 'p2',
@@ -1356,35 +1359,54 @@ void main() {
     ]);
 
     var state = container.read(gameProvider);
-    final prop = state.properties['prop_01']!;
-    expect(prop.ownerId, isNull);
+    // Setup prop_01 as mortgaged and owned by p1
+    final prop01 = state.properties['prop_01']!.copyWith(
+      ownerId: 'p1',
+      isMortgaged: true,
+    );
+    notifier.state = state.copyWith(
+      properties: {...state.properties, 'prop_01': prop01},
+    );
+    state = container.read(gameProvider);
+
+    final expectedCost = prop01.unmortgageCost;
     final initialCash = state.currentPlayer.cash; // 500
 
-    // Redeem prop_01 (price: 60)
+    // Redeem prop_01
     notifier.redeemProperty('prop_01');
     state = container.read(gameProvider);
 
     expect(state.properties['prop_01']?.ownerId, 'p1');
-    expect(state.currentPlayer.cash, initialCash - prop.price);
-    expect(state.currentPlayer.ownedPropertyIds, contains('prop_01'));
-    expect(state.gameLogs.any((l) => l.contains('redeemed') && l.contains(prop.name)), isTrue);
+    expect(state.properties['prop_01']?.isMortgaged, isFalse);
+    expect(state.currentPlayer.cash, initialCash - expectedCost);
+    expect(state.gameLogs.any((l) => l.contains('redeemed the mortgage on') && l.contains(prop01.name)), isTrue);
 
-    // Attempting to redeem already-owned property should not deduct cash
-    final cashBeforeSecond = state.currentPlayer.cash;
+    // Attempting to redeem already unmortgaged property should not deduct cash
+    final cashAfterFirst = state.currentPlayer.cash;
     notifier.redeemProperty('prop_01');
     state = container.read(gameProvider);
-    expect(state.currentPlayer.cash, cashBeforeSecond);
+    expect(state.currentPlayer.cash, cashAfterFirst);
 
-    // Attempting to redeem unaffordable property
-    final p1LowCash = state.currentPlayer.copyWith(cash: 10);
-    final updatedPlayers = state.players.map((p) => p.id == 'p1' ? p1LowCash : p).toList();
-    notifier.state = state.copyWith(players: updatedPlayers);
-
-    // price: 40 > 10
+    // Attempting to redeem unowned property should not deduct cash
     notifier.redeemProperty('prop_02');
     state = container.read(gameProvider);
-    expect(state.currentPlayer.cash, 10);
-    expect(state.properties['prop_02']?.ownerId, isNull);
+    expect(state.currentPlayer.cash, cashAfterFirst);
+    expect(state.properties['prop_02']?.isMortgaged, isFalse);
+
+    // Attempting to redeem unaffordable mortgaged property
+    final prop03 = state.properties['prop_03']!.copyWith(
+      ownerId: 'p1',
+      isMortgaged: true,
+    );
+    final p1LowCash = state.currentPlayer.copyWith(cash: 5);
+    notifier.state = state.copyWith(
+      players: state.players.map((p) => p.id == 'p1' ? p1LowCash : p).toList(),
+      properties: {...state.properties, 'prop_03': prop03},
+    );
+    notifier.redeemProperty('prop_03');
+    state = container.read(gameProvider);
+    expect(state.currentPlayer.cash, 5);
+    expect(state.properties['prop_03']?.isMortgaged, isTrue);
   });
 
   test('Movement synchronization: turns and rolls cannot advance while moving', () {
@@ -1528,5 +1550,127 @@ void main() {
 
     notifier.restartGame();
     expect(container.read(gameProvider).players[0].consecutiveSkippedTurns, 0);
+  });
+
+  test('Auction Timer Rule: valid bid resets countdown timer; invalid bid does not reset', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    notifier.startAuction('prop_01');
+    var state = container.read(gameProvider);
+    expect(state.activeAuction, isNotNull);
+    expect(state.activeAuction!.timeRemaining, kAuctionDurationSeconds);
+
+    // Simulate timer running down to 3 seconds
+    notifier.state = state.copyWith(
+      activeAuction: state.activeAuction!.copyWith(timeRemaining: 3),
+    );
+    expect(container.read(gameProvider).activeAuction!.timeRemaining, 3);
+
+    // Invalid bid: below minimum bid (e.g. 5 when min next bid is 10)
+    notifier.placeBid('p1', 5);
+    expect(container.read(gameProvider).activeAuction!.timeRemaining, 3);
+    expect(container.read(gameProvider).activeAuction!.highestBid, 0);
+
+    // Invalid bid: out of turn (p2 trying to bid when current turn is p1)
+    notifier.placeBid('p2', 50);
+    expect(container.read(gameProvider).activeAuction!.timeRemaining, 3);
+    expect(container.read(gameProvider).activeAuction!.highestBid, 0);
+
+    // Valid bid: p1 bids 50
+    notifier.placeBid('p1', 50);
+    state = container.read(gameProvider);
+    expect(state.activeAuction!.highestBid, 50);
+    expect(state.activeAuction!.highestBidderId, 'p1');
+    // Timer is reset to kAuctionDurationSeconds!
+    expect(state.activeAuction!.timeRemaining, kAuctionDurationSeconds);
+    expect(state.activeAuction!.currentBidderId, 'p2');
+
+    // Simulate timer running down to 4 seconds for p2
+    notifier.state = state.copyWith(
+      activeAuction: state.activeAuction!.copyWith(timeRemaining: 4),
+    );
+    expect(container.read(gameProvider).activeAuction!.timeRemaining, 4);
+
+    // Invalid bid: p2 cash insufficient
+    final p2LowCash = state.players.firstWhere((p) => p.id == 'p2').copyWith(cash: 55);
+    notifier.state = container.read(gameProvider).copyWith(
+      players: container.read(gameProvider).players.map((p) => p.id == 'p2' ? p2LowCash : p).toList(),
+    );
+    notifier.placeBid('p2', 100);
+    expect(container.read(gameProvider).activeAuction!.timeRemaining, 4);
+
+    // Valid bid: p2 bids 55 (meets minNextBid 60? wait, 50 + 10 = 60, p2 cash is 55 so 60 is unaffordable!)
+    // Let's give p2 enough cash
+    final p2Afford = state.players.firstWhere((p) => p.id == 'p2').copyWith(cash: 200);
+    notifier.state = container.read(gameProvider).copyWith(
+      players: container.read(gameProvider).players.map((p) => p.id == 'p2' ? p2Afford : p).toList(),
+    );
+    notifier.placeBid('p2', 70);
+    state = container.read(gameProvider);
+    expect(state.activeAuction!.highestBid, 70);
+    expect(state.activeAuction!.highestBidderId, 'p2');
+    expect(state.activeAuction!.timeRemaining, kAuctionDurationSeconds);
+  });
+
+  test('Movement Logging: stepwise movement records rolled and moved from start to destination tile', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+        position: 0,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+        position: 0,
+      ),
+    ]);
+
+    expect(container.read(gameProvider).currentPlayer.position, 0);
+    notifier.rollDice();
+    await Future.delayed(const Duration(milliseconds: 1100));
+
+    final state = container.read(gameProvider);
+    final startTileName = GameData.spaces[0].name;
+    final destTileName = GameData.spaces[state.currentPlayer.position].name;
+
+    expect(
+      state.gameLogs.any((l) => l.contains('moved from $startTileName to $destTileName')),
+      isTrue,
+      reason: 'Expected log containing "moved from $startTileName to $destTileName", got: ${state.gameLogs}',
+    );
   });
 }
