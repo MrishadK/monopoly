@@ -8,6 +8,7 @@ import '../../services/multiplayer_service.dart';
 import '../../services/voice_stream_service.dart';
 import '../../services/user_profile_service.dart';
 import '../../providers/game_provider.dart';
+import '../../ui/theme/app_theme.dart';
 import 'home_screen.dart';
 import '../overlays/hud_overlay.dart';
 import '../overlays/property_card_overlay.dart';
@@ -42,12 +43,15 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: context.cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: context.borderColor),
+        ),
         title: Text(
           'Exit Match?',
           style: GoogleFonts.outfit(
-            color: const Color(0xFF0F172A),
+            color: context.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -55,16 +59,16 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           (widget.roomId != null && widget.isHost)
               ? 'You are the host. Leaving will delete this room and end the match for everyone.'
               : 'Are you sure you want to quit the current match?',
-          style: GoogleFonts.outfit(color: const Color(0xFF64748B)),
+          style: GoogleFonts.outfit(color: context.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL', style: TextStyle(color: Color(0xFF64748B))),
+            child: Text('CANCEL', style: TextStyle(color: context.textMuted)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: KuthakaColors.crimson,
               foregroundColor: Colors.white,
             ),
             onPressed: () {
@@ -103,32 +107,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         if (!didPop) _confirmExit(context);
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF6F4EE),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: GameWidget(
-                  game: _game,
-                  overlayBuilderMap: {
-                    'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
-                    'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),
-                    'event_card': (context, KuthakaGame game) => const EventCardOverlay(),
-                    'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
-                    'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
-                    'auction': (context, KuthakaGame game) => const AuctionOverlay(),
-                    'trade_proposal': (context, KuthakaGame game) => const TradeProposalOverlay(),
-                  },
-                  initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction', 'trade_proposal'],
+        backgroundColor: context.isDark ? const Color(0xFF090E17) : const Color(0xFFF1F5F9),
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage(context.isDark ? 'assets/images/bg_dark.jpg' : 'assets/images/bg_light.jpg'),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: GameWidget(
+                    game: _game,
+                    overlayBuilderMap: {
+                      'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
+                      'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),
+                      'event_card': (context, KuthakaGame game) => const EventCardOverlay(),
+                      'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
+                      'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
+                      'auction': (context, KuthakaGame game) => const AuctionOverlay(),
+                      'trade_proposal': (context, KuthakaGame game) => const TradeProposalOverlay(),
+                    },
+                    initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction', 'trade_proposal'],
+                  ),
                 ),
-              ),
-              const WebrtcAudioRenderer(),
-              if (!kIsWeb) const BannerAdWidget(),
-            ],
+                const WebrtcAudioRenderer(),
+                if (!kIsWeb) const BannerAdWidget(),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
-

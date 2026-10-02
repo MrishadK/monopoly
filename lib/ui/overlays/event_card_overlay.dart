@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/game_provider.dart';
 import '../../models/event_card.dart';
+import '../../ui/theme/app_theme.dart';
 
 class EventCardOverlay extends ConsumerWidget {
   const EventCardOverlay({super.key});
@@ -14,7 +15,13 @@ class EventCardOverlay extends ConsumerWidget {
 
     if (card == null) return const SizedBox.shrink();
 
+    final isDark = context.isDark;
     final isPositive = card.type == EventCardType.moneyReward || card.type == EventCardType.getOutOfJail;
+
+    final accentColor = isPositive
+        ? (isDark ? KuthakaColors.emerald : KuthakaColors.emeraldDark)
+        : KuthakaColors.crimson;
+    final accentBg = isPositive ? context.emeraldBg : context.crimsonBg;
 
     return Center(
       child: Container(
@@ -22,11 +29,16 @@ class EventCardOverlay extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(horizontal: 24),
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.cardColor,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: isPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C), width: 2.5),
-          boxShadow: const [
-            BoxShadow(color: Color(0x33000000), blurRadius: 25, offset: Offset(0, 10)),
+          border: Border.all(color: accentColor, width: 2.5),
+          boxShadow: [
+            BoxShadow(
+              color: accentColor.withValues(alpha: isDark ? 0.3 : 0.15),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
+            ),
+            ...context.cardShadow,
           ],
         ),
         child: Column(
@@ -36,9 +48,9 @@ class EventCardOverlay extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
-                color: isPositive ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+                color: accentBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isPositive ? const Color(0xFF2E7D32) : const Color(0xFFC62828)),
+                border: Border.all(color: accentColor.withValues(alpha: 0.6)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -46,13 +58,13 @@ class EventCardOverlay extends ConsumerWidget {
                   Icon(
                     isPositive ? Icons.verified_rounded : Icons.warning_amber_rounded,
                     size: 14,
-                    color: isPositive ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+                    color: accentColor,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     isPositive ? 'KERALA FORTUNE' : 'KERALA ADVERSITY',
                     style: GoogleFonts.outfit(
-                      color: isPositive ? const Color(0xFF1B5E20) : const Color(0xFFB71C1C),
+                      color: accentColor,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.5,
                       fontSize: 11,
@@ -63,17 +75,17 @@ class EventCardOverlay extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
-            // Material Icon Motif (NO EMOJIS)
+            // Material Icon Motif
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: (isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626)).withValues(alpha: 0.1),
+                color: accentColor.withValues(alpha: isDark ? 0.15 : 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 _getCardIcon(card),
                 size: 42,
-                color: isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                color: accentColor,
               ),
             ),
             const SizedBox(height: 14),
@@ -83,7 +95,7 @@ class EventCardOverlay extends ConsumerWidget {
               card.title,
               textAlign: TextAlign.center,
               style: GoogleFonts.outfit(
-                color: const Color(0xFF0F172A),
+                color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -95,7 +107,7 @@ class EventCardOverlay extends ConsumerWidget {
               card.description,
               textAlign: TextAlign.center,
               style: GoogleFonts.outfit(
-                color: const Color(0xFF334155),
+                color: context.textSecondary,
                 fontSize: 14,
                 height: 1.35,
                 fontWeight: FontWeight.w500,
@@ -109,10 +121,10 @@ class EventCardOverlay extends ConsumerWidget {
               height: 46,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isPositive ? const Color(0xFF047857) : const Color(0xFF0F172A),
+                  backgroundColor: accentColor,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23)),
-                  elevation: 2,
+                  elevation: 0,
                 ),
                 onPressed: () {
                   ref.read(gameProvider.notifier).dismissEventCard();

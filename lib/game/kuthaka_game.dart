@@ -3,6 +3,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/game_provider.dart';
+import '../../ui/theme/theme_provider.dart';
 import 'components/board_component.dart';
 import 'components/player_token_component.dart';
 
@@ -19,7 +20,7 @@ class KuthakaGame extends FlameGame {
   bool get isAnyTokenMoving => tokens.any((t) => t.isMoving);
 
   @override
-  Color backgroundColor() => const Color(0xFFF6F4EE);
+  Color backgroundColor() => Colors.transparent;
 
   @override
   Future<void> onLoad() async {
@@ -40,21 +41,25 @@ class KuthakaGame extends FlameGame {
     _lastWidth = size.x;
     _lastHeight = size.y;
 
-    // Calculate optimal board size to preserve clearance for top header & bottom HUDs
-    final playerCount = ref.read(gameProvider).players.length;
+    // Calculate optimal board size to preserve clearance for top header, bottom HUDs, and right dock
     final bool isPortrait = size.y > size.x;
-    double topPadding = isPortrait ? (playerCount > 2 ? 172.0 : 120.0) : 66.0;
-    double bottomPadding = isPortrait ? 165.0 : 160.0;
-    double availableWidth = isPortrait ? (size.x - 16) : (size.x - 40);
+    double topPadding = isPortrait ? 134.0 : 66.0;
+    double bottomPadding = isPortrait ? 76.0 : 70.0;
+    double rightMargin = isPortrait ? 58.0 : 68.0;
+    double availableWidth = size.x - 12 - rightMargin;
     double availableHeight = size.y - (topPadding + bottomPadding);
     double boardSize = min(availableWidth, availableHeight);
     boardSize = max(boardSize, 260); // Minimum sensible size
 
-    double posX = (size.x - boardSize) / 2;
+    double posX = 8.0;
+    if (size.x - rightMargin > boardSize + 16) {
+      posX = (size.x - rightMargin - boardSize) / 2 + 4;
+    }
     double verticalSlack = max(0.0, availableHeight - boardSize);
-    double posY = topPadding + verticalSlack * 0.45;
+    double posY = topPadding + verticalSlack * 0.35;
 
     final gameState = ref.read(gameProvider);
+    final isDark = ref.read(themeModeProvider.notifier).isDark;
 
     // If board already exists, update its dimensions and existing tokens in-place
     if (board != null) {
@@ -71,6 +76,7 @@ class KuthakaGame extends FlameGame {
       players: gameState.players,
       lastDiceRoll: gameState.lastDiceRoll,
       isDoubles: gameState.isDoubles,
+      isDark: isDark,
       onPropertyTapped: (prop) {
         ref.read(gameProvider.notifier).inspectProperty(prop);
       },
@@ -98,6 +104,7 @@ class KuthakaGame extends FlameGame {
     super.update(dt);
 
     final gameState = ref.read(gameProvider);
+    final isDark = ref.read(themeModeProvider.notifier).isDark;
 
     // Ensure all players have tokens if player list changed or loaded after initial layout
     if (board != null && tokens.length != gameState.players.length) {
@@ -124,6 +131,7 @@ class KuthakaGame extends FlameGame {
       newPlayers: gameState.players,
       dice: gameState.lastDiceRoll,
       doubles: gameState.isDoubles,
+      isDark: isDark,
     );
 
     // Sync tokens with state

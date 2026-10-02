@@ -750,9 +750,9 @@ class GameNotifier extends Notifier<GameState> {
               _addLog('${current.name} lands on ${prop.name} but cannot afford ₹${prop.price} (has ₹${current.cash}). Sent automatically to Auction! 🔨');
               _executeStartAuction(prop.id);
             } else {
-              // Has enough money: show property card with Buy / Auction choices
+              // Has enough money: ready for purchase via Center Action Tray (no intrusive popup)
               state = state.copyWith(
-                inspectedProperty: prop,
+                clearInspectedProperty: true,
                 message: 'Land on ${prop.name}! Buy for ₹${prop.price} or Auction?',
               );
             }
@@ -1224,14 +1224,16 @@ class GameNotifier extends Notifier<GameState> {
 
   void _executePassProperty() {
     final current = state.currentPlayer;
-    final prop = state.inspectedProperty;
+    final currentSpace = current.position < GameData.spaces.length ? GameData.spaces[current.position] : null;
+    final propId = currentSpace?.propertyId;
+    final prop = (propId != null ? state.properties[propId] : null) ?? state.inspectedProperty;
     if (prop != null && prop.ownerId == null && state.phase == GamePhase.spaceAction) {
       // Per Monopoly rules: passing on an unpurchased tile puts it up for auction
       _executeStartAuction(prop.id);
       return;
     }
 
-    _addLog('${current.name} passed on buying ${state.inspectedProperty?.name ?? "property"}');
+    _addLog('${current.name} passed on buying ${prop?.name ?? "property"}');
     state = state.copyWith(
       clearInspectedProperty: true,
       phase: GamePhase.turnEnd,

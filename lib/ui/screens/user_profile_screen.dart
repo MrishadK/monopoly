@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/player.dart';
 import '../../services/user_profile_service.dart';
+import '../../ui/theme/app_theme.dart';
 
 class UserProfileScreen extends ConsumerStatefulWidget {
   final bool isInitialSetup;
@@ -77,8 +78,6 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     super.dispose();
   }
 
-
-
   void _switchToCustomMode() {
     HapticFeedback.lightImpact();
     setState(() {
@@ -122,9 +121,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a custom name or choose a preset character'),
-          backgroundColor: Color(0xFFDC2626),
+        SnackBar(
+          content: const Text('Please enter a custom name or choose a preset character'),
+          backgroundColor: KuthakaColors.crimson,
         ),
       );
       return;
@@ -140,13 +139,14 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     );
 
     if (mounted) {
+      final isDark = context.isDark;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             isCustom ? 'Custom profile name "$name" saved!' : 'Playing as "$name"',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           ),
-          backgroundColor: const Color(0xFF047857),
+          backgroundColor: isDark ? KuthakaColors.emerald : KuthakaColors.emeraldDark,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -156,6 +156,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDark;
     final cleanName = _nameController.text.trim();
     final isCurrentCustom = _isCustomMode || !UserProfileNotifier.keralaNames.contains(cleanName);
     final tempPlayer = Player(
@@ -166,17 +167,19 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       color: _selectedColor,
     );
 
+    final accentColor = isDark ? KuthakaColors.emerald : KuthakaColors.emeraldDark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+        backgroundColor: context.surfaceColor,
+        elevation: 0,
+        iconTheme: IconThemeData(color: context.textPrimary),
         centerTitle: true,
         title: Text(
           widget.isInitialSetup ? 'WELCOME TO KUTHAKA' : 'PLAYER PROFILE SETUP',
           style: GoogleFonts.outfit(
-            color: const Color(0xFF0F172A),
+            color: context.textPrimary,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
             fontSize: 17,
@@ -197,20 +200,14 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.cardColor,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x08000000),
-                          blurRadius: 16,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
+                      border: Border.all(color: context.borderColor),
+                      boxShadow: context.cardShadow,
                     ),
                     child: Column(
                       children: [
-                        // Live Avatar Icon
+                        // Live Avatar Icon with Glow
                         Container(
                           width: 88,
                           height: 88,
@@ -219,12 +216,12 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                             color: _selectedColor,
                             boxShadow: [
                               BoxShadow(
-                                color: _selectedColor.withValues(alpha: 0.35),
-                                blurRadius: 20,
+                                color: _selectedColor.withValues(alpha: isDark ? 0.5 : 0.35),
+                                blurRadius: 24,
                                 offset: const Offset(0, 6),
                               ),
                             ],
-                            border: Border.all(color: Colors.white, width: 3.5),
+                            border: Border.all(color: context.cardColor, width: 3.5),
                           ),
                           child: Center(
                             child: Icon(
@@ -242,7 +239,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           style: GoogleFonts.outfit(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
-                            color: const Color(0xFF0F172A),
+                            color: context.textPrimary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -253,10 +250,12 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: isCurrentCustom ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
+                            color: isCurrentCustom ? context.emeraldBg : context.goldBg,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isCurrentCustom ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                              color: isCurrentCustom
+                                  ? KuthakaColors.emerald.withValues(alpha: isDark ? 0.6 : 1.0)
+                                  : KuthakaColors.gold.withValues(alpha: isDark ? 0.6 : 1.0),
                               width: 1,
                             ),
                           ),
@@ -266,13 +265,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                               Icon(
                                 isCurrentCustom ? Icons.stars_rounded : Icons.theater_comedy_rounded,
                                 size: 13,
-                                color: isCurrentCustom ? const Color(0xFF047857) : const Color(0xFFB45309),
+                                color: isCurrentCustom ? accentColor : KuthakaColors.goldDark,
                               ),
                               const SizedBox(width: 5),
                               Text(
                                 isCurrentCustom ? 'CUSTOM PLAYER NAME' : 'KERALA CHARACTER PRESET',
                                 style: GoogleFonts.outfit(
-                                  color: isCurrentCustom ? const Color(0xFF047857) : const Color(0xFFB45309),
+                                  color: isCurrentCustom ? accentColor : KuthakaColors.goldDark,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0.8,
@@ -287,24 +286,24 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: context.cardAltColor,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: context.borderColor),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.workspace_premium_rounded,
                                 size: 14,
-                                color: Color(0xFF64748B),
+                                color: context.textSecondary,
                               ),
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
                                   _tokenLore[_selectedToken] ?? tempPlayer.tokenName,
                                   style: GoogleFonts.outfit(
-                                    color: const Color(0xFF475569),
+                                    color: context.textSecondary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -325,27 +324,20 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.cardColor,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x06000000),
-                          blurRadius: 10,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
+                      border: Border.all(color: context.borderColor),
+                      boxShadow: context.subtleShadow,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Card Header with Section Title
                         Row(
                           children: [
                             Text(
                               'NAME OPTIONS',
                               style: GoogleFonts.outfit(
-                                color: const Color(0xFF64748B),
+                                color: context.textSecondary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.2,
@@ -355,12 +347,12 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         ),
                         const SizedBox(height: 12),
 
-                        // Segmented Mode Selector: Custom Name vs Kerala Presets
+                        // Segmented Mode Selector
                         Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: context.cardAltColor,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: context.borderColor),
                           ),
                           padding: const EdgeInsets.all(4),
                           child: Row(
@@ -368,27 +360,17 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                               // Custom Name Segment
                               Expanded(
                                 child: InkWell(
-                                  onTap: () {
-                                    _switchToCustomMode();
-                                  },
+                                  onTap: () => _switchToCustomMode(),
                                   borderRadius: BorderRadius.circular(10),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     padding: const EdgeInsets.symmetric(vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: _isCustomMode ? Colors.white : Colors.transparent,
+                                      color: _isCustomMode ? context.cardColor : Colors.transparent,
                                       borderRadius: BorderRadius.circular(10),
-                                      boxShadow: _isCustomMode
-                                          ? const [
-                                              BoxShadow(
-                                                color: Color(0x0D000000),
-                                                blurRadius: 6,
-                                                offset: Offset(0, 2),
-                                              ),
-                                            ]
-                                          : null,
+                                      boxShadow: _isCustomMode ? context.subtleShadow : null,
                                       border: _isCustomMode
-                                          ? Border.all(color: const Color(0xFF047857), width: 1.5)
+                                          ? Border.all(color: accentColor, width: 1.5)
                                           : null,
                                     ),
                                     child: Row(
@@ -397,7 +379,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                         Icon(
                                           Icons.edit_rounded,
                                           size: 15,
-                                          color: _isCustomMode ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                          color: _isCustomMode ? accentColor : context.textSecondary,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
@@ -405,7 +387,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                           style: GoogleFonts.outfit(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w800,
-                                            color: _isCustomMode ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                            color: _isCustomMode ? accentColor : context.textSecondary,
                                           ),
                                         ),
                                       ],
@@ -433,19 +415,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                     duration: const Duration(milliseconds: 200),
                                     padding: const EdgeInsets.symmetric(vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: !_isCustomMode ? Colors.white : Colors.transparent,
+                                      color: !_isCustomMode ? context.cardColor : Colors.transparent,
                                       borderRadius: BorderRadius.circular(10),
-                                      boxShadow: !_isCustomMode
-                                          ? const [
-                                              BoxShadow(
-                                                color: Color(0x0D000000),
-                                                blurRadius: 6,
-                                                offset: Offset(0, 2),
-                                              ),
-                                            ]
-                                          : null,
+                                      boxShadow: !_isCustomMode ? context.subtleShadow : null,
                                       border: !_isCustomMode
-                                          ? Border.all(color: const Color(0xFF047857), width: 1.5)
+                                          ? Border.all(color: accentColor, width: 1.5)
                                           : null,
                                     ),
                                     child: Row(
@@ -454,7 +428,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                         Icon(
                                           Icons.casino_rounded,
                                           size: 15,
-                                          color: !_isCustomMode ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                          color: !_isCustomMode ? accentColor : context.textSecondary,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
@@ -462,7 +436,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                           style: GoogleFonts.outfit(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w800,
-                                            color: !_isCustomMode ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                            color: !_isCustomMode ? accentColor : context.textSecondary,
                                           ),
                                         ),
                                       ],
@@ -477,14 +451,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
                         // Content according to selected mode
                         if (_isCustomMode) ...[
-                          // Custom Name Input Header
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 'TYPE YOUR CUSTOM NAME',
                                 style: GoogleFonts.outfit(
-                                  color: const Color(0xFF0F172A),
+                                  color: context.textPrimary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.5,
@@ -504,13 +477,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.close_rounded, size: 14, color: Color(0xFF94A3B8)),
+                                        Icon(Icons.close_rounded, size: 14, color: context.textMuted),
                                         const SizedBox(width: 2),
                                         Text(
                                           'Clear',
                                           style: GoogleFonts.outfit(
                                             fontSize: 11,
-                                            color: const Color(0xFF94A3B8),
+                                            color: context.textMuted,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
@@ -529,22 +502,18 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                             maxLength: 18,
                             textCapitalization: TextCapitalization.words,
                             style: GoogleFonts.outfit(
-                              color: const Color(0xFF0F172A),
+                              color: context.textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                             decoration: InputDecoration(
                               counterText: '',
                               hintText: 'e.g. Arun, Priya, Dulquer, The Boss',
-                              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-                              prefixIcon: const Icon(
-                                Icons.person_outline_rounded,
-                                color: Color(0xFF047857),
-                                size: 20,
-                              ),
+                              hintStyle: TextStyle(color: context.textMuted, fontSize: 14),
+                              prefixIcon: Icon(Icons.person_outline_rounded, color: accentColor, size: 20),
                               suffixIcon: _nameController.text.isNotEmpty
                                   ? IconButton(
-                                      icon: const Icon(Icons.cancel_rounded, color: Color(0xFF94A3B8), size: 18),
+                                      icon: Icon(Icons.cancel_rounded, color: context.textMuted, size: 18),
                                       onPressed: () {
                                         _nameController.clear();
                                         setState(() {});
@@ -552,19 +521,19 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                     )
                                   : null,
                               filled: true,
-                              fillColor: const Color(0xFFF8FAFC),
+                              fillColor: context.cardAltColor,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: BorderSide(color: context.borderColor),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: BorderSide(color: context.borderColor),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: Color(0xFF047857), width: 2),
+                                borderSide: BorderSide(color: accentColor, width: 2),
                               ),
                             ),
                             onChanged: (_) {
@@ -579,7 +548,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           Text(
                             'QUICK TITLE IDEAS',
                             style: GoogleFonts.outfit(
-                              color: const Color(0xFF94A3B8),
+                              color: context.textMuted,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.8,
@@ -596,115 +565,82 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                   style: GoogleFonts.outfit(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF334155),
+                                    color: context.textPrimary,
                                   ),
                                 ),
-                                backgroundColor: const Color(0xFFF1F5F9),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                ),
+                                backgroundColor: context.cardAltColor,
+                                side: BorderSide(color: context.borderColor),
                                 onPressed: () => _applyQuickCustomTag(tag),
                               );
                             }).toList(),
                           ),
                         ] else ...[
-                          // Kerala Random Shuffle Card (Instead of static preset chips)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFF0FDF4), Color(0xFFECFDF5)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                          // Kerala Name Presets
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'SELECTED AVATAR',
+                                style: GoogleFonts.outfit(
+                                  color: context.textPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFA7F3D0)),
+                              InkWell(
+                                onTap: _randomizeName,
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: context.emeraldBg,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: accentColor.withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.casino_rounded, size: 13, color: accentColor),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'SHUFFLE',
+                                        style: GoogleFonts.outfit(
+                                          color: accentColor,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Current Preset Name Display
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: context.cardAltColor,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: accentColor, width: 1.5),
                             ),
-                            child: Column(
+                            child: Row(
                               children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF047857),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.theater_comedy_rounded,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'SELECTED KERALA CHARACTER',
-                                            style: GoogleFonts.outfit(
-                                              color: const Color(0xFF065F46),
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 1.0,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            _nameController.text.trim().isNotEmpty
-                                                ? _nameController.text.trim()
-                                                : 'Aadu Thoma',
-                                            style: GoogleFonts.outfit(
-                                              color: const Color(0xFF0F172A),
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-
-                                // Shuffle / Random Action Button
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 48,
-                                  child: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF047857),
-                                      foregroundColor: Colors.white,
-                                      elevation: 2,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                    icon: const Icon(Icons.casino_rounded, size: 20),
-                                    label: Text(
-                                      'ROLL RANDOM NAME 🎲',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.0,
-                                      ),
-                                    ),
-                                    onPressed: _randomizeName,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-
+                                Icon(Icons.theater_comedy_rounded, size: 20, color: accentColor),
+                                const SizedBox(width: 12),
                                 Text(
-                                  'Draws randomly from 70+ iconic Malayalam cinema & cultural characters',
+                                  _nameController.text,
                                   style: GoogleFonts.outfit(
-                                    color: const Color(0xFF047857),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
+                                    color: context.textPrimary,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
                                   ),
-                                  textAlign: TextAlign.center,
                                 ),
                               ],
                             ),
@@ -716,47 +652,49 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
                   const SizedBox(height: 18),
 
-                  // ==================== TOKEN PICKER CARD ====================
+                  // ==================== TOKEN SELECTION CARD ====================
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.cardColor,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x06000000),
-                          blurRadius: 10,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
+                      border: Border.all(color: context.borderColor),
+                      boxShadow: context.subtleShadow,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'CHOOSE KERALA GAME PIECE',
+                              'GAME TOKEN',
                               style: GoogleFonts.outfit(
-                                color: const Color(0xFF64748B),
+                                color: context.textSecondary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.2,
                               ),
                             ),
-                            const Spacer(),
-                            Text(
-                              '8 Unique Tokens',
-                              style: GoogleFonts.outfit(
-                                color: const Color(0xFF94A3B8),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: context.emeraldBg,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _tokenShortNames[_selectedToken] ?? 'Token',
+                                style: GoogleFonts.outfit(
+                                  color: accentColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 14),
+
                         GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
@@ -764,19 +702,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                             crossAxisCount: 4,
                             mainAxisSpacing: 10,
                             crossAxisSpacing: 10,
-                            childAspectRatio: 0.9,
+                            childAspectRatio: 1.0,
                           ),
                           itemCount: PlayerToken.values.length,
-                          itemBuilder: (context, index) {
-                            final token = PlayerToken.values[index];
+                          itemBuilder: (context, i) {
+                            final token = PlayerToken.values[i];
                             final isSelected = _selectedToken == token;
-                            final dummy = Player(
-                              id: '',
-                              name: '',
-                              type: PlayerType.human,
-                              token: token,
-                              color: Colors.white,
-                            );
+                            final dummy = Player(id: '', name: '', type: PlayerType.human, token: token, color: Colors.white);
                             final shortName = _tokenShortNames[token] ?? 'Token';
 
                             return InkWell(
@@ -784,26 +716,20 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                 HapticFeedback.selectionClick();
                                 setState(() => _selectedToken = token);
                               },
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? _selectedColor.withValues(alpha: 0.12)
-                                      : const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(16),
+                                      ? _selectedColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                                      : context.cardAltColor,
+                                  borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
-                                    color: isSelected ? _selectedColor : const Color(0xFFE2E8F0),
+                                    color: isSelected ? _selectedColor : context.borderColor,
                                     width: isSelected ? 2 : 1,
                                   ),
                                   boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: _selectedColor.withValues(alpha: 0.2),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ]
+                                      ? [BoxShadow(color: _selectedColor.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2))]
                                       : null,
                                 ),
                                 child: Column(
@@ -812,7 +738,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                     Icon(
                                       dummy.tokenIcon,
                                       size: 26,
-                                      color: isSelected ? _selectedColor : const Color(0xFF64748B),
+                                      color: isSelected ? _selectedColor : context.textSecondary,
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -820,7 +746,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                       style: GoogleFonts.outfit(
                                         fontSize: 10,
                                         fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                        color: isSelected ? _selectedColor : const Color(0xFF64748B),
+                                        color: isSelected ? _selectedColor : context.textSecondary,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -835,6 +761,69 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 18),
+
+                  // ==================== COLOR SELECTION CARD ====================
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: context.cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: context.borderColor),
+                      boxShadow: context.subtleShadow,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TOKEN COLOR',
+                          style: GoogleFonts.outfit(
+                            color: context.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: UserProfileNotifier.palette.map((c) {
+                            final isSelected = _selectedColor == c;
+                            return InkWell(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _selectedColor = c);
+                              },
+                              borderRadius: BorderRadius.circular(24),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: isSelected ? 42 : 34,
+                                height: isSelected ? 42 : 34,
+                                decoration: BoxDecoration(
+                                  color: c,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isSelected ? context.textPrimary : context.borderColor,
+                                    width: isSelected ? 2.5 : 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: c.withValues(alpha: isDark ? 0.5 : 0.3),
+                                      blurRadius: isSelected ? 10 : 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: isSelected
+                                    ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
+                                    : null,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
 
                   const SizedBox(height: 28),
 
@@ -844,9 +833,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     height: 56,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF047857),
+                        backgroundColor: accentColor,
                         foregroundColor: Colors.white,
-                        elevation: 2,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       onPressed: _saveAndContinue,
@@ -871,4 +860,3 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     );
   }
 }
-

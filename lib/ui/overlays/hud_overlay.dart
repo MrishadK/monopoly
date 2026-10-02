@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,9 +5,13 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../game/kuthaka_game.dart';
 import '../../providers/game_provider.dart';
 import '../../models/player.dart';
+import '../../models/property.dart';
+import '../../models/transaction_notice.dart';
 import '../../services/voice_stream_service.dart';
 import '../../services/user_profile_service.dart';
 import '../../services/multiplayer_service.dart';
+import '../../ui/theme/app_theme.dart';
+import '../../ui/theme/theme_provider.dart';
 import 'portfolio_sheet.dart';
 import 'trade_dialog.dart';
 import 'game_menu_dialog.dart';
@@ -28,6 +31,8 @@ class HudOverlay extends ConsumerStatefulWidget {
 }
 
 class _HudOverlayState extends ConsumerState<HudOverlay> {
+  int _activeNavIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +50,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         );
       }
 
-      // Listen for host leaving during active online game
       ref.read(multiplayerServiceProvider).onHostLeftReceived = (payload) {
         if (!mounted) return;
         ref.read(multiplayerServiceProvider).leaveRoom();
@@ -54,23 +58,23 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: ctx.cardColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
-                SizedBox(width: 8),
-                Text('Host Left', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Icon(Icons.warning_amber_rounded, color: KuthakaColors.crimson),
+                const SizedBox(width: 8),
+                Text('Host Left', style: TextStyle(fontWeight: FontWeight.bold, color: ctx.textPrimary)),
               ],
             ),
-            content: const Text(
+            content: Text(
               'The host has left the match. The room has been deleted.',
-              style: TextStyle(color: Color(0xFF475569)),
+              style: TextStyle(color: ctx.textSecondary),
             ),
             actions: [
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF047857),
+                  backgroundColor: KuthakaColors.emerald,
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () {
@@ -88,15 +92,12 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         );
       };
 
-      // Listen for a guest player leaving during active online game (host handles it)
       ref.read(multiplayerServiceProvider).onPlayerLeftReceived = (playerId, playerName) {
         if (!mounted) return;
         final notifier = ref.read(gameProvider.notifier);
         if (notifier.isHost) {
-          // Host surrenders the leaving player and syncs state
           notifier.surrenderPlayer(playerId);
         }
-        // Show a snackbar for all remaining players
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -106,10 +107,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 Text('$playerName left the match.', style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
-            backgroundColor: const Color(0xFFD97706),
+            backgroundColor: KuthakaColors.goldDark,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: const Duration(seconds: 3),
           ),
         );
       };
@@ -128,405 +128,265 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final isHumanTurn = currentPlayer.type == PlayerType.human;
     final isMyTurn = isHumanTurn && (!isOnline || currentPlayer.id == myLocalId);
 
+    // Calculate dynamic anchor coordinates from the Flame game board
+    final board = widget.game.board;
+    final double diceTop = board != null ? (board.position.y + board.size.y * 0.52) : 360.0;
+    final double diceLeft = board != null ? (board.position.x + board.size.x * 0.14) : 24.0;
+    final double diceWidth = board != null ? (board.size.x * 0.72) : 300.0;
+    final double dockTop = board != null ? (board.position.y + 4.0) : 138.0;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth > constraints.maxHeight && constraints.maxWidth > 800;
-        
         return SizedBox.expand(
           child: Stack(
             fit: StackFit.expand,
             children: [
-          // ==================== TRANSACTION NOTICE (3-SECOND BANNER) ====================
-          if (gameState.activeTransaction != null)
-            _buildTransactionNotice(context, gameState),
+              // ==================== TOP BAR ====================
+              Positioned(
+                top: 8,
+                left: 10,
+                right: 10,
+                child: _buildTopBar(context, gameState, isOnline, multiplayer.activeRoomId),
+              ),
 
-        // ==================== FLOATING EMOJI DISPLAY ====================
-        const Positioned(
-          top: 200,
-          left: 0,
-          right: 0,
-          child: Center(child: EmojiFloatingDisplay()),
-        ),
+              // ==================== PLAYER CARDS ====================
+              Positioned(
+                top: 54,
+                left: 10,
+                right: 10,
+                child: _buildFriendsGrid2N(context, gameState, voiceService),
+              ),
 
-        // ==================== TOP PLAYER STATUS BAR (2:N FRIENDS GRID) ====================
-        Positioned(
-          top: 6,
-          left: 10,
-          right: 10,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Match & Voice Stream Header
-              _buildTopHeader(context, gameState, voiceService),
-              const SizedBox(height: 6),
-              // 2:N Friends Grid (2 columns wide, responsive N rows)
-              if (!isWide) _buildFriendsGrid2N(context, gameState, voiceService),
-              // Notification Banner
-              if (gameState.message != null && !isWide) ...[
-                const SizedBox(height: 4),
-                _buildNotificationBanner(gameState),
-              ],
+              // ==================== FLOATING EMOJI ====================
+              const Positioned(
+                top: 200,
+                left: 0,
+                right: 0,
+                child: Center(child: EmojiFloatingDisplay()),
+              ),
+
+              // ==================== RIGHT ACTION DOCK ====================
+              Positioned(
+                right: 6,
+                top: dockTop,
+                child: _buildRightActionDock(context, gameState, currentPlayer, isMyTurn),
+              ),
+
+              // ==================== BOARD CENTER CONTROLS & DICE ====================
+              Positioned(
+                top: diceTop,
+                left: diceLeft,
+                width: diceWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDiceTray(context, gameState, currentPlayer, isMyTurn),
+                    if (gameState.phase == GamePhase.turnEnd && isMyTurn) ...[
+                      const SizedBox(height: 6),
+                      _buildMainActionButton(context, gameState, currentPlayer),
+                    ],
+                  ],
+                ),
+              ),
+
+              // ==================== BOTTOM NAVIGATION DOCK ====================
+              Positioned(
+                bottom: 8,
+                left: 10,
+                right: 10,
+                child: _buildBottomNavDock(context, gameState, currentPlayer, isMyTurn),
+              ),
             ],
-          ),
-        ),
-
-        if (isWide)
-          Positioned(
-            top: 60,
-            left: 10,
-            width: 250,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildSidePlayerList(context, gameState, voiceService, true),
-                if (gameState.message != null) ...[
-                  const SizedBox(height: 12),
-                  _buildNotificationBanner(gameState),
-                ],
-              ],
-            ),
-          ),
-
-        if (isWide)
-          Positioned(
-            top: 60,
-            right: 10,
-            width: 250,
-            child: _buildSidePlayerList(context, gameState, voiceService, false),
-          ),
-
-        // ==================== BOTTOM NAVIGATION DOCK ====================
-        Positioned(
-          bottom: 4,
-          left: isWide ? max(10.0, (constraints.maxWidth - 580) / 2) : 10,
-          right: isWide ? max(10.0, (constraints.maxWidth - 580) / 2) : 10,
-          child: _buildBottomNavDock(context, gameState, currentPlayer, isMyTurn),
-        ),
-
-        // ==================== BOTTOM CONTROLS & ACTION BAR ====================
-        Positioned(
-          bottom: 56,
-          left: 10,
-          right: 10,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Dedicated Prominent Dice Tray
-              _buildDiceTray(context, gameState, currentPlayer),
-
-              const SizedBox(height: 5),
-
-              // Main Turn Button
-              _buildMainActionButton(context, gameState, currentPlayer),
-            ],
-          ),
-        ),
-        ],
           ),
         );
       },
     );
   }
 
-  Widget _buildBottomNavDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
+  Widget _buildTopBar(BuildContext context, GameState gameState, bool isOnline, String? roomId) {
+    final isDark = context.isDark;
+    final displayCode = roomId ?? "867548";
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x12000000), blurRadius: 10, offset: Offset(0, 3)),
-        ],
+        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+        boxShadow: context.subtleShadow,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _dockButton(
-            icon: Icons.holiday_village_rounded,
-            title: 'Properties',
-            onTap: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => const PortfolioSheet(),
-              );
+          // Menu button
+          IconButton(
+            icon: Icon(Icons.menu_rounded, size: 20, color: context.textPrimary),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: () {
+              showDialog(context: context, builder: (_) => const GameMenuDialog());
             },
           ),
-          _dockButton(
-            icon: Icons.swap_horiz_rounded,
-            title: 'Trade',
-            enabled: isMyTurn,
-            onTap: () {
-              if (!isMyTurn) {
-                final message = currentPlayer.type == PlayerType.ai
-                    ? 'Wait for ${currentPlayer.name}\'s turn to finish!'
-                    : 'Only ${currentPlayer.name} can make trades during their turn!';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    duration: const Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                return;
-              }
-              showDialog(
-                context: context,
-                builder: (_) => const TradeDialog(),
-              );
-            },
-          ),
-          _dockButton(
-            icon: Icons.history_edu_rounded,
-            title: 'Logs',
-            onTap: () => _showLogsDialog(context, gameState),
-          ),
-          _dockButton(
-            icon: Icons.emoji_emotions_rounded,
-            title: 'Emoji',
-            onTap: () {
-              showDialog(
-                context: context,
-                barrierColor: Colors.black26,
-                builder: (_) => const Center(child: EmojiChatPanel()),
-              );
-            },
-          ),
-          _dockButton(
-            icon: Icons.settings_rounded,
-            title: 'Settings',
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (_) => const GameMenuDialog(),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopHeader(BuildContext context, GameState gameState, VoiceStreamState voiceService) {
-    final multiplayer = ref.watch(multiplayerServiceProvider);
-    final isOnline = multiplayer.isConnected;
-    final roomId = multiplayer.activeRoomId;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Quick Chat Pill
+          
+          // Room ID pill with copy icon
           InkWell(
             onTap: () {
-              showDialog(
-                context: context,
-                builder: (_) => const Center(child: QuickChatPanel()),
+              Clipboard.setData(ClipboardData(text: displayCode));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Room code $displayCode copied to clipboard!'),
+                  duration: const Duration(seconds: 1),
+                ),
               );
             },
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
+                color: context.cardAltColor,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF16A34A),
-                  width: 1.2,
-                ),
+                border: Border.all(color: context.borderColor.withValues(alpha: 0.5)),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.chat_bubble_rounded, size: 14, color: Color(0xFF16A34A)),
-                  const SizedBox(width: 5),
                   Text(
-                    'QUICK CHAT',
+                    'ROOM: $displayCode',
                     style: GoogleFonts.outfit(
-                      color: const Color(0xFF15803D),
-                      fontSize: 10.5,
+                      color: context.textPrimary,
+                      fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
                     ),
                   ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.copy_rounded, size: 12, color: context.textSecondary),
                 ],
               ),
             ),
           ),
-
-          // 45-Second Turn Timer Badge / Auction Status
+          
+          const Spacer(),
+          
+          // Players indicator (e.g. 2/4)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: context.cardAltColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.people_rounded, size: 13, color: context.textPrimary),
+                const SizedBox(width: 4),
+                Text(
+                  '${gameState.players.where((p) => !p.isBankrupt).length}/${gameState.players.length}',
+                  style: GoogleFonts.outfit(color: context.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 5),
+          
+          // Turn Timer (e.g. 🟢 39s)
           Builder(builder: (context) {
             final isAuction = gameState.activeAuction != null;
             final isWarning = !isAuction && gameState.turnTimeRemaining <= 10;
+            final timerColor = isAuction
+                ? KuthakaColors.gold
+                : (isWarning ? KuthakaColors.crimson : (isDark ? const Color(0xFF10B981) : const Color(0xFF047857)));
+            
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: isAuction
-                    ? const Color(0xFFFEF3C7)
-                    : (isWarning ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4)),
+                    ? context.goldBg
+                    : (isWarning ? context.crimsonBg : context.emeraldBg),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isAuction
-                      ? const Color(0xFFF59E0B)
-                      : (isWarning ? const Color(0xFFEF4444) : const Color(0xFF10B981)),
-                  width: 1.2,
-                ),
+                border: Border.all(color: timerColor),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    isAuction ? Icons.gavel_rounded : Icons.timer_rounded,
-                    size: 13,
-                    color: isAuction
-                        ? const Color(0xFFB45309)
-                        : (isWarning ? const Color(0xFFDC2626) : const Color(0xFF047857)),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: timerColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    isAuction ? 'AUCTION' : '${gameState.turnTimeRemaining}s',
+                    '${gameState.turnTimeRemaining}s',
                     style: GoogleFonts.outfit(
-                      color: isAuction
-                          ? const Color(0xFFB45309)
-                          : (isWarning ? const Color(0xFFDC2626) : const Color(0xFF047857)),
+                      color: timerColor,
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
               ),
             );
           }),
-
-          // Live In-Match Voice Chat Pill
-          if (isOnline && voiceService.isVoiceStreaming) ...[
-            Container(
+          
+          const SizedBox(width: 5),
+          
+          // Connection status
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(color: context.cardAltColor, shape: BoxShape.circle),
+            child: Icon(
+              Icons.wifi_rounded,
+              size: 13,
+              color: isOnline ? const Color(0xFF10B981) : context.textSecondary,
+            ),
+          ),
+          
+          const SizedBox(width: 5),
+          
+          // Settings button
+          InkWell(
+            onTap: () => showDialog(context: context, builder: (_) => const GameMenuDialog()),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(color: context.cardAltColor, shape: BoxShape.circle),
+              child: Icon(Icons.settings_rounded, size: 13, color: context.textPrimary),
+            ),
+          ),
+          
+          const SizedBox(width: 5),
+          
+          // Theme Toggle (Light / Dark)
+          InkWell(
+            onTap: () => ref.read(themeModeProvider.notifier).toggle(),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: voiceService.isSpeaking ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+                color: isDark ? const Color(0xFF242C3D) : const Color(0xFFFEF3C7),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: voiceService.isSpeaking ? const Color(0xFF10B981) : const Color(0xFFCBD5E1),
-                  width: voiceService.isSpeaking ? 1.5 : 1.0,
+                  color: isDark ? const Color(0xFF475569) : const Color(0xFFF59E0B),
                 ),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      ref.read(voiceStreamServiceProvider.notifier).toggleMic();
-                      HapticFeedback.lightImpact();
-                    },
-                    onLongPressStart: (_) {
-                      ref.read(voiceStreamServiceProvider.notifier).startPushToTalk();
-                      HapticFeedback.mediumImpact();
-                    },
-                    onLongPressEnd: (_) {
-                      ref.read(voiceStreamServiceProvider.notifier).stopPushToTalk();
-                      HapticFeedback.lightImpact();
-                    },
-                    child: Icon(
-                      voiceService.isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                      size: 16,
-                      color: voiceService.isMicMuted ? const Color(0xFFEF4444) : const Color(0xFF047857),
-                    ),
+                  Icon(
+                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    size: 13,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFD97706),
                   ),
-                  if (!voiceService.isMicMuted && voiceService.isSpeaking) ...[
-                    const SizedBox(width: 4),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(3, (i) => AnimatedContainer(
-                        duration: const Duration(milliseconds: 100),
-                        width: 3,
-                        height: 6 + (voiceService.myAudioLevel * 10 * (i == 1 ? 1.2 : 0.6)),
-                        margin: const EdgeInsets.symmetric(horizontal: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF047857),
-                          borderRadius: BorderRadius.circular(1.5),
-                        ),
-                      )),
-                    ),
-                  ],
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () {
-                      ref.read(voiceStreamServiceProvider.notifier).toggleSpeaker();
-                      HapticFeedback.lightImpact();
-                    },
-                    child: Icon(
-                      voiceService.isSpeakerMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                      size: 16,
-                      color: voiceService.isSpeakerMuted ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
+                  const SizedBox(width: 4),
+                  Text(
+                    isDark ? 'Dark' : 'Light',
+                    style: GoogleFonts.outfit(
+                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFFB45309),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 4),
-          ],
-
-          // Match / Room Mode Badge & Quick Menu
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isOnline ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isOnline ? const Color(0xFF3B82F6) : const Color(0xFFCBD5E1),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isOnline ? Icons.wifi_rounded : Icons.offline_bolt_rounded,
-                      size: 12,
-                      color: isOnline ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isOnline ? 'ROOM: ${roomId ?? "LIVE"}' : 'CLASSIC MATCH',
-                      style: GoogleFonts.outfit(
-                        color: isOnline ? const Color(0xFF1E40AF) : const Color(0xFF475569),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              InkWell(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => const GameMenuDialog(),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
-                  child: Icon(Icons.pause_circle_outline_rounded, size: 20, color: Color(0xFF475569)),
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -558,7 +418,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       );
 
       if (i + 2 < players.length) {
-        rows.add(const SizedBox(height: 6));
+        rows.add(const SizedBox(height: 8));
       }
     }
 
@@ -568,146 +428,116 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildSidePlayerList(BuildContext context, GameState gameState, VoiceStreamState voiceService, bool isLeft) {
-    final players = gameState.players;
-    final half = (players.length / 2).ceil();
-    final sidePlayers = isLeft ? players.take(half).toList() : players.skip(half).toList();
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: sidePlayers.map((p) {
-        final index = players.indexOf(p);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8.0),
-          child: _buildPlayerCard(p, index, gameState, voiceService),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _buildPlayerCard(Player player, int index, GameState gameState, VoiceStreamState voiceService) {
     final isTurn = index == gameState.currentPlayerIndex;
-    final isMe = player.id == voiceService.myPlayerId;
-    final isSpeaking = isMe
-        ? voiceService.isSpeaking
-        : (voiceService.participants[player.id]?.isSpeaking ?? false);
+    final isDark = context.isDark;
+    final activeBorderColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488);
+    
+    // Calculate houses and hotels
+    int houses = 0;
+    int hotels = 0;
+    for (var propId in player.ownedPropertyIds) {
+      final prop = gameState.properties[propId]!;
+      if (prop.currentLevel == 5) {
+        hotels++;
+      } else {
+        houses += prop.currentLevel;
+      }
+    }
+
+    // Avatar image: Houseboat for Player 1, Kathakali for Player 2
+    ImageProvider avatarImage;
+    Color ringColor;
+    if (index == 0) {
+      avatarImage = const AssetImage('assets/images/avatar_houseboat.jpg');
+      ringColor = const Color(0xFFD4AF37); // Gold ring
+    } else if (index == 1) {
+      avatarImage = const AssetImage('assets/images/avatar_kathakali.jpg');
+      ringColor = const Color(0xFFEF4444); // Red ring
+    } else {
+      avatarImage = const AssetImage('assets/images/kuthaka_banner.jpg');
+      ringColor = player.color;
+    }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: isTurn ? player.color.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isSpeaking
-              ? const Color(0xFF10B981)
-              : (isTurn ? player.color : const Color(0xFFE2E8F0)),
-          width: (isSpeaking || isTurn) ? 2.0 : 1.2,
+          color: isTurn ? activeBorderColor : (isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+          width: isTurn ? 2.0 : 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isTurn ? player.color.withValues(alpha: 0.18) : const Color(0x0A000000),
-            blurRadius: isTurn ? 8 : 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: isTurn
+            ? [
+                BoxShadow(
+                  color: activeBorderColor.withValues(alpha: isDark ? 0.40 : 0.28),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : context.subtleShadow,
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: player.color,
-                child: Icon(player.tokenIcon, color: Colors.white, size: 17),
-              ),
-              if (isSpeaking)
-                Positioned(
-                  bottom: -1,
-                  right: -1,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.mic_rounded, size: 9, color: Colors.white),
-                  ),
+          // Avatar with decorative ring
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: ringColor, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: ringColor.withValues(alpha: 0.35),
+                  blurRadius: 4,
                 ),
-            ],
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundImage: avatarImage,
+            ),
           ),
           const SizedBox(width: 8),
+          
+          // Details
           Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
                     Flexible(
                       child: Text(
                         player.name,
-                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.outfit(
-                          color: const Color(0xFF0F172A),
-                          fontWeight: isTurn ? FontWeight.w900 : FontWeight.w700,
-                          fontSize: 12.5,
+                          color: context.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (player.type == PlayerType.ai) ...[
+                    if (index == 0) ...[
                       const SizedBox(width: 3),
+                      const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD4AF37), size: 14),
+                    ],
+                    if (player.type == PlayerType.ai) ...[
+                      const SizedBox(width: 4),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: context.cardAltColor,
                           borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: context.borderColor, width: 0.8),
                         ),
                         child: Text(
                           'BOT',
                           style: GoogleFonts.outfit(
-                            color: const Color(0xFF64748B),
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (player.isInJail) ...[
-                      const SizedBox(width: 3),
-                      const Icon(Icons.lock_rounded, size: 11, color: Color(0xFFDC2626)),
-                    ],
-                    if (player.isBankrupt) ...[
-                      const SizedBox(width: 3),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEE2E2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'BANKRUPT',
-                          style: GoogleFonts.outfit(
-                            color: const Color(0xFFDC2626),
-                            fontSize: 7.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (player.consecutiveTimeouts > 0 && !player.isBankrupt) ...[
-                      const SizedBox(width: 3),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFFEF4444), width: 0.8),
-                        ),
-                        child: Text(
-                          '${player.consecutiveTimeouts}/3 TIMEOUTS',
-                          style: GoogleFonts.outfit(
-                            color: const Color(0xFFDC2626),
+                            color: context.textSecondary,
                             fontSize: 7.5,
                             fontWeight: FontWeight.w900,
                           ),
@@ -717,87 +547,663 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   ],
                 ),
                 const SizedBox(height: 1),
+                Text(
+                  _formatCurrency(player.cash),
+                  style: GoogleFonts.outfit(
+                    color: context.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text(
-                      _formatCurrency(player.cash),
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFF047857),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.holiday_village_rounded, size: 11, color: Color(0xFF64748B)),
+                    const Icon(Icons.home_rounded, size: 11, color: Color(0xFF10B981)),
                     const SizedBox(width: 2),
-                    Text(
-                      '${player.ownedPropertyIds.length}',
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFF64748B),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Text('$houses', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.location_city_rounded, size: 11, color: Color(0xFF0284C7)),
+                    const SizedBox(width: 2),
+                    Text('$hotels', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
                     ),
+                    const SizedBox(width: 2),
+                    Text('0', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 9.5, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
             ),
           ),
-          if (isTurn) ...[
-            const SizedBox(width: 4),
+
+          // Glowing Turn indicator
+          if (isTurn)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFD54F),
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x30FFD54F), blurRadius: 4),
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF00E5FF), const Color(0xFF0D9488)]
+                      : [const Color(0xFF00B4D8), const Color(0xFF0D9488)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488)).withValues(alpha: 0.45),
+                    blurRadius: 6,
+                  ),
                 ],
               ),
               child: Text(
-                'TURN',
+                'YOUR TURN',
                 style: GoogleFonts.outfit(
-                  color: Colors.black87,
+                  color: Colors.white,
                   fontSize: 8.5,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
+                  letterSpacing: 0.4,
                 ),
               ),
             ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildNotificationBanner(GameState gameState) {
+  Widget _buildRightActionDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
+    final isDark = context.isDark;
+    final space = currentPlayer.position < GameData.spaces.length ? GameData.spaces[currentPlayer.position] : null;
+    final prop = (space != null && space.propertyId != null) ? gameState.properties[space.propertyId] : null;
+    final canBuyNow = prop != null && prop.ownerId == null && isMyTurn && gameState.phase == GamePhase.spaceAction && currentPlayer.cash >= prop.price;
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
+        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.94) : Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+        boxShadow: context.cardShadow,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildRightDockButton(
+            context,
+            Icons.shopping_cart_rounded,
+            'Buy',
+            const Color(0xFF10B981),
+            () {
+              if (prop != null && prop.ownerId == null && isMyTurn && canBuyNow) {
+                ref.read(gameProvider.notifier).buyProperty(prop.id);
+              }
+            },
+            highlight: canBuyNow,
+          ),
+          _buildRightDockButton(context, Icons.swap_horiz_rounded, 'Trade', const Color(0xFF2563EB), () {
+            if (isMyTurn) showDialog(context: context, builder: (_) => const TradeDialog());
+          }),
+          _buildRightDockButton(context, Icons.home_work_rounded, 'Mortgage', const Color(0xFFEA580C), () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const PortfolioSheet(),
+            );
+          }),
+          _buildRightDockButton(context, Icons.apartment_rounded, 'Build', const Color(0xFF7C3AED), () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const PortfolioSheet(),
+            );
+          }),
+          _buildRightDockButton(context, Icons.sell_rounded, 'Sell', const Color(0xFFE11D48), () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const PortfolioSheet(),
+            );
+          }),
+          _buildRightDockButton(context, Icons.info_outline_rounded, 'Details', const Color(0xFF475569), () {
+            final p = prop ?? (space?.propertyId != null ? gameState.properties[space!.propertyId] : null);
+            if (p != null) {
+              ref.read(gameProvider.notifier).inspectProperty(p);
+            }
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRightDockButton(
+    BuildContext context,
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap, {
+    bool highlight = false,
+  }) {
+    final isDark = context.isDark;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 44,
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          decoration: BoxDecoration(
+            color: highlight
+                ? (isDark ? const Color(0xFF10B981).withValues(alpha: 0.35) : const Color(0xFF10B981).withValues(alpha: 0.20))
+                : color.withValues(alpha: isDark ? 0.16 : 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: highlight ? const Color(0xFF10B981) : color.withValues(alpha: 0.35),
+              width: highlight ? 1.8 : 1.0,
+            ),
+            boxShadow: highlight
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.45),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: highlight ? const Color(0xFF10B981) : color),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  color: isDark ? const Color(0xFFF1F5F9) : (highlight ? const Color(0xFF047857) : color),
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
+    final isDark = context.isDark;
+    
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+        boxShadow: context.cardShadow,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildBottomDockItem(
+            context,
+            index: 0,
+            icon: Icons.holiday_village_rounded,
+            label: 'Properties',
+            onTap: () {
+              setState(() => _activeNavIndex = 0);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const PortfolioSheet(),
+              );
+            },
+          ),
+          _buildBottomDockItem(
+            context,
+            index: 1,
+            icon: Icons.swap_horiz_rounded,
+            label: 'Trade',
+            onTap: () {
+              setState(() => _activeNavIndex = 1);
+              if (isMyTurn) showDialog(context: context, builder: (_) => const TradeDialog());
+            },
+          ),
+          _buildBottomDockItem(
+            context,
+            index: 2,
+            icon: Icons.bolt_rounded,
+            label: 'Actions',
+            onTap: () {
+              setState(() => _activeNavIndex = 2);
+            },
+          ),
+          _buildBottomDockItem(
+            context,
+            index: 3,
+            icon: Icons.emoji_emotions_rounded,
+            label: 'Chat / Emoji',
+            hasNotification: true,
+            onTap: () {
+              setState(() => _activeNavIndex = 3);
+              showDialog(
+                context: context,
+                barrierColor: Colors.black26,
+                builder: (_) => const Center(child: EmojiChatPanel()),
+              );
+            },
+          ),
+          _buildBottomDockItem(
+            context,
+            index: 4,
+            icon: Icons.history_rounded,
+            label: 'Logs',
+            onTap: () {
+              setState(() => _activeNavIndex = 4);
+            },
+          ),
+          _buildBottomDockItem(
+            context,
+            index: 5,
+            icon: Icons.settings_rounded,
+            label: 'Settings',
+            onTap: () {
+              setState(() => _activeNavIndex = 5);
+              showDialog(context: context, builder: (_) => const GameMenuDialog());
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomDockItem(
+    BuildContext context, {
+    required int index,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool hasNotification = false,
+  }) {
+    final isDark = context.isDark;
+    final isActive = _activeNavIndex == index;
+    final activeColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488);
+    final activeBg = isDark ? const Color(0xFF0D3B3E) : const Color(0xFFE0F2F1);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: isActive ? 12 : 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? activeBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: isActive ? activeColor : context.textSecondary,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    color: isActive ? activeColor : context.textSecondary,
+                    fontSize: 9.5,
+                    fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            if (hasNotification)
+              Positioned(
+                top: -2,
+                right: -4,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: KuthakaColors.crimson,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiceTray(BuildContext context, GameState gameState, Player current, bool isMyTurn) {
+    final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && current.type == PlayerType.human;
+    final isDark = context.isDark;
+
+    // Detect if current player landed on an unowned property during space action
+    final space = current.position < GameData.spaces.length ? GameData.spaces[current.position] : null;
+    final prop = (space != null && space.propertyId != null) ? gameState.properties[space.propertyId] : null;
+    final isUnownedProperty = prop != null && prop.ownerId == null && gameState.phase == GamePhase.spaceAction;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TumblingDicePairWidget(
+          dice: gameState.lastDiceRoll,
+          isRolling: gameState.isRollingDice,
+          isDoubles: gameState.isDoubles,
+          diceSize: 42.0,
+        ),
+        const SizedBox(height: 8),
+
+        // Case 1: Human turn to roll
+        if (canRoll)
+          GestureDetector(
+            onTap: () => ref.read(gameProvider.notifier).rollDice(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF00E5FF), const Color(0xFF009688)]
+                      : [const Color(0xFF00B4D8), const Color(0xFF0D9488)],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488)).withValues(alpha: isDark ? 0.50 : 0.40),
+                    blurRadius: 16,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.casino_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'ROLL DICE',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+
+        // Case 2: Landed on unowned property -> show sleek in-board action panel!
+        else if (isUnownedProperty)
+          _buildSpaceActionTray(context, gameState, current, prop, isDark, isMyTurn)
+
+        // Case 3: Other phases / waiting on AI or move
+        else if (gameState.phase != GamePhase.turnEnd)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1),
+                width: 0.8,
+              ),
+            ),
+            child: Text(
+              gameState.isRollingDice
+                  ? '${current.name} is rolling...'
+                  : (isMyTurn ? 'Your turn to roll' : '${current.name}\'s turn'),
+              style: GoogleFonts.outfit(
+                color: context.textPrimary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+
+        // Token moving indicator
+        if (widget.game.isAnyTokenMoving) ...[
+          const SizedBox(height: 4),
+          Text(
+            '${current.name} is moving...',
+            style: GoogleFonts.outfit(
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+
+        // In-tray Transaction Notice (subtle, non-intrusive notification badge)
+        if (gameState.activeTransaction != null)
+          _buildInlineTransactionBadge(context, gameState.activeTransaction!, isDark)
+        else if (gameState.message != null && gameState.phase != GamePhase.spaceAction && !canRoll && !widget.game.isAnyTokenMoving)
+          _buildInlineMessageBadge(context, gameState.message!, isDark),
+      ],
+    );
+  }
+
+  Widget _buildSpaceActionTray(
+    BuildContext context,
+    GameState gameState,
+    Player current,
+    Property prop,
+    bool isDark,
+    bool isMyTurn,
+  ) {
+    final groupColor = _getGroupColor(prop.group);
+    final canAfford = current.cash >= prop.price;
+    final isHuman = current.type == PlayerType.human;
+
+    if (!isMyTurn || !isHuman) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.90),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: groupColor.withValues(alpha: 0.5)),
+        ),
+        child: Text(
+          '${current.name} is deciding on ${prop.name}...',
+          style: GoogleFonts.outfit(
+            color: context.textPrimary,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 310),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF131B2A) : Colors.white).withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: groupColor.withValues(alpha: 0.7),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: groupColor.withValues(alpha: isDark ? 0.30 : 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+          ...context.subtleShadow,
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Property header info
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: groupColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  prop.name.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    color: context.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0F291E) : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '₹${prop.price}',
+                  style: GoogleFonts.outfit(
+                    color: isDark ? KuthakaColors.emerald : KuthakaColors.emeraldDark,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          // Action Buttons: BUY, AUCTION, DEED
+          Row(
+            children: [
+              // BUY button
+              Expanded(
+                flex: 5,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: canAfford
+                        ? (isDark ? KuthakaColors.emerald : KuthakaColors.emeraldDark)
+                        : Colors.grey.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: canAfford ? 4 : 0,
+                  ),
+                  onPressed: canAfford
+                      ? () => ref.read(gameProvider.notifier).buyProperty(prop.id)
+                      : null,
+                  icon: const Icon(Icons.shopping_cart_rounded, size: 14),
+                  label: Text(
+                    'BUY ₹${prop.price}',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              // AUCTION button
+              Expanded(
+                flex: 4,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: KuthakaColors.goldDark,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 3,
+                  ),
+                  onPressed: () => ref.read(gameProvider.notifier).startAuction(prop.id),
+                  icon: const Icon(Icons.gavel_rounded, size: 13),
+                  label: Text(
+                    'AUCTION',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              // DEED inspection button
+              InkWell(
+                onTap: () => ref.read(gameProvider.notifier).inspectProperty(prop),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: context.cardAltColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: context.borderColor),
+                  ),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: context.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineTransactionBadge(BuildContext context, TransactionNotice notice, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF131B2A) : Colors.white).withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFDE68A)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
+        border: Border.all(color: notice.color, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: notice.color.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (gameState.isAiThinking) ...[
-            const SizedBox(
-              width: 11,
-              height: 11,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD97706)),
-            ),
-            const SizedBox(width: 6),
-          ],
+          Text(notice.icon, style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 6),
           Flexible(
             child: Text(
-              gameState.message!,
+              notice.description,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.outfit(
-                color: const Color(0xFF92400E),
+                color: context.textPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -808,108 +1214,75 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildTransactionNotice(BuildContext context, GameState gameState) {
-    final notice = gameState.activeTransaction;
-    if (notice == null) return const Positioned(child: SizedBox.shrink());
-
-    return Positioned(
-      top: 130,
-      left: 16,
-      right: 16,
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 400),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: notice.color, width: 2.0),
-            boxShadow: [
-              BoxShadow(
-                color: notice.color.withValues(alpha: 0.35),
-                blurRadius: 16,
-                spreadRadius: 2,
-                offset: const Offset(0, 4),
-              ),
-              const BoxShadow(
-                color: Color(0x60000000),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: notice.color.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: notice.color, width: 1.5),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  notice.icon,
-                  style: const TextStyle(fontSize: 18),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          notice.title,
-                          style: GoogleFonts.outfit(
-                            color: notice.color,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '3s',
-                            style: GoogleFonts.outfit(
-                              color: const Color(0xFF94A3B8),
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      notice.description,
-                      style: GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+  Widget _buildInlineMessageBadge(BuildContext context, String message, bool isDark) {
+    final isWarning = message.contains('Jail') || message.contains('Tax') || message.contains('bankrupt');
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isWarning
+              ? KuthakaColors.crimson
+              : (isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+          width: 0.8,
+        ),
+      ),
+      child: Text(
+        message,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.outfit(
+          color: isWarning ? KuthakaColors.crimson : context.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
+  }
+
+  Color _getGroupColor(PropertyGroup group) {
+    switch (group) {
+      case PropertyGroup.malabar: return const Color(0xFF8D5524);
+      case PropertyGroup.thrissur: return const Color(0xFF0288D1);
+      case PropertyGroup.kochi: return const Color(0xFFD81B60);
+      case PropertyGroup.backwaters: return const Color(0xFFF57C00);
+      case PropertyGroup.highlands: return const Color(0xFFD32F2F);
+      case PropertyGroup.southKerala: return const Color(0xFFFBC02D);
+      case PropertyGroup.premium: return const Color(0xFF2E7D32);
+      case PropertyGroup.luxury: return const Color(0xFF1565C0);
+      case PropertyGroup.transport: return const Color(0xFF546E7A);
+      case PropertyGroup.utility: return const Color(0xFF78909C);
+    }
+  }
+
+  Widget _buildMainActionButton(BuildContext context, GameState gameState, Player current) {
+    final myProfile = ref.watch(userProfileProvider);
+    final multiplayer = ref.watch(multiplayerServiceProvider);
+    final isOnline = multiplayer.isConnected;
+    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final isMyTurn = !isOnline || current.id == myLocalId;
+
+    if (!isMyTurn || current.type != PlayerType.human) {
+      return const SizedBox.shrink();
+    }
+
+    if (gameState.phase == GamePhase.turnEnd) {
+      return ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: KuthakaColors.goldDark,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          elevation: 6,
+        ),
+        onPressed: () => ref.read(gameProvider.notifier).endTurn(),
+        child: Text('END TURN', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold)),
+      );
+    }
+    
+    return const SizedBox.shrink();
   }
 
   String _formatCurrency(int amount) {
@@ -923,470 +1296,5 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       (match) => ',',
     );
     return '₹$formattedRemaining,$lastThree';
-  }
-
-  Widget _buildDiceTray(BuildContext context, GameState gameState, Player current) {
-    final myProfile = ref.watch(userProfileProvider);
-    final multiplayer = ref.watch(multiplayerServiceProvider);
-    final isOnline = multiplayer.isConnected;
-    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
-    final isMyTurn = !isOnline || current.id == myLocalId;
-    final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && current.type == PlayerType.human;
-
-    return GestureDetector(
-      onTap: canRoll ? () => ref.read(gameProvider.notifier).rollDice() : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: canRoll ? const Color(0xFFFFB300) : const Color(0xFFE2E8F0),
-            width: canRoll ? 1.8 : 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: canRoll ? const Color(0x25FFB300) : const Color(0x10000000),
-              blurRadius: canRoll ? 10 : 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TumblingDicePairWidget(
-              dice: gameState.lastDiceRoll,
-              isRolling: gameState.isRollingDice,
-              isDoubles: gameState.isDoubles,
-              diceSize: 34.0,
-            ),
-            const SizedBox(width: 12),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'DICE ROLL',
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFF64748B),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    if (gameState.isDoubles) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFC62828),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'DOUBLES!',
-                          style: GoogleFonts.outfit(
-                            color: Colors.white,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                Text(
-                  gameState.isRollingDice
-                      ? 'Rolling...'
-                      : '${gameState.lastDiceRoll[0]} + ${gameState.lastDiceRoll[1]} = ${gameState.diceTotal}',
-                  style: GoogleFonts.outfit(
-                    color: const Color(0xFF0F172A),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            if (canRoll) ...[
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF8E1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFFD54F)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.touch_app_rounded, size: 12, color: Color(0xFFB45309)),
-                    const SizedBox(width: 3),
-                    Text(
-                      'TAP',
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFFB45309),
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMainActionButton(BuildContext context, GameState gameState, Player current) {
-    final myProfile = ref.watch(userProfileProvider);
-    final multiplayer = ref.watch(multiplayerServiceProvider);
-    final isOnline = multiplayer.isConnected;
-    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
-    final isMyTurn = !isOnline || current.id == myLocalId;
-
-    if (current.type == PlayerType.ai) {
-      return Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFCBD5E1)),
-          boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 6)],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F172A)),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              '${current.name} (AI) is thinking...',
-              style: GoogleFonts.outfit(color: const Color(0xFF334155), fontSize: 13, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // In online game, if it is NOT the local player's turn:
-    if (!isMyTurn) {
-      return Container(
-        height: 46,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(23),
-          border: Border.all(color: current.color, width: 1.5),
-          boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8)],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: current.color),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              gameState.phase == GamePhase.roll
-                  ? "Watching ${current.name} roll (45s)..."
-                  : "Watching ${current.name}'s move (45s)...",
-              style: GoogleFonts.outfit(
-                color: const Color(0xFF0F172A),
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Active Human Player - Token Moving
-    if (gameState.phase == GamePhase.moving) {
-      return Container(
-        height: 46,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(23),
-          border: Border.all(color: current.color, width: 1.5),
-          boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8)],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: current.color),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              "${current.name} is moving...",
-              style: GoogleFonts.outfit(
-                color: const Color(0xFF0F172A),
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Active Human Player Turn - Roll Phase
-    if (gameState.phase == GamePhase.roll) {
-      if (current.isInJail) {
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF59E0B)),
-            boxShadow: const [BoxShadow(color: Color(0x15000000), blurRadius: 8)],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.black),
-                onPressed: current.cash >= 100 ? () => ref.read(gameProvider.notifier).payJailBail() : null,
-                icon: const Icon(Icons.payment_rounded, size: 16),
-                label: Text('PAY ₹100', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 8),
-              if (current.getOutOfJailCards > 0) ...[
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
-                  onPressed: () => ref.read(gameProvider.notifier).useJailCard(),
-                  icon: const Icon(Icons.card_membership_rounded, size: 16),
-                  label: Text('USE CARD', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 8),
-              ],
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
-                onPressed: () => ref.read(gameProvider.notifier).rollDice(),
-                icon: const Icon(Icons.casino_rounded, size: 16),
-                label: Text('ROLL DOUBLES', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-      }
-
-      // Normal Roll Button - Protected from horizontal overflow
-      final isDoublesBonus = gameState.consecutiveDoubles > 0;
-      final rollLabel = isDoublesBonus
-          ? (!isOnline ? '${current.name} • ROLL AGAIN 🎲' : 'ROLL AGAIN (DOUBLES!) 🎲')
-          : (!isOnline ? '${current.name} • ROLL' : 'ROLL DICE');
-
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width - 32,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => ref.read(gameProvider.notifier).rollDice(),
-            borderRadius: BorderRadius.circular(28),
-            child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDoublesBonus
-                    ? const [Color(0xFFFF9800), Color(0xFFE65100)]
-                    : const [Color(0xFFFFD54F), Color(0xFFFFB300)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: isDoublesBonus ? const Color(0x55FF9800) : const Color(0x35FFB300),
-                  blurRadius: isDoublesBonus ? 18 : 14,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.casino_rounded, color: isDoublesBonus ? Colors.white : Colors.black87, size: 22),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      rollLabel,
-                      style: GoogleFonts.outfit(
-                        color: isDoublesBonus ? Colors.white : Colors.black87,
-                        fontSize: 16.5,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        ),
-      );
-    }
-
-    if (gameState.phase == GamePhase.spaceAction) {
-      if (gameState.inspectedProperty != null) {
-        return const SizedBox.shrink();
-      }
-      // Fallback: If on an unowned property during spaceAction but card was closed/null
-      final currentSpace = GameData.spaces[current.position];
-      if (currentSpace.propertyId != null) {
-        final prop = gameState.properties[currentSpace.propertyId];
-        if (prop != null && prop.ownerId == null) {
-          return ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 32),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF047857),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                elevation: 4,
-              ),
-              onPressed: () => ref.read(gameProvider.notifier).inspectProperty(prop),
-              icon: const Icon(Icons.shopping_cart_rounded, size: 20),
-              label: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'BUY / AUCTION ${prop.name.toUpperCase()} (₹${prop.price})',
-                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w900),
-                ),
-              ),
-            ),
-          );
-        }
-      }
-      return const SizedBox.shrink();
-    }
-
-    // Only allow END TURN during turnEnd (never during spaceAction or moving)
-    if (gameState.phase == GamePhase.turnEnd) {
-      final isDoublesRoll = gameState.isDoubles && !current.isInJail;
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width - 32,
-        ),
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isDoublesRoll ? const Color(0xFFE65100) : const Color(0xFF00695C),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-            elevation: 4,
-          ),
-          onPressed: () => ref.read(gameProvider.notifier).endTurn(),
-          icon: Icon(isDoublesRoll ? Icons.casino_rounded : Icons.check_circle_outline_rounded, size: 20),
-          label: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              isDoublesRoll ? 'ROLL AGAIN (DOUBLES!) 🎲' : 'END TURN',
-              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
-  }
-
-  Widget _dockButton({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool enabled = true,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: enabled ? const Color(0xFF0F172A) : const Color(0xFF94A3B8), size: 20),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: GoogleFonts.outfit(
-                color: enabled ? const Color(0xFF475569) : const Color(0xFF94A3B8),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showLogsDialog(BuildContext context, GameState gameState) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.history_edu_rounded, color: Color(0xFF0F172A)),
-            const SizedBox(width: 8),
-            Text(
-              'GAME LOGS',
-              style: GoogleFonts.outfit(color: const Color(0xFF0F172A), fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 340,
-          height: 380,
-          child: ListView.separated(
-            itemCount: gameState.gameLogs.length,
-            separatorBuilder: (_, _) => const Divider(color: Color(0xFFE2E8F0), height: 1),
-            itemBuilder: (context, i) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  gameState.gameLogs[i],
-                  style: GoogleFonts.outfit(color: const Color(0xFF334155), fontSize: 13, height: 1.3),
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CLOSE'),
-          ),
-        ],
-      ),
-    );
   }
 }
