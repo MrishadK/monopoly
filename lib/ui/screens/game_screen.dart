@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flame/game.dart';
@@ -136,7 +135,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   ),
                 ),
                 const WebrtcAudioRenderer(),
-                if (!kIsWeb) const BannerAdWidget(),
+                const BannerAdWidget(),
               ],
             ),
           ),

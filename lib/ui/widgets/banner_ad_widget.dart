@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -15,11 +14,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isLoaded = false;
 
-  final adUnitId = kIsWeb
-      ? ''
-      : Platform.isAndroid
-          ? 'ca-app-pub-8355736208842576/9287383916'
-          : 'ca-app-pub-3940256099942544/2934735716';
+  String get adUnitId {
+    if (kIsWeb) return '';
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'ca-app-pub-8355736208842576/9287383916';
+    }
+    return 'ca-app-pub-3940256099942544/2934735716';
+  }
 
   @override
   void initState() {
@@ -60,19 +61,30 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   Widget build(BuildContext context) {
     if (kIsWeb) {
-      return const SizedBox(
-        width: 320,
+      return Container(
+        color: Colors.transparent,
+        width: double.infinity,
         height: 50,
-        child: HtmlElementView(viewType: 'ad-view'),
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 320,
+          height: 50,
+          child: HtmlElementView(viewType: 'ad-view'),
+        ),
       );
     }
 
     if (_isLoaded && _bannerAd != null) {
       return Container(
         color: Colors.transparent,
-        width: _bannerAd!.size.width.toDouble(),
+        width: double.infinity,
         height: _bannerAd!.size.height.toDouble(),
-        child: AdWidget(ad: _bannerAd!),
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: _bannerAd!.size.width.toDouble(),
+          height: _bannerAd!.size.height.toDouble(),
+          child: AdWidget(ad: _bannerAd!),
+        ),
       );
     }
     return const SizedBox(height: 50); // reserve space to avoid layout shift
