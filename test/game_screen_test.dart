@@ -56,16 +56,16 @@ void main() {
     expect(size.width, greaterThan(500));
     expect(size.height, greaterThan(1000));
 
-    // Verify all 5 navigation dock buttons
+    // Verify navigation dock buttons and action buttons
     expect(find.text('Properties'), findsOneWidget);
     expect(find.text('Trade'), findsOneWidget);
     expect(find.text('Logs'), findsOneWidget);
-    expect(find.text('Emoji'), findsOneWidget);
+    expect(find.text('Chat / Emoji'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
 
     // Verify dice tray and roll button
     expect(find.byIcon(Icons.casino_rounded), findsWidgets);
-    expect(find.text('Player 1 • ROLL'), findsOneWidget);
+    expect(find.text('ROLL DICE'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     container.dispose();
@@ -118,8 +118,8 @@ void main() {
     expect(size.width, greaterThan(500));
     expect(size.height, greaterThan(1000));
 
-    // Verify AI thinking indicator and dock options
-    expect(find.text('Aadu Thoma (AI) is thinking...'), findsOneWidget);
+    // Verify AI turn indicator and dock options
+    expect(find.text("Aadu Thoma's turn"), findsOneWidget);
     expect(find.text('Properties'), findsOneWidget);
     expect(find.text('Trade'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
