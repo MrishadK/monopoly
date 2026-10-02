@@ -70,9 +70,38 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: context.bgColor,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Atmospheric Kerala background artwork
+          Image.asset(
+            isDark ? 'assets/images/bg_dark.jpg' : 'assets/images/bg_light.jpg',
+            fit: BoxFit.cover,
+          ),
+          // Gradient scrim overlay for contrast and depth
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isDark
+                    ? [
+                        const Color(0xFF0C0C12).withValues(alpha: 0.84),
+                        const Color(0xFF0C0C12).withValues(alpha: 0.70),
+                        const Color(0xFF0C0C12).withValues(alpha: 0.88),
+                      ]
+                    : [
+                        Colors.white.withValues(alpha: 0.88),
+                        Colors.white.withValues(alpha: 0.76),
+                        Colors.white.withValues(alpha: 0.92),
+                      ],
+              ),
+            ),
+          ),
+          // Foreground Content
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -220,22 +249,23 @@ class HomeScreen extends ConsumerWidget {
                           3.0,
                           8.0,
                         );
-                        return ShaderMask(
-                          shaderCallback: (bounds) => LinearGradient(
-                            colors: isDark
-                                ? [KuthakaColors.emerald, KuthakaColors.gold]
-                                : [context.textPrimary, context.textPrimary],
-                          ).createShader(bounds),
-                          child: Text(
-                            'KUTHAKA',
-                            maxLines: 1,
-                            softWrap: false,
-                            style: GoogleFonts.outfit(
-                              fontSize: titleSize,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: spacing,
-                            ),
+                        return Text(
+                          'KUTHAKA',
+                          maxLines: 1,
+                          softWrap: false,
+                          style: GoogleFonts.outfit(
+                            fontSize: titleSize,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? const Color(0xFFFFC107) : const Color(0xFF0F172A),
+                            letterSpacing: spacing,
+                            shadows: isDark
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFFFC107).withValues(alpha: 0.30),
+                                      blurRadius: 18,
+                                    ),
+                                  ]
+                                : null,
                           ),
                         );
                       },
@@ -339,7 +369,9 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    ],
+  ),
+);
   }
 
   Widget _accentIcon(IconData icon, bool isDark) {
