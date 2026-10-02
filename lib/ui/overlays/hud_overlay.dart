@@ -20,6 +20,8 @@ import '../widgets/dice_widget.dart';
 import '../screens/home_screen.dart';
 import '../../data/game_data.dart';
 
+enum BoardInteractionMode { none, build, mortgage, sell }
+
 class HudOverlay extends ConsumerStatefulWidget {
   final KuthakaGame game;
   final WidgetRef ref;
@@ -32,6 +34,137 @@ class HudOverlay extends ConsumerStatefulWidget {
 
 class _HudOverlayState extends ConsumerState<HudOverlay> {
   int _activeNavIndex = 0;
+  BoardInteractionMode _interactionMode = BoardInteractionMode.none;
+
+  void _clearInteractionMode() {
+    setState(() => _interactionMode = BoardInteractionMode.none);
+    widget.game.setHighlightedProperties({});
+    widget.game.onPropertyTappedCustom = null;
+  }
+
+  void _activateBuildMode(GameState gameState, Player currentPlayer) {
+    if (_interactionMode == BoardInteractionMode.build) {
+      _clearInteractionMode();
+      return;
+    }
+
+    final hasMonopoly = gameState.properties.values.any(
+      (p) => p.ownerId == currentPlayer.id && p.isMonopoly(gameState.properties),
+    );
+
+    if (!hasMonopoly) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'You need to own all properties in a complete color group before building.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFD97706),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final eligibleIds = gameState.properties.values
+        .where((p) => p.ownerId == currentPlayer.id && p.canUpgrade(gameState.properties, currentPlayer.cash))
+        .map((p) => p.id)
+        .toSet();
+
+    setState(() => _interactionMode = BoardInteractionMode.build);
+    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF7C3AED));
+    widget.game.onPropertyTappedCustom = (Property prop) {
+      if (prop.ownerId == currentPlayer.id && prop.canUpgrade(ref.read(gameProvider).properties, currentPlayer.cash)) {
+        ref.read(gameProvider.notifier).upgradeProperty(prop.id);
+        final updated = ref.read(gameProvider);
+        final newEligible = updated.properties.values
+            .where((p) => p.ownerId == currentPlayer.id && p.canUpgrade(updated.properties, currentPlayer.cash))
+            .map((p) => p.id)
+            .toSet();
+        widget.game.setHighlightedProperties(newEligible, const Color(0xFF7C3AED));
+      }
+    };
+  }
+
+  void _activateMortgageMode(GameState gameState, Player currentPlayer) {
+    if (_interactionMode == BoardInteractionMode.mortgage) {
+      _clearInteractionMode();
+      return;
+    }
+
+    final eligibleIds = gameState.properties.values
+        .where((p) => p.ownerId == currentPlayer.id && (p.canMortgage(gameState.properties) || p.canUnmortgage(currentPlayer.cash)))
+        .map((p) => p.id)
+        .toSet();
+
+    if (eligibleIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'You have no properties available to mortgage or unmortgage.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFEA580C),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _interactionMode = BoardInteractionMode.mortgage);
+    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFEA580C));
+    widget.game.onPropertyTappedCustom = (Property prop) {
+      if (prop.ownerId == currentPlayer.id && (prop.canMortgage(ref.read(gameProvider).properties) || prop.canUnmortgage(currentPlayer.cash))) {
+        ref.read(gameProvider.notifier).toggleMortgage(prop.id);
+        final updated = ref.read(gameProvider);
+        final newEligible = updated.properties.values
+            .where((p) => p.ownerId == currentPlayer.id && (p.canMortgage(updated.properties) || p.canUnmortgage(currentPlayer.cash)))
+            .map((p) => p.id)
+            .toSet();
+        widget.game.setHighlightedProperties(newEligible, const Color(0xFFEA580C));
+      }
+    };
+  }
+
+  void _activateSellMode(GameState gameState, Player currentPlayer) {
+    if (_interactionMode == BoardInteractionMode.sell) {
+      _clearInteractionMode();
+      return;
+    }
+
+    final eligibleIds = gameState.properties.values
+        .where((p) => p.ownerId == currentPlayer.id && p.canDowngrade(gameState.properties))
+        .map((p) => p.id)
+        .toSet();
+
+    if (eligibleIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'You have no houses or hotels eligible to sell.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFE11D48),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _interactionMode = BoardInteractionMode.sell);
+    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFE11D48));
+    widget.game.onPropertyTappedCustom = (Property prop) {
+      if (prop.ownerId == currentPlayer.id && prop.canDowngrade(ref.read(gameProvider).properties)) {
+        ref.read(gameProvider.notifier).sellBuilding(prop.id);
+        final updated = ref.read(gameProvider);
+        final newEligible = updated.properties.values
+            .where((p) => p.ownerId == currentPlayer.id && p.canDowngrade(updated.properties))
+            .map((p) => p.id)
+            .toSet();
+        widget.game.setHighlightedProperties(newEligible, const Color(0xFFE11D48));
+      }
+    };
+  }
 
   @override
   void initState() {
@@ -118,6 +251,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDark;
     final gameState = ref.watch(gameProvider);
     final currentPlayer = gameState.currentPlayer;
     final voiceService = ref.watch(voiceStreamServiceProvider);
@@ -185,10 +319,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildDiceTray(context, gameState, currentPlayer, isMyTurn),
-                    if (gameState.phase == GamePhase.turnEnd && isMyTurn) ...[
-                      const SizedBox(height: 6),
-                      _buildMainActionButton(context, gameState, currentPlayer),
+                    if (_interactionMode != BoardInteractionMode.none)
+                      _buildInteractionModeCard(context, isDark)
+                    else ...[
+                      _buildDiceTray(context, gameState, currentPlayer, isMyTurn),
+                      if (gameState.phase == GamePhase.turnEnd && isMyTurn) ...[
+                        const SizedBox(height: 6),
+                        _buildMainActionButton(context, gameState, currentPlayer),
+                      ],
                     ],
                   ],
                 ),
@@ -196,10 +334,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
               // ==================== BOTTOM NAVIGATION DOCK ====================
               Positioned(
-                bottom: 8,
+                bottom: 2,
                 left: 10,
                 right: 10,
-                child: _buildBottomNavDock(context, gameState, currentPlayer, isMyTurn),
+                child: SafeArea(
+                  top: false,
+                  bottom: true,
+                  child: _buildBottomNavDock(context, gameState, currentPlayer, isMyTurn),
+                ),
               ),
             ],
           ),
@@ -615,9 +757,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
   Widget _buildRightActionDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
     final isDark = context.isDark;
-    final space = currentPlayer.position < GameData.spaces.length ? GameData.spaces[currentPlayer.position] : null;
-    final prop = (space != null && space.propertyId != null) ? gameState.properties[space.propertyId] : null;
-    final canBuyNow = prop != null && prop.ownerId == null && isMyTurn && gameState.phase == GamePhase.spaceAction && currentPlayer.cash >= prop.price;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -632,49 +771,37 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         children: [
           _buildRightDockButton(
             context,
-            Icons.shopping_cart_rounded,
-            'Buy',
-            const Color(0xFF10B981),
+            Icons.swap_horiz_rounded,
+            'Trade',
+            const Color(0xFF2563EB),
             () {
-              if (prop != null && prop.ownerId == null && isMyTurn && canBuyNow) {
-                ref.read(gameProvider.notifier).buyProperty(prop.id);
-              }
+              if (isMyTurn) showDialog(context: context, builder: (_) => const TradeDialog());
             },
-            highlight: canBuyNow,
           ),
-          _buildRightDockButton(context, Icons.swap_horiz_rounded, 'Trade', const Color(0xFF2563EB), () {
-            if (isMyTurn) showDialog(context: context, builder: (_) => const TradeDialog());
-          }),
-          _buildRightDockButton(context, Icons.home_work_rounded, 'Mortgage', const Color(0xFFEA580C), () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => const PortfolioSheet(),
-            );
-          }),
-          _buildRightDockButton(context, Icons.apartment_rounded, 'Build', const Color(0xFF7C3AED), () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => const PortfolioSheet(),
-            );
-          }),
-          _buildRightDockButton(context, Icons.sell_rounded, 'Sell', const Color(0xFFE11D48), () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => const PortfolioSheet(),
-            );
-          }),
-          _buildRightDockButton(context, Icons.info_outline_rounded, 'Details', const Color(0xFF475569), () {
-            final p = prop ?? (space?.propertyId != null ? gameState.properties[space!.propertyId] : null);
-            if (p != null) {
-              ref.read(gameProvider.notifier).inspectProperty(p);
-            }
-          }),
+          _buildRightDockButton(
+            context,
+            Icons.apartment_rounded,
+            'Build',
+            const Color(0xFF7C3AED),
+            () => _activateBuildMode(gameState, currentPlayer),
+            highlight: _interactionMode == BoardInteractionMode.build,
+          ),
+          _buildRightDockButton(
+            context,
+            Icons.home_work_rounded,
+            'Mortgage',
+            const Color(0xFFEA580C),
+            () => _activateMortgageMode(gameState, currentPlayer),
+            highlight: _interactionMode == BoardInteractionMode.mortgage,
+          ),
+          _buildRightDockButton(
+            context,
+            Icons.sell_rounded,
+            'Sell',
+            const Color(0xFFE11D48),
+            () => _activateSellMode(gameState, currentPlayer),
+            highlight: _interactionMode == BoardInteractionMode.sell,
+          ),
         ],
       ),
     );
@@ -790,6 +917,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             label: 'Logs',
             onTap: () {
               setState(() => _activeNavIndex = 2);
+              _showLogsDialog(context, gameState);
             },
           ),
           _buildBottomDockItem(
@@ -894,43 +1022,46 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
         // Case 1: Human turn to roll
         if (canRoll)
-          GestureDetector(
-            onTap: () => ref.read(gameProvider.notifier).rollDice(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? [const Color(0xFF00E5FF), const Color(0xFF009688)]
-                      : [const Color(0xFF00B4D8), const Color(0xFF0D9488)],
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488)).withValues(alpha: isDark ? 0.50 : 0.40),
-                    blurRadius: 16,
-                    offset: const Offset(0, 3),
+          if (current.isInJail)
+            _buildJailActionTray(context, gameState, current, isDark, isMyTurn)
+          else
+            GestureDetector(
+              onTap: () => ref.read(gameProvider.notifier).rollDice(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? [const Color(0xFF00E5FF), const Color(0xFF009688)]
+                        : [const Color(0xFF00B4D8), const Color(0xFF0D9488)],
                   ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.casino_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'ROLL DICE',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488)).withValues(alpha: isDark ? 0.50 : 0.40),
+                      blurRadius: 16,
+                      offset: const Offset(0, 3),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.casino_rounded, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'ROLL DICE',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          )
+            )
 
         // Case 2: Landed on unowned property -> show sleek in-board action panel!
         else if (isUnownedProperty)
@@ -938,27 +1069,30 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
         // Case 3: Other phases / waiting on AI or move
         else if (gameState.phase != GamePhase.turnEnd)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-            decoration: BoxDecoration(
-              color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.88),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1),
-                width: 0.8,
+          if (current.isInJail)
+            _buildJailActionTray(context, gameState, current, isDark, isMyTurn)
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: BoxDecoration(
+                color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1),
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                gameState.isRollingDice
+                    ? '${current.name} is rolling...'
+                    : (isMyTurn ? 'Your turn to roll' : '${current.name}\'s turn'),
+                style: GoogleFonts.outfit(
+                  color: context.textPrimary,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-            child: Text(
-              gameState.isRollingDice
-                  ? '${current.name} is rolling...'
-                  : (isMyTurn ? 'Your turn to roll' : '${current.name}\'s turn'),
-              style: GoogleFonts.outfit(
-                color: context.textPrimary,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
 
         // Token moving indicator
         if (widget.game.isAnyTokenMoving) ...[
@@ -1221,6 +1355,388 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+
+  Widget _buildInteractionModeCard(BuildContext context, bool isDark) {
+    String title;
+    IconData icon;
+    Color accentColor;
+    String description;
+
+    switch (_interactionMode) {
+      case BoardInteractionMode.build:
+        title = 'BUILD MODE';
+        icon = Icons.apartment_rounded;
+        accentColor = const Color(0xFF7C3AED);
+        description = 'Tap highlighted properties to construct houses/hotels. Official Monopoly rules require building evenly across a monopoly group.';
+        break;
+      case BoardInteractionMode.mortgage:
+        title = 'MORTGAGE MODE';
+        icon = Icons.home_work_rounded;
+        accentColor = const Color(0xFFEA580C);
+        description = 'Tap highlighted properties to mortgage (receive 50% value) or unmortgage (+10% interest). No buildings may exist on any property in the group.';
+        break;
+      case BoardInteractionMode.sell:
+        title = 'SELL BUILDINGS';
+        icon = Icons.sell_rounded;
+        accentColor = const Color(0xFFE11D48);
+        description = 'Tap highlighted properties to sell houses/hotels back to the bank for 50% of purchase price. Must sell evenly across group.';
+        break;
+      case BoardInteractionMode.none:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 320),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accentColor.withValues(alpha: 0.8), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: accentColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: GoogleFonts.outfit(
+                  color: accentColor,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.outfit(
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _clearInteractionMode,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              decoration: BoxDecoration(
+                color: accentColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'DONE',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJailActionTray(
+    BuildContext context,
+    GameState gameState,
+    Player current,
+    bool isDark,
+    bool isMyTurn,
+  ) {
+    if (!isMyTurn || current.type != PlayerType.human) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFE11D48).withValues(alpha: 0.6),
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.local_police_rounded, color: Color(0xFFE11D48), size: 18),
+            const SizedBox(width: 8),
+            Text(
+              '${current.name} is in Lockup / Jail',
+              style: GoogleFonts.outfit(
+                color: context.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final turns = current.turnsInJail;
+    final rollsRemaining = (3 - turns).clamp(0, 3);
+    final canPayBail = current.cash >= 100 && !gameState.isRollingDice && gameState.phase == GamePhase.roll;
+    final hasJailCard = current.getOutOfJailCards > 0 && !gameState.isRollingDice && gameState.phase == GamePhase.roll;
+    final canRoll = !gameState.isRollingDice && gameState.phase == GamePhase.roll;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 320),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE11D48).withValues(alpha: 0.7), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE11D48).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.local_police_rounded, color: Color(0xFFE11D48), size: 20),
+              const SizedBox(width: 6),
+              Text(
+                'IN JAIL / LOCKUP',
+                style: GoogleFonts.outfit(
+                  color: const Color(0xFFE11D48),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE11D48).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'Jail attempt: ${turns + 1} / 3  ($rollsRemaining ${rollsRemaining == 1 ? "roll" : "rolls"} remaining)',
+              style: GoogleFonts.outfit(
+                color: const Color(0xFFE11D48),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Option A: Roll for doubles
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 3,
+              ),
+              onPressed: canRoll ? () => ref.read(gameProvider.notifier).rollDice() : null,
+              icon: const Icon(Icons.casino_rounded, size: 16),
+              label: Text(
+                'ROLL FOR DOUBLES',
+                style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // Option B: Pay 100 & Get Out
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 3,
+              ),
+              onPressed: canPayBail ? () => ref.read(gameProvider.notifier).payJailBail() : null,
+              icon: const Icon(Icons.payment_rounded, size: 16),
+              label: Text(
+                'PAY ₹100 & GET OUT',
+                style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+
+          // Option C: Use Get Out of Jail Free Card (if owned)
+          if (hasJailCard) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF59E0B),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 3,
+                ),
+                onPressed: () => ref.read(gameProvider.notifier).useJailCard(),
+                icon: const Icon(Icons.confirmation_number_rounded, size: 16),
+                label: Text(
+                  'USE GET OUT OF JAIL FREE',
+                  style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showLogsDialog(BuildContext context, GameState gameState) {
+    final isDark = context.isDark;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: ctx.cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: KuthakaColors.goldDark.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.history_rounded, color: KuthakaColors.goldDark, size: 22),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Game Activity Log',
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: ctx.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: ctx.textSecondary),
+                      onPressed: () => Navigator.pop(ctx),
+                      splashRadius: 18,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Chronological record of match events, rolls, and transactions',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    color: ctx.textSecondary,
+                  ),
+                ),
+                const Divider(height: 20),
+                Expanded(
+                  child: gameState.gameLogs.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No logs recorded yet.',
+                            style: GoogleFonts.outfit(color: ctx.textSecondary, fontSize: 13),
+                          ),
+                        )
+                      : ListView.separated(
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: gameState.gameLogs.length,
+                          separatorBuilder: (_, _) => Divider(
+                            height: 1,
+                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          ),
+                          itemBuilder: (c, i) {
+                            final log = gameState.gameLogs[i];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 4, right: 8),
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: i == 0 ? KuthakaColors.goldDark : ctx.textSecondary.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      log,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12,
+                                        height: 1.35,
+                                        fontWeight: i == 0 ? FontWeight.w700 : FontWeight.w500,
+                                        color: i == 0 ? ctx.textPrimary : ctx.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                      foregroundColor: ctx.textPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Close', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

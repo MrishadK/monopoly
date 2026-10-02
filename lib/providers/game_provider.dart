@@ -1656,7 +1656,7 @@ class GameNotifier extends Notifier<GameState> {
     final owner = state.players.firstWhere((p) => p.id == prop.ownerId);
 
     final newProps = Map<String, Property>.from(state.properties);
-    if (!prop.isMortgaged && prop.canMortgage()) {
+    if (!prop.isMortgaged && prop.canMortgage(state.properties)) {
       newProps[propertyId] = prop.copyWith(isMortgaged: true);
       _updatePlayer(owner.copyWith(cash: owner.cash + prop.mortgageValue));
       _addLog('${owner.name} mortgaged ${prop.name} (+₹${prop.mortgageValue})');

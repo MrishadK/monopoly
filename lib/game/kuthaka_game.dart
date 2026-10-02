@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/game_provider.dart';
 import '../../ui/theme/theme_provider.dart';
+import '../../models/property.dart';
 import 'components/board_component.dart';
 import 'components/player_token_component.dart';
 
@@ -16,6 +17,17 @@ class KuthakaGame extends FlameGame {
   List<PlayerTokenComponent> tokens = [];
   double _lastWidth = 0;
   double _lastHeight = 0;
+
+  Set<String> highlightedPropertyIds = {};
+  Color? highlightColor;
+  void Function(Property prop)? onPropertyTappedCustom;
+
+  void setHighlightedProperties(Set<String> ids, [Color? color]) {
+    highlightedPropertyIds = ids;
+    highlightColor = color;
+    board?.highlightedPropertyIds = ids;
+    board?.highlightColor = color;
+  }
 
   bool get isAnyTokenMoving => tokens.any((t) => t.isMoving);
 
@@ -77,8 +89,14 @@ class KuthakaGame extends FlameGame {
       lastDiceRoll: gameState.lastDiceRoll,
       isDoubles: gameState.isDoubles,
       isDark: isDark,
+      highlightedPropertyIds: highlightedPropertyIds,
+      highlightColor: highlightColor,
       onPropertyTapped: (prop) {
-        ref.read(gameProvider.notifier).inspectProperty(prop);
+        if (onPropertyTappedCustom != null) {
+          onPropertyTappedCustom!(prop);
+        } else {
+          ref.read(gameProvider.notifier).inspectProperty(prop);
+        }
       },
     )
       ..size = Vector2(boardSize, boardSize)
@@ -132,6 +150,8 @@ class KuthakaGame extends FlameGame {
       dice: gameState.lastDiceRoll,
       doubles: gameState.isDoubles,
       isDark: isDark,
+      highlightedProperties: highlightedPropertyIds,
+      customHighlightColor: highlightColor,
     );
 
     // Sync tokens with state

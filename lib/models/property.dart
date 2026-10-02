@@ -96,7 +96,20 @@ class Property {
     return true;
   }
 
-  bool canMortgage() => !isMortgaged && currentLevel == 0;
+  bool canDowngrade(Map<String, Property> allProperties) {
+    if (currentLevel <= 0) return false;
+    final groupProps = allProperties.values.where((p) => p.group == group);
+    for (final p in groupProps) {
+      if (p.currentLevel > currentLevel) return false;
+    }
+    return true;
+  }
+
+  bool canMortgage([Map<String, Property>? allProperties]) {
+    if (isMortgaged || currentLevel > 0) return false;
+    if (allProperties != null && hasBuildingsInGroup(allProperties)) return false;
+    return true;
+  }
   bool canUnmortgage(int ownerCash) => isMortgaged && ownerCash >= unmortgageCost;
   int get unmortgageCost => (mortgageValue * 1.1).round();
 

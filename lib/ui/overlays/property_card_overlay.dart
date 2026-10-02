@@ -51,7 +51,7 @@ class PropertyCardOverlay extends ConsumerWidget {
         prop.canUpgrade(gameState.properties, current.cash);
     final canSell = isMyTurn && isOwnedByMe && prop.currentLevel > 0;
     final canMortgage =
-        isMyTurn && isOwnedByMe && !prop.isMortgaged && prop.currentLevel == 0;
+        isMyTurn && isOwnedByMe && prop.canMortgage(gameState.properties);
     final canRedeem =
         isMyTurn &&
         isOwnedByMe &&

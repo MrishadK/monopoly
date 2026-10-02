@@ -20,6 +20,9 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   ui.Image? dayCenterImage;
   ui.Image? nightCenterImage;
 
+  Set<String> highlightedPropertyIds = {};
+  Color? highlightColor;
+
   BoardComponent({
     required this.properties,
     required this.players,
@@ -27,7 +30,26 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     this.isDoubles = false,
     this.isDark = false,
     this.onPropertyTapped,
+    this.highlightedPropertyIds = const {},
+    this.highlightColor,
   });
+
+  Rect getSpaceRect(int index) {
+    double cornerW = size.x * 0.13;
+    double cornerH = size.y * 0.13;
+    double spaceW = (size.x - (2 * cornerW)) / 9;
+    double spaceH = (size.y - (2 * cornerH)) / 9;
+    return _getSpaceRect(index, cornerW, cornerH, spaceW, spaceH);
+  }
+
+  Offset getTileCenter(int index, {bool isInJail = false}) {
+    final r = getSpaceRect(index);
+    if (index == 10 && isInJail) {
+      final innerCell = Rect.fromLTWH(r.left + r.width * 0.35, r.top, r.width * 0.65, r.height * 0.65);
+      return innerCell.center;
+    }
+    return r.center;
+  }
 
   @override
   Future<void> onLoad() async {
@@ -50,12 +72,20 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     required List<int> dice,
     required bool doubles,
     bool isDark = false,
+    Set<String>? highlightedProperties,
+    Color? customHighlightColor,
   }) {
     properties = newProperties;
     players = newPlayers;
     lastDiceRoll = dice;
     isDoubles = doubles;
     this.isDark = isDark;
+    if (highlightedProperties != null) {
+      highlightedPropertyIds = highlightedProperties;
+    }
+    if (customHighlightColor != null) {
+      highlightColor = customHighlightColor;
+    }
   }
 
   @override
@@ -282,8 +312,25 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       _drawSpecialSpace(canvas, index, rect, space, owner);
     }
 
+    final isHighlighted = space.propertyId != null && highlightedPropertyIds.contains(space.propertyId);
+    if (isHighlighted) {
+      final hCol = highlightColor ?? const Color(0xFFD4AF37);
+      canvas.drawRect(rect, Paint()..color = hCol.withValues(alpha: isDark ? 0.35 : 0.25));
+    }
+
     if (prop != null && prop.isMortgaged) {
       _drawMortgagedOverlay(canvas, index, rect);
+    }
+
+    if (isHighlighted) {
+      final hCol = highlightColor ?? const Color(0xFFD4AF37);
+      canvas.drawRect(
+        rect.deflate(1.5),
+        Paint()
+          ..color = hCol
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5,
+      );
     }
   }
 

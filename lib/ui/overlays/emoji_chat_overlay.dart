@@ -5,6 +5,7 @@ import '../../providers/game_provider.dart';
 import '../../services/user_profile_service.dart';
 import '../../services/multiplayer_service.dart';
 import '../../models/player.dart';
+import '../theme/app_theme.dart';
 
 // ==================== EMOJI REACTION STATE ====================
 
@@ -92,39 +93,37 @@ class EmojiFloatingDisplay extends ConsumerWidget {
 
 // ==================== EMOJI CHAT PANEL (shown via showDialog) ====================
 
-class EmojiChatPanel extends ConsumerWidget {
+class EmojiChatPanel extends ConsumerStatefulWidget {
   const EmojiChatPanel({super.key});
 
+  @override
+  ConsumerState<EmojiChatPanel> createState() => _EmojiChatPanelState();
+}
+
+class _EmojiChatPanelState extends ConsumerState<EmojiChatPanel> {
+  int _selectedTab = 0; // 0 = Emoji, 1 = Quick Chat
+
   static const List<String> _gameEmojis = [
-    '😂',
-    '😭',
-    '🔥',
-    '💀',
-    '🎉',
-    '😤',
-    '🤑',
-    '😱',
-    '🤡',
-    '💰',
-    '🏠',
-    '🎲',
-    '👑',
-    '🙏',
-    '😈',
-    '🤝',
-    '💸',
-    '🧠',
-    '⚡',
-    '🫡',
-    '😎',
-    '🥲',
-    '💪',
-    '🫣',
-    '🎯',
+    '😂', '😭', '🔥', '💀', '🎉',
+    '😤', '🤑', '😱', '🤡', '💰',
+    '🏠', '🎲', '👑', '🙏', '😈',
+    '🤝', '💸', '🧠', '⚡', '🫡',
+    '😎', '🥲', '💪', '🫣', '🎯',
+  ];
+
+  static const List<String> _quickMessages = [
+    "Hello everyone! 👋",
+    "Hurry up! ⏳",
+    "Good roll! 🎲",
+    "Let's trade! 🤝",
+    "I'm broke! 😭",
+    "Thanks! 🙏",
+    "Oops! 😬",
+    "Well played! 👏",
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final gameState = ref.watch(gameProvider);
     final myProfile = ref.watch(userProfileProvider);
     final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
@@ -139,81 +138,155 @@ class EmojiChatPanel extends ConsumerWidget {
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 100),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        elevation: 12,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Row(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360, maxHeight: 440),
+          child: Material(
+            color: context.cardColor,
+            borderRadius: BorderRadius.circular(20),
+            elevation: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: context.borderColor),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.emoji_emotions_rounded,
-                    color: Color(0xFFD97706),
-                    size: 20,
+                  // Header with Tab Switcher & Close Button
+                  Row(
+                    children: [
+                      _buildTabButton(0, 'EMOJI', Icons.emoji_emotions_rounded),
+                      const SizedBox(width: 8),
+                      _buildTabButton(1, 'CHAT', Icons.chat_bubble_rounded),
+                      const Spacer(),
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, size: 20, color: context.textMuted),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'EMOJI REACTION',
-                    style: GoogleFonts.outfit(
-                      color: const Color(0xFF0F172A),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(
-                      Icons.close_rounded,
-                      size: 22,
-                      color: Color(0xFF64748B),
-                    ),
+                  const SizedBox(height: 10),
+                  Divider(color: context.borderColor.withValues(alpha: 0.6), height: 1),
+                  const SizedBox(height: 12),
+
+                  // Content: Tab 0 (Emojis) or Tab 1 (Quick Chat)
+                  Flexible(
+                    child: _selectedTab == 0
+                        ? GridView.builder(
+                            shrinkWrap: true,
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: _gameEmojis.length,
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 5,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                              childAspectRatio: 1.0,
+                            ),
+                            itemBuilder: (context, idx) {
+                              final emoji = _gameEmojis[idx];
+                              return InkWell(
+                                onTap: () {
+                                  final mp = ref.read(multiplayerServiceProvider);
+                                  ref.read(emojiReactionProvider.notifier).sendEmoji(emoji, myName, mp);
+                                  Navigator.pop(context);
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: context.cardAltColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: context.borderColor.withValues(alpha: 0.7)),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    emoji,
+                                    style: const TextStyle(fontSize: 24),
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: _quickMessages.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 6),
+                            itemBuilder: (context, idx) {
+                              final msg = _quickMessages[idx];
+                              return InkWell(
+                                onTap: () {
+                                  final myId = ref.read(gameProvider.notifier).localPlayerId ?? ref.read(userProfileProvider).id;
+                                  ref.read(gameProvider.notifier).sendChatMessage(msg, myId);
+                                  Navigator.pop(context);
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: context.cardAltColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: context.borderColor.withValues(alpha: 0.7)),
+                                  ),
+                                  child: Text(
+                                    msg,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: context.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              const Divider(color: Color(0xFFE2E8F0), height: 1),
-              const SizedBox(height: 10),
-
-              // Emoji Grid — fixed 5 columns, no scrolling needed
-              Flexible(
-                child: GridView.count(
-                  crossAxisCount: 5,
-                  shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  children: _gameEmojis.map((emoji) {
-                    return GestureDetector(
-                      onTap: () {
-                        final mp = ref.read(multiplayerServiceProvider);
-                        ref
-                            .read(emojiReactionProvider.notifier)
-                            .sendEmoji(emoji, myName, mp);
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(emoji, style: const TextStyle(fontSize: 26)),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabButton(int index, String label, IconData icon) {
+    final isSelected = _selectedTab == index;
+    final activeColor = index == 0 ? const Color(0xFFD97706) : const Color(0xFF10B981);
+
+    return InkWell(
+      onTap: () => setState(() => _selectedTab = index),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor.withValues(alpha: 0.18) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? activeColor : Colors.transparent,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: isSelected ? activeColor : context.textSecondary),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                color: isSelected ? activeColor : context.textSecondary,
+                fontWeight: FontWeight.w900,
+                fontSize: 11.5,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -280,7 +353,7 @@ class QuickChatPanel extends ConsumerWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _quickMessages.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final msg = _quickMessages[index];
                   return InkWell(
