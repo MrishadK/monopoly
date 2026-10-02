@@ -115,21 +115,14 @@ class GameOverOverlay extends ConsumerWidget {
                 ),
                 const SizedBox(height: 10),
 
-                // Title
-                ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: isDark
-                        ? const [Color(0xFFFFD54F), Color(0xFFF59E0B), Color(0xFF10B981)]
-                        : const [Color(0xFFB45309), Color(0xFFD97706), Color(0xFF047857)],
-                  ).createShader(bounds),
-                  child: Text(
-                    'VICTORY!',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 3,
-                    ),
+                // Title (Single bold color, no gradient)
+                Text(
+                  'VICTORY!',
+                  style: GoogleFonts.outfit(
+                    color: isDark ? const Color(0xFFFFC107) : const Color(0xFFD97706),
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 3,
                   ),
                 ),
                 const SizedBox(height: 2),
