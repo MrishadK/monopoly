@@ -376,17 +376,19 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       }
     }
 
-    // Name + Price text
+    // Mini Kerala landmark motif (subtle background watermark)
+    _drawPropertyLandmarkIcon(canvas, rect, index, prop.name);
+
+    // Name + Price text (drawn crisply on top with auto-reduced font scaling)
     _drawTileText(
       canvas: canvas, rect: rect, index: index,
       title: prop.name, priceText: '₹${prop.price}',
     );
-
-    // Mini Kerala landmark motif
-    _drawPropertyLandmarkIcon(canvas, rect, index, prop.name);
   }
 
   void _drawPropertyLandmarkIcon(Canvas canvas, Rect rect, int index, String name) {
+    if (min(rect.width, rect.height) < 29) return; // Keep tile clean and uncluttered on mobile phone screens
+
     Offset iconCenter;
     if (index > 0 && index < 10) {
       iconCenter = Offset(rect.center.dx, rect.top + rect.height * 0.44);
@@ -535,6 +537,55 @@ class BoardComponent extends PositionComponent with TapCallbacks {
 
   // ==================== READABLE TEXT RENDERING ====================
 
+  List<String> _getTitleLines(String name) {
+    switch (name) {
+      case 'Athirappilly':
+        return ['ATHIRA', 'PPILLY'];
+      case 'Vadakkunnathan':
+        return ['VADAKKU', 'NNATHAN'];
+      case 'Mattancherry':
+        return ['MATTAN', 'CHERRY'];
+      case 'Guruvayur':
+        return ['GURU', 'VAYUR'];
+      case 'Alappuzha':
+        return ['ALAPP', 'UZHA'];
+      case 'Kumarakom':
+        return ['KUMARA', 'KOM'];
+      case 'Ashtamudi':
+        return ['ASHTA', 'MUDI'];
+      case 'Kuttanad':
+        return ['KUTTA', 'NAD'];
+      case 'Panchayath Tax':
+        return ['PANCHAYATH', 'TAX'];
+      case 'Water Authority':
+        return ['WATER', 'AUTHORITY'];
+      case 'Property Tax':
+        return ['PROPERTY', 'TAX'];
+      case 'KSRTC Stand':
+        return ['KSRTC', 'STAND'];
+      case 'Fort Kochi':
+        return ['FORT', 'KOCHI'];
+      case 'Marine Drive':
+        return ['MARINE', 'DRIVE'];
+      case 'Kochi Metro':
+        return ['KOCHI', 'METRO'];
+      case 'Swaraj Round':
+        return ['SWARAJ', 'ROUND'];
+      case 'Chaya Kada':
+        return ['CHAYA', 'KADA'];
+      case 'Police Station':
+        return ['POLICE', 'STATION'];
+      case 'Bekal Fort':
+        return ['BEKAL', 'FORT'];
+      default:
+        final words = name.split(' ');
+        if (words.length >= 2) {
+          return [words[0].toUpperCase(), words.sublist(1).join(' ').toUpperCase()];
+        }
+        return [name.toUpperCase()];
+    }
+  }
+
   void _drawTileText({
     required Canvas canvas,
     required Rect rect,
@@ -542,66 +593,111 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     required String title,
     required String priceText,
   }) {
-    final formattedTitle = _formatTileName(title);
+    // 1. Usable text bounds based on edge orientation
+    double boxLeft;
+    double boxTop;
+    double boxW;
+    double boxH;
+
+    if (index > 0 && index < 10) {
+      // Bottom edge: color header at top (height * 0.28)
+      boxLeft = rect.left + 1.0;
+      boxTop = rect.top + rect.height * 0.28 + 1.0;
+      boxW = max(10.0, rect.width - 2.0);
+      boxH = max(10.0, rect.height * 0.72 - 2.0);
+    } else if (index > 10 && index < 20) {
+      // Left edge: color header at right (width * 0.28)
+      boxLeft = rect.left + 1.0;
+      boxTop = rect.top + 1.0;
+      boxW = max(10.0, rect.width * 0.72 - 2.0);
+      boxH = max(10.0, rect.height - 2.0);
+    } else if (index > 20 && index < 30) {
+      // Top edge: color header at bottom (height * 0.28)
+      boxLeft = rect.left + 1.0;
+      boxTop = rect.top + 1.0;
+      boxW = max(10.0, rect.width - 2.0);
+      boxH = max(10.0, rect.height * 0.72 - 2.0);
+    } else {
+      // Right edge: color header at left (width * 0.28)
+      boxLeft = rect.left + rect.width * 0.28 + 1.0;
+      boxTop = rect.top + 1.0;
+      boxW = max(10.0, rect.width * 0.72 - 2.0);
+      boxH = max(10.0, rect.height - 2.0);
+    }
+
+    final titleLines = _getTitleLines(title);
     final titleCol = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
     final priceCol = isDark ? const Color(0xFF10B981) : const Color(0xFF047857);
 
-    final textSpan = TextSpan(
-      text: '$formattedTitle\n',
-      style: TextStyle(
-        color: titleCol,
-        fontSize: 7.2,
-        fontWeight: FontWeight.w900,
-        height: 1.15,
-      ),
-      children: [
-        TextSpan(
+    // 2. Dynamic font scaling: reduce font size until text fits boxW and boxH
+    double baseSize = (min(rect.width, rect.height) * 0.28).clamp(4.8, 8.5);
+    double fontSize = baseSize;
+    TextPainter? bestPainter;
+
+    while (fontSize >= 3.6) {
+      final children = <TextSpan>[];
+      for (int i = 0; i < titleLines.length; i++) {
+        children.add(TextSpan(
+          text: '${titleLines[i]}\n',
+          style: TextStyle(
+            color: titleCol,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            height: 1.08,
+            letterSpacing: -0.2,
+          ),
+        ));
+      }
+      if (priceText.isNotEmpty) {
+        children.add(TextSpan(
           text: priceText,
           style: TextStyle(
             color: priceCol,
-            fontSize: 7.4,
+            fontSize: fontSize * 1.05,
             fontWeight: FontWeight.w900,
+            height: 1.08,
+            letterSpacing: -0.1,
           ),
-        ),
-      ],
-    );
+        ));
+      }
 
-    final painter = TextPainter(
-      text: textSpan,
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
-    );
+      final testPainter = TextPainter(
+        text: TextSpan(children: children),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      );
+      testPainter.layout(); // Unconstrained to check true natural width
 
-    double maxW;
-    double offsetX;
-    double offsetY;
-
-    if (index > 10 && index < 20) {
-      maxW = rect.width * 0.65;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.left + (rect.width * 0.7 - painter.width) / 2;
-      offsetY = rect.center.dy - painter.height / 2;
-    } else if (index > 30) {
-      maxW = rect.width * 0.65;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.left + rect.width * 0.3 + (rect.width * 0.7 - painter.width) / 2;
-      offsetY = rect.center.dy - painter.height / 2;
-    } else if (index > 0 && index < 10) {
-      maxW = rect.width - 2;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.center.dx - painter.width / 2;
-      final headerBottom = rect.top + rect.height * 0.28;
-      final bodyHeight = rect.bottom - headerBottom;
-      offsetY = headerBottom + (bodyHeight - painter.height) / 2;
-    } else {
-      maxW = rect.width - 2;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.center.dx - painter.width / 2;
-      final bodyHeight = rect.height * 0.72;
-      offsetY = rect.top + (bodyHeight - painter.height) / 2;
+      if (testPainter.width <= boxW && testPainter.height <= boxH) {
+        bestPainter = testPainter;
+        break;
+      }
+      fontSize -= 0.2;
     }
 
-    painter.paint(canvas, Offset(offsetX, offsetY));
+    bestPainter ??= TextPainter(
+      text: TextSpan(
+        children: [
+          for (final line in titleLines)
+            TextSpan(
+              text: '$line\n',
+              style: TextStyle(color: titleCol, fontSize: 3.6, fontWeight: FontWeight.w900, height: 1.05, letterSpacing: -0.2),
+            ),
+          if (priceText.isNotEmpty)
+            TextSpan(
+              text: priceText,
+              style: TextStyle(color: priceCol, fontSize: 3.8, fontWeight: FontWeight.w900, height: 1.05),
+            ),
+        ],
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: boxW);
+
+    // 3. Paint centered within usable box
+    final paintX = boxLeft + (boxW - bestPainter.width) / 2;
+    final paintY = boxTop + (boxH - bestPainter.height) / 2;
+    bestPainter.paint(canvas, Offset(paintX, paintY));
   }
 
   void _drawSpecialTileText({
@@ -618,70 +714,107 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     final titleCol = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
     final subCol = isDark ? const Color(0xFF38BDF8) : const Color(0xFF00695C);
 
-    final textSpan = TextSpan(
-      text: '${_formatTileName(title)}\n',
-      style: TextStyle(
-        color: titleCol,
-        fontSize: 7.0,
-        fontWeight: FontWeight.w900,
-        height: 1.1,
-      ),
-      children: [
-        if (subText.isNotEmpty)
-          TextSpan(
-            text: subText,
-            style: TextStyle(
-              color: subCol,
-              fontSize: 7.2,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-      ],
-    );
+    double boxLeft;
+    double boxTop;
+    double boxW;
+    double boxH;
 
-    final painter = TextPainter(
-      text: textSpan,
+    if (index > 0 && index < 10) {
+      // Bottom edge: icon is at top (height * 0.40), text below
+      boxLeft = rect.left + 1.0;
+      boxTop = rect.top + rect.height * 0.48;
+      boxW = max(10.0, rect.width - 2.0);
+      boxH = max(10.0, rect.height * 0.52 - 2.0);
+    } else if (index > 10 && index < 20) {
+      // Left edge: icon is at left (width * 0.30), text to right
+      boxLeft = rect.left + rect.width * 0.38;
+      boxTop = rect.top + 1.0;
+      boxW = max(10.0, rect.width * 0.62 - 2.0);
+      boxH = max(10.0, rect.height - 2.0);
+    } else if (index > 20 && index < 30) {
+      // Top edge: icon is at bottom (height * 0.40), text above
+      boxLeft = rect.left + 1.0;
+      boxTop = rect.top + 1.0;
+      boxW = max(10.0, rect.width - 2.0);
+      boxH = max(10.0, rect.height * 0.52 - 2.0);
+    } else {
+      // Right edge: icon is at right (width * 0.30), text to left
+      boxLeft = rect.left + 1.0;
+      boxTop = rect.top + 1.0;
+      boxW = max(10.0, rect.width * 0.62 - 2.0);
+      boxH = max(10.0, rect.height - 2.0);
+    }
+
+    final titleLines = _getTitleLines(title);
+    double baseSize = (min(rect.width, rect.height) * 0.26).clamp(4.6, 8.2);
+    double fontSize = baseSize;
+    TextPainter? bestPainter;
+
+    while (fontSize >= 3.6) {
+      final children = <TextSpan>[];
+      for (int i = 0; i < titleLines.length; i++) {
+        children.add(TextSpan(
+          text: '${titleLines[i]}\n',
+          style: TextStyle(
+            color: titleCol,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            height: 1.08,
+            letterSpacing: -0.2,
+          ),
+        ));
+      }
+      if (subText.isNotEmpty) {
+        children.add(TextSpan(
+          text: subText,
+          style: TextStyle(
+            color: subCol,
+            fontSize: fontSize * 1.05,
+            fontWeight: FontWeight.w900,
+            height: 1.08,
+            letterSpacing: -0.1,
+          ),
+        ));
+      }
+
+      final testPainter = TextPainter(
+        text: TextSpan(children: children),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      );
+      testPainter.layout();
+
+      if (testPainter.width <= boxW && testPainter.height <= boxH) {
+        bestPainter = testPainter;
+        break;
+      }
+      fontSize -= 0.2;
+    }
+
+    bestPainter ??= TextPainter(
+      text: TextSpan(
+        children: [
+          for (final line in titleLines)
+            TextSpan(
+              text: '$line\n',
+              style: TextStyle(color: titleCol, fontSize: 3.6, fontWeight: FontWeight.w900, height: 1.05, letterSpacing: -0.2),
+            ),
+          if (subText.isNotEmpty)
+            TextSpan(
+              text: subText,
+              style: TextStyle(color: subCol, fontSize: 3.8, fontWeight: FontWeight.w900, height: 1.05),
+            ),
+        ],
+      ),
       textAlign: TextAlign.center,
       textDirection: TextDirection.ltr,
-    );
+    )..layout(maxWidth: boxW);
 
-    double maxW;
-    double offsetX;
-    double offsetY;
+    final paintX = boxLeft + (boxW - bestPainter.width) / 2;
+    final paintY = boxTop + (boxH - bestPainter.height) / 2;
+    bestPainter.paint(canvas, Offset(paintX, paintY));
 
-    if (index > 10 && index < 20) {
-      maxW = rect.width * 0.65;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.left + (rect.width * 0.7 - painter.width) / 2;
-      offsetY = rect.center.dy - painter.height / 2;
-    } else if (index > 30) {
-      maxW = rect.width * 0.65;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.left + rect.width * 0.3 + (rect.width * 0.7 - painter.width) / 2;
-      offsetY = rect.center.dy - painter.height / 2;
-    } else if (index > 0 && index < 10) {
-      maxW = rect.width - 2;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.center.dx - painter.width / 2;
-      offsetY = rect.center.dy + 2;
-    } else {
-      maxW = rect.width - 2;
-      painter.layout(maxWidth: maxW);
-      offsetX = rect.center.dx - painter.width / 2;
-      offsetY = rect.top + 3;
-    }
-
-    painter.paint(canvas, Offset(offsetX, offsetY));
     canvas.restore();
-  }
-
-  String _formatTileName(String name) {
-    if (name.length <= 10) return name.toUpperCase();
-    final words = name.split(' ');
-    if (words.length >= 2) {
-      return '${words[0].toUpperCase()}\n${words.sublist(1).join(' ').toUpperCase()}';
-    }
-    return name.toUpperCase();
   }
 
   // ==================== KERALA LANDMARK & VECTOR ICONS ====================
@@ -877,23 +1010,24 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawRect(r, Paint()..color = isDark ? const Color(0xFF0C2417) : const Color(0xFFF0FDF4));
     canvas.drawRect(r, Paint()..color = isDark ? const Color(0xFF10B981) : const Color(0xFF16A34A)..style = PaintingStyle.stroke..strokeWidth = 1.5);
 
+    final double fs = (r.width * 0.14).clamp(4.8, 7.8);
     final span = TextSpan(
       text: 'START ➔\n',
-      style: TextStyle(color: isDark ? const Color(0xFF34D399) : const Color(0xFF15803D), fontSize: 8.5, fontWeight: FontWeight.w900),
+      style: TextStyle(color: isDark ? const Color(0xFF34D399) : const Color(0xFF15803D), fontSize: fs * 1.15, fontWeight: FontWeight.w900, height: 1.08),
       children: [
         TextSpan(
-          text: 'NAATTILE\nTHIRAKKAN\n',
-          style: TextStyle(color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF166534), fontSize: 6.8, fontWeight: FontWeight.bold),
+          text: 'NAATTILE\nTHUDAKKAM\n',
+          style: TextStyle(color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF166534), fontSize: fs * 0.88, fontWeight: FontWeight.bold, height: 1.08),
         ),
         TextSpan(
           text: 'COLLECT ₹200',
-          style: TextStyle(color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFEA580C), fontSize: 7.0, fontWeight: FontWeight.w900),
+          style: TextStyle(color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFEA580C), fontSize: fs * 0.92, fontWeight: FontWeight.w900, height: 1.08),
         ),
       ],
     );
     final painter = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
     painter.layout(maxWidth: r.width);
-    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.top + 14));
+    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.top + 10));
   }
 
   void _drawJailCorner(Canvas canvas, Rect r) {
@@ -907,19 +1041,20 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawLine(Offset(innerCell.left + 11, innerCell.top), Offset(innerCell.left + 11, innerCell.bottom), barPaint);
     canvas.drawLine(Offset(innerCell.left + 17, innerCell.top), Offset(innerCell.left + 17, innerCell.bottom), barPaint);
 
+    final double fs = (r.width * 0.14).clamp(4.8, 7.5);
     final span = TextSpan(
       text: 'LOCKUP\n',
-      style: TextStyle(color: isDark ? const Color(0xFFF87171) : const Color(0xFFBF360C), fontSize: 7.5, fontWeight: FontWeight.w900),
+      style: TextStyle(color: isDark ? const Color(0xFFF87171) : const Color(0xFFBF360C), fontSize: fs * 1.05, fontWeight: FontWeight.w900, height: 1.08),
       children: [
         TextSpan(
           text: 'JUST VISITING',
-          style: TextStyle(color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF455A64), fontSize: 6.5, fontWeight: FontWeight.bold),
+          style: TextStyle(color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF455A64), fontSize: fs * 0.88, fontWeight: FontWeight.bold, height: 1.08),
         ),
       ],
     );
     final painter = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
     painter.layout(maxWidth: r.width);
-    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.bottom - painter.height - 4));
+    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.bottom - painter.height - 3));
   }
 
   void _drawFreeParkingCorner(Canvas canvas, Rect r) {
@@ -936,19 +1071,20 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawPath(teaGlassPath, Paint()..color = const Color(0xFFB45309));
     canvas.drawRect(Rect.fromLTWH(c.dx - 3.8, c.dy - 5, 7.6, 2), Paint()..color = Colors.white.withValues(alpha: 0.8));
 
+    final double fs = (r.width * 0.14).clamp(4.8, 7.5);
     final span = TextSpan(
       text: 'CHAYA KADA\n',
-      style: TextStyle(color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF78350F), fontSize: 7.5, fontWeight: FontWeight.w900),
+      style: TextStyle(color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF78350F), fontSize: fs * 1.05, fontWeight: FontWeight.w900, height: 1.08),
       children: [
         TextSpan(
           text: 'FREE REST',
-          style: TextStyle(color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF92400E), fontSize: 6.8, fontWeight: FontWeight.bold),
+          style: TextStyle(color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF92400E), fontSize: fs * 0.88, fontWeight: FontWeight.bold, height: 1.08),
         ),
       ],
     );
     final painter = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
     painter.layout(maxWidth: r.width);
-    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.bottom - painter.height - 4));
+    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.bottom - painter.height - 3));
   }
 
   void _drawGoToJailCorner(Canvas canvas, Rect r) {
@@ -959,19 +1095,20 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     canvas.drawCircle(c, 6, Paint()..color = const Color(0xFFDC2626));
     canvas.drawCircle(c, 2.5, Paint()..color = Colors.white);
 
+    final double fs = (r.width * 0.14).clamp(4.8, 7.5);
     final span = TextSpan(
-      text: 'POLICE STATION\n',
-      style: TextStyle(color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B), fontSize: 7.2, fontWeight: FontWeight.w900),
+      text: 'POLICE\nSTATION\n',
+      style: TextStyle(color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B), fontSize: fs, fontWeight: FontWeight.w900, height: 1.08),
       children: [
         TextSpan(
           text: 'GO TO LOCKUP',
-          style: TextStyle(color: isDark ? const Color(0xFFEF4444) : const Color(0xFFDC2626), fontSize: 6.5, fontWeight: FontWeight.w900),
+          style: TextStyle(color: isDark ? const Color(0xFFEF4444) : const Color(0xFFDC2626), fontSize: fs * 0.9, fontWeight: FontWeight.w900, height: 1.08),
         ),
       ],
     );
     final painter = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
     painter.layout(maxWidth: r.width);
-    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.bottom - painter.height - 4));
+    painter.paint(canvas, Offset(r.center.dx - painter.width / 2, r.bottom - painter.height - 3));
   }
 
   // ==================== COLOR CATEGORIES ====================

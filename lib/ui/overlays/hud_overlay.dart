@@ -149,11 +149,17 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: _buildTopBar(context, gameState, isOnline, multiplayer.activeRoomId),
               ),
 
-              // ==================== PLAYER CARDS (COMPACT LEFT) ====================
+              // ==================== PLAYER CARDS ====================
               Positioned(
                 top: 54,
                 left: 10,
-                child: _buildCompactPlayerCards(context, gameState, voiceService, constraints.maxWidth - 64),
+                right: constraints.maxWidth < 600 ? 10 : null,
+                child: _buildPlayerCardsSection(
+                  context,
+                  gameState,
+                  voiceService,
+                  constraints.maxWidth,
+                ),
               ),
 
               // ==================== FLOATING EMOJI ====================
@@ -215,215 +221,222 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
         boxShadow: context.subtleShadow,
       ),
-      child: Row(
-        children: [
-          // Menu button
-          IconButton(
-            icon: Icon(Icons.menu_rounded, size: 20, color: context.textPrimary),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: () {
-              showDialog(context: context, builder: (_) => const GameMenuDialog());
-            },
-          ),
-          
-          // Room ID pill with copy icon
-          InkWell(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: displayCode));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Room code $displayCode copied to clipboard!'),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: context.cardAltColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.borderColor.withValues(alpha: 0.5)),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width - 20,
+          child: Row(
+            children: [
+              // Menu button
+              IconButton(
+                icon: Icon(Icons.menu_rounded, size: 20, color: context.textPrimary),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () {
+                  showDialog(context: context, builder: (_) => const GameMenuDialog());
+                },
               ),
-              child: Row(
-                children: [
-                  Text(
-                    'ROOM: $displayCode',
-                    style: GoogleFonts.outfit(
-                      color: context.textPrimary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
+              
+              // Room ID pill with copy icon
+              InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: displayCode));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Room code $displayCode copied to clipboard!'),
+                      duration: const Duration(seconds: 1),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.copy_rounded, size: 12, color: context.textSecondary),
-                ],
-              ),
-            ),
-          ),
-          
-          const Spacer(),
-          
-          // Players indicator (e.g. 2/4)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: context.cardAltColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.people_rounded, size: 13, color: context.textPrimary),
-                const SizedBox(width: 4),
-                Text(
-                  '${gameState.players.where((p) => !p.isBankrupt).length}/${gameState.players.length}',
-                  style: GoogleFonts.outfit(color: context.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 5),
-          
-          // Turn Timer (e.g. 🟢 39s)
-          Builder(builder: (context) {
-            final isAuction = gameState.activeAuction != null;
-            final isWarning = !isAuction && gameState.turnTimeRemaining <= 10;
-            final timerColor = isAuction
-                ? KuthakaColors.gold
-                : (isWarning ? KuthakaColors.crimson : (isDark ? const Color(0xFF10B981) : const Color(0xFF047857)));
-            
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isAuction
-                    ? context.goldBg
-                    : (isWarning ? context.crimsonBg : context.emeraldBg),
+                  );
+                },
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: timerColor),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: timerColor,
-                      shape: BoxShape.circle,
-                    ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: context.cardAltColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.borderColor.withValues(alpha: 0.5)),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${gameState.turnTimeRemaining}s',
-                    style: GoogleFonts.outfit(
-                      color: timerColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'ROOM: $displayCode',
+                        style: GoogleFonts.outfit(
+                          color: context.textPrimary,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(Icons.copy_rounded, size: 11, color: context.textSecondary),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }),
-          
-          const SizedBox(width: 5),
-          
-          // Connection status
-          Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(color: context.cardAltColor, shape: BoxShape.circle),
-            child: Icon(
-              Icons.wifi_rounded,
-              size: 13,
-              color: isOnline ? const Color(0xFF10B981) : context.textSecondary,
-            ),
-          ),
-          
-          const SizedBox(width: 5),
-          
-          // Settings button
-          InkWell(
-            onTap: () => showDialog(context: context, builder: (_) => const GameMenuDialog()),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(color: context.cardAltColor, shape: BoxShape.circle),
-              child: Icon(Icons.settings_rounded, size: 13, color: context.textPrimary),
-            ),
-          ),
-          
-          const SizedBox(width: 5),
-          
-          // Theme Toggle (Light / Dark)
-          InkWell(
-            onTap: () => ref.read(themeModeProvider.notifier).toggle(),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF242C3D) : const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF475569) : const Color(0xFFF59E0B),
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
+              
+              const Spacer(),
+              
+              // Players indicator (e.g. 2/4)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                decoration: BoxDecoration(
+                  color: context.cardAltColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.people_rounded, size: 12, color: context.textPrimary),
+                    const SizedBox(width: 3),
+                    Text(
+                      '${gameState.players.where((p) => !p.isBankrupt).length}/${gameState.players.length}',
+                      style: GoogleFonts.outfit(color: context.textPrimary, fontSize: 10.5, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              
+              // Turn Timer (e.g. 🟢 39s)
+              Builder(builder: (context) {
+                final isAuction = gameState.activeAuction != null;
+                final isWarning = !isAuction && gameState.turnTimeRemaining <= 10;
+                final timerColor = isAuction
+                    ? KuthakaColors.gold
+                    : (isWarning ? KuthakaColors.crimson : (isDark ? const Color(0xFF10B981) : const Color(0xFF047857)));
+                
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isAuction
+                        ? context.goldBg
+                        : (isWarning ? context.crimsonBg : context.emeraldBg),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: timerColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: timerColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${gameState.turnTimeRemaining}s',
+                        style: GoogleFonts.outfit(
+                          color: timerColor,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              
+              const SizedBox(width: 4),
+              
+              // Connection status
+              Container(
+                padding: const EdgeInsets.all(4.5),
+                decoration: BoxDecoration(color: context.cardAltColor, shape: BoxShape.circle),
+                child: Icon(
+                  Icons.wifi_rounded,
+                  size: 12,
+                  color: isOnline ? const Color(0xFF10B981) : context.textSecondary,
+                ),
+              ),
+              
+              const SizedBox(width: 4),
+              
+              // Theme Toggle (Icon button with zero overflow)
+              InkWell(
+                onTap: () => ref.read(themeModeProvider.notifier).toggle(),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF242C3D) : const Color(0xFFFEF3C7),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF475569) : const Color(0xFFF59E0B),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Icon(
                     isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
                     size: 13,
                     color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFD97706),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    isDark ? 'Dark' : 'Light',
-                    style: GoogleFonts.outfit(
-                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFFB45309),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactPlayerCards(
-    BuildContext context,
-    GameState gameState,
-    VoiceStreamState voiceService,
-    double maxAvailableWidth,
-  ) {
-    final players = gameState.players;
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxAvailableWidth),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (int i = 0; i < players.length; i++) ...[
-              if (i > 0) const SizedBox(width: 6),
-              _buildCompactPlayerCard(players[i], i, gameState, voiceService),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCompactPlayerCard(
+  Widget _buildPlayerCardsSection(
+    BuildContext context,
+    GameState gameState,
+    VoiceStreamState voiceService,
+    double screenWidth,
+  ) {
+    final players = gameState.players;
+    final isPhone = screenWidth < 600;
+
+    if (!isPhone) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: screenWidth - 80),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < players.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                _buildPlayerCard(players[i], i, gameState, voiceService, width: 155),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Phone layout: 2-column grid utilizing the available vertical space above the board
+    final double cardWidth = ((screenWidth - 20) - 8) / 2;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        for (int i = 0; i < players.length; i++)
+          _buildPlayerCard(
+            players[i],
+            i,
+            gameState,
+            voiceService,
+            width: cardWidth,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPlayerCard(
     Player player,
     int index,
     GameState gameState,
-    VoiceStreamState voiceService,
-  ) {
+    VoiceStreamState voiceService, {
+    required double width,
+  }) {
     final isTurn = index == gameState.currentPlayerIndex;
     final isDark = context.isDark;
     final activeBorderColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488);
@@ -457,7 +470,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     }
 
     return Container(
-      width: 142,
+      width: width,
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
@@ -570,17 +583,13 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             ),
           ),
 
-          // Mini turn dot / pill
+          // Mini turn dot / pill (single bold color, no gradient)
           if (isTurn)
             Container(
               margin: const EdgeInsets.only(left: 3),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 2),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? [const Color(0xFF00E5FF), const Color(0xFF0D9488)]
-                      : [const Color(0xFF00B4D8), const Color(0xFF0D9488)],
-                ),
+                color: isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488),
                 borderRadius: BorderRadius.circular(6),
                 boxShadow: [
                   BoxShadow(
@@ -592,7 +601,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               child: Text(
                 'TURN',
                 style: GoogleFonts.outfit(
-                  color: Colors.white,
+                  color: isDark ? Colors.black : Colors.white,
                   fontSize: 6.5,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.3,
