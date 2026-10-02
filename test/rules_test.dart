@@ -1331,4 +1331,59 @@ void main() {
     expect(p1.ownedPropertyIds, containsAll(['prop_03', 'trans_02']));
     expect(p2.ownedPropertyIds, containsAll(['prop_01', 'trans_01']));
   });
+
+  test('Redeem property: verifies unowned status, cash deduction, ownership update, and logs', () {
+    final container = ProviderContainer();
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 500,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.houseboat,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 500,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final prop = state.properties['prop_01']!;
+    expect(prop.ownerId, isNull);
+    final initialCash = state.currentPlayer.cash; // 500
+
+    // Redeem prop_01 (price: 60)
+    notifier.redeemProperty('prop_01');
+    state = container.read(gameProvider);
+
+    expect(state.properties['prop_01']?.ownerId, 'p1');
+    expect(state.currentPlayer.cash, initialCash - prop.price);
+    expect(state.currentPlayer.ownedPropertyIds, contains('prop_01'));
+    expect(state.gameLogs.any((l) => l.contains('redeemed') && l.contains(prop.name)), isTrue);
+
+    // Attempting to redeem already-owned property should not deduct cash
+    final cashBeforeSecond = state.currentPlayer.cash;
+    notifier.redeemProperty('prop_01');
+    state = container.read(gameProvider);
+    expect(state.currentPlayer.cash, cashBeforeSecond);
+
+    // Attempting to redeem unaffordable property
+    final p1LowCash = state.currentPlayer.copyWith(cash: 10);
+    final updatedPlayers = state.players.map((p) => p.id == 'p1' ? p1LowCash : p).toList();
+    notifier.state = state.copyWith(players: updatedPlayers);
+
+    final unaffordableProp = state.properties['prop_02']!; // price: 60 > 10
+    notifier.redeemProperty('prop_02');
+    state = container.read(gameProvider);
+    expect(state.currentPlayer.cash, 10);
+    expect(state.properties['prop_02']?.ownerId, isNull);
+  });
 }

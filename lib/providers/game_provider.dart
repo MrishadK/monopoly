@@ -348,6 +348,7 @@ class GameNotifier extends Notifier<GameState> {
     final turnBasedActions = {
       'roll_dice',
       'buy_property',
+      'redeem_property',
       'pass_property',
       'upgrade_property',
       'toggle_mortgage',
@@ -371,6 +372,7 @@ class GameNotifier extends Notifier<GameState> {
         _executeRollDice();
         break;
       case 'buy_property':
+      case 'redeem_property':
         final propId = data['propertyId'] as String?;
         if (propId != null) _executeBuyProperty(propId);
         break;
@@ -1156,6 +1158,8 @@ class GameNotifier extends Notifier<GameState> {
     _executeBuyProperty(propertyId);
   }
 
+  void redeemProperty(String propertyId) => buyProperty(propertyId);
+
   void _executeBuyProperty(String propertyId) {
     try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
     final prop = state.properties[propertyId];
@@ -1174,40 +1178,48 @@ class GameNotifier extends Notifier<GameState> {
       _updatePlayer(updatedPlayer);
       try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
 
-      _addLog('${current.name} bought ${prop.name} for ₹${prop.price}');
+      _addLog('${current.name} redeemed ${prop.name} for ₹${prop.price}');
 
       _showTransactionNotice(
         type: 'buy',
         title: 'PROPERTY PURCHASED',
-        description: '${current.name} bought ${prop.name} for ₹${prop.price}',
+        description: '${current.name} redeemed ${prop.name} for ₹${prop.price}',
         icon: '🏷️',
         color: const Color(0xFF16A34A),
       );
 
-      if (state.isDoubles && !updatedPlayer.isInJail) {
-        _addLog('🎲 Doubles! ${current.name} gets another roll!');
-        state = state.copyWith(
-          properties: newProps,
-          clearInspectedProperty: true,
-          phase: GamePhase.roll,
-          isDoubles: false,
-          turnTimeRemaining: kTurnDurationSeconds,
-          message: '${current.name} purchased ${prop.name}! Rolled DOUBLES! Roll again! 🎲',
-        );
-        _startTurnTimer();
-        if (updatedPlayer.type == PlayerType.ai) {
-          _scheduleAiTurn();
+      if (state.phase == GamePhase.spaceAction) {
+        if (state.isDoubles && !updatedPlayer.isInJail) {
+          _addLog('🎲 Doubles! ${current.name} gets another roll!');
+          state = state.copyWith(
+            properties: newProps,
+            clearInspectedProperty: true,
+            phase: GamePhase.roll,
+            isDoubles: false,
+            turnTimeRemaining: kTurnDurationSeconds,
+            message: '${current.name} redeemed ${prop.name}! Rolled DOUBLES! Roll again! 🎲',
+          );
+          _startTurnTimer();
+          if (updatedPlayer.type == PlayerType.ai) {
+            _scheduleAiTurn();
+          }
+        } else {
+          state = state.copyWith(
+            properties: newProps,
+            clearInspectedProperty: true,
+            phase: GamePhase.turnEnd,
+            message: '${current.name} redeemed ${prop.name} for ₹${prop.price}!',
+          );
+          if (updatedPlayer.type == PlayerType.ai) {
+            _scheduleAiTurnEnd();
+          }
         }
       } else {
         state = state.copyWith(
           properties: newProps,
           clearInspectedProperty: true,
-          phase: GamePhase.turnEnd,
-          message: '${current.name} purchased ${prop.name} for ₹${prop.price}!',
+          message: '${current.name} redeemed ${prop.name} for ₹${prop.price}!',
         );
-        if (updatedPlayer.type == PlayerType.ai) {
-          _scheduleAiTurnEnd();
-        }
       }
     }
   }

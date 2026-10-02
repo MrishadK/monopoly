@@ -58,7 +58,13 @@ void main() {
 
     // Verify navigation dock buttons and action buttons
     expect(find.text('Properties'), findsOneWidget);
+    expect(find.text('Redeem'), findsOneWidget);
     expect(find.text('Trade'), findsOneWidget);
+    expect(find.text('Build'), findsOneWidget);
+    expect(find.text('Mortgage'), findsOneWidget);
+    expect(find.text('Sell'), findsOneWidget);
+    expect(find.text('Detail'), findsNothing);
+    expect(find.text('Buy'), findsNothing);
     expect(find.text('Logs'), findsOneWidget);
     expect(find.text('Chat / Emoji'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);

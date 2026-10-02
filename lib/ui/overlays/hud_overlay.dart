@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,7 +21,7 @@ import '../widgets/dice_widget.dart';
 import '../screens/home_screen.dart';
 import '../../data/game_data.dart';
 
-enum BoardInteractionMode { none, build, mortgage, sell }
+enum BoardInteractionMode { none, redeem, build, mortgage, sell }
 
 class HudOverlay extends ConsumerStatefulWidget {
   final KuthakaGame game;
@@ -40,6 +41,106 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     setState(() => _interactionMode = BoardInteractionMode.none);
     widget.game.setHighlightedProperties({});
     widget.game.onPropertyTappedCustom = null;
+  }
+
+  void _activateRedeemMode(GameState gameState, Player currentPlayer) {
+    if (_interactionMode == BoardInteractionMode.redeem) {
+      _clearInteractionMode();
+      return;
+    }
+
+    final unownedProps = gameState.properties.values
+        .where((p) => p.ownerId == null && p.price > 0)
+        .toList();
+
+    if (unownedProps.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'All properties on the board have already been redeemed.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final eligibleIds = unownedProps
+        .where((p) => currentPlayer.cash >= p.price)
+        .map((p) => p.id)
+        .toSet();
+
+    if (eligibleIds.isEmpty) {
+      final minPrice = unownedProps.map((p) => p.price).reduce(min);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Insufficient funds: You need at least ₹$minPrice to redeem any available property.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _interactionMode = BoardInteractionMode.redeem);
+    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF10B981));
+    widget.game.onPropertyTappedCustom = (Property prop) {
+      final currentGs = ref.read(gameProvider);
+      final currentP = currentGs.currentPlayer;
+      final currentProp = currentGs.properties[prop.id] ?? prop;
+
+      if (currentProp.ownerId != null) {
+        final owner = currentGs.players.firstWhere(
+          (p) => p.id == currentProp.ownerId,
+          orElse: () => const Player(id: '', name: 'Another player', color: Colors.grey, token: PlayerToken.coconut, type: PlayerType.human),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${currentProp.name} is already owned by ${owner.name}.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      if (currentP.cash < currentProp.price) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Insufficient funds: ${currentProp.name} costs ₹${currentProp.price}, but you have ₹${currentP.cash}.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      ref.read(gameProvider.notifier).buyProperty(currentProp.id);
+
+      final updatedGs = ref.read(gameProvider);
+      final updatedP = updatedGs.currentPlayer;
+      final newEligible = updatedGs.properties.values
+          .where((p) => p.ownerId == null && p.price > 0 && updatedP.cash >= p.price)
+          .map((p) => p.id)
+          .toSet();
+
+      if (newEligible.isEmpty) {
+        _clearInteractionMode();
+      } else {
+        widget.game.setHighlightedProperties(newEligible, const Color(0xFF10B981));
+      }
+    };
   }
 
   void _activateBuildMode(GameState gameState, Player currentPlayer) {
@@ -771,6 +872,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         children: [
           _buildRightDockButton(
             context,
+            Icons.shopping_cart_rounded,
+            'Redeem',
+            const Color(0xFF10B981),
+            () => _activateRedeemMode(gameState, currentPlayer),
+            highlight: _interactionMode == BoardInteractionMode.redeem,
+          ),
+          _buildRightDockButton(
+            context,
             Icons.swap_horiz_rounded,
             'Trade',
             const Color(0xFF2563EB),
@@ -828,17 +937,17 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           padding: const EdgeInsets.symmetric(vertical: 5),
           decoration: BoxDecoration(
             color: highlight
-                ? (isDark ? const Color(0xFF10B981).withValues(alpha: 0.35) : const Color(0xFF10B981).withValues(alpha: 0.20))
+                ? color.withValues(alpha: isDark ? 0.35 : 0.20)
                 : color.withValues(alpha: isDark ? 0.16 : 0.10),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: highlight ? const Color(0xFF10B981) : color.withValues(alpha: 0.35),
+              color: highlight ? color : color.withValues(alpha: 0.35),
               width: highlight ? 1.8 : 1.0,
             ),
             boxShadow: highlight
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.45),
+                      color: color.withValues(alpha: 0.45),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -848,12 +957,12 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 18, color: highlight ? const Color(0xFF10B981) : color),
+              Icon(icon, size: 18, color: highlight ? color : color),
               const SizedBox(height: 2),
               Text(
                 label,
                 style: GoogleFonts.outfit(
-                  color: isDark ? const Color(0xFFF1F5F9) : (highlight ? const Color(0xFF047857) : color),
+                  color: isDark ? const Color(0xFFF1F5F9) : (highlight ? color : color),
                   fontSize: 8.5,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1235,7 +1344,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                       : null,
                   icon: const Icon(Icons.shopping_cart_rounded, size: 14),
                   label: Text(
-                    'BUY ₹${prop.price}',
+                    'REDEEM ₹${prop.price}',
                     style: GoogleFonts.outfit(
                       fontWeight: FontWeight.w800,
                       fontSize: 11.5,
@@ -1365,6 +1474,12 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     String description;
 
     switch (_interactionMode) {
+      case BoardInteractionMode.redeem:
+        title = 'REDEEM MODE';
+        icon = Icons.shopping_cart_rounded;
+        accentColor = const Color(0xFF10B981);
+        description = 'Select an available property to redeem. You can purchase an unowned property by paying its listed price.';
+        break;
       case BoardInteractionMode.build:
         title = 'BUILD MODE';
         icon = Icons.apartment_rounded;
@@ -1442,7 +1557,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                'DONE',
+                'CLOSE',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
