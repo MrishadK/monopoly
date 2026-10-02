@@ -208,8 +208,7 @@ class GameMenuDialog extends ConsumerWidget {
                 title: 'Restart Match',
                 onTap: () {
                   Navigator.pop(context);
-                  final players = ref.read(gameProvider).players;
-                  ref.read(gameProvider.notifier).initializeGame(players);
+                  ref.read(gameProvider.notifier).restartGame();
                 },
               ),
               const SizedBox(height: 8),

@@ -370,6 +370,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final double diceWidth = board != null ? (board.size.x * 0.72) : 300.0;
     final double dockTop = board != null ? (board.position.y + 4.0) : 138.0;
 
+    ref.listen(gameProvider, (prev, next) {
+      if (prev?.currentPlayerIndex != next.currentPlayerIndex || next.gameLogs.length <= 1) {
+        if (_interactionMode != BoardInteractionMode.none) {
+          _clearInteractionMode();
+        }
+      }
+    });
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SizedBox.expand(
@@ -776,6 +784,28 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (player.consecutiveSkippedTurns > 0) ...[
+                      const SizedBox(width: 3),
+                      Tooltip(
+                        message: '${player.consecutiveSkippedTurns} consecutive turn${player.consecutiveSkippedTurns > 1 ? "s" : ""} skipped',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFFEF4444), width: 0.8),
+                          ),
+                          child: Text(
+                            '[${player.consecutiveSkippedTurns}]',
+                            style: GoogleFonts.outfit(
+                              color: const Color(0xFFEF4444),
+                              fontSize: 8.0,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     if (index == 0) ...[
                       const SizedBox(width: 2),
                       const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD4AF37), size: 11),
@@ -1110,7 +1140,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   Widget _buildDiceTray(BuildContext context, GameState gameState, Player current, bool isMyTurn) {
-    final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && current.type == PlayerType.human;
+    final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && !widget.game.isAnyTokenMoving && current.type == PlayerType.human;
     final isDark = context.isDark;
 
     // Detect if current player landed on an unowned property during space action
@@ -1611,7 +1641,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final rollsRemaining = (3 - turns).clamp(0, 3);
     final canPayBail = current.cash >= 100 && !gameState.isRollingDice && gameState.phase == GamePhase.roll;
     final hasJailCard = current.getOutOfJailCards > 0 && !gameState.isRollingDice && gameState.phase == GamePhase.roll;
-    final canRoll = !gameState.isRollingDice && gameState.phase == GamePhase.roll;
+    final canRoll = !gameState.isRollingDice && gameState.phase == GamePhase.roll && !widget.game.isAnyTokenMoving;
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 320),

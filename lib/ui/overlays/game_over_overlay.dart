@@ -255,7 +255,7 @@ class GameOverOverlay extends ConsumerWidget {
                           elevation: 3,
                         ),
                         onPressed: () {
-                          ref.read(gameProvider.notifier).initializeGame(gameState.players);
+                          ref.read(gameProvider.notifier).restartGame();
                         },
                       ),
                     ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -16,8 +17,29 @@ class PlayerTokenComponent extends PositionComponent {
   double _stepProgress = 0.0;
   bool _isMoving = false;
   double _hopAltitude = 0.0;
+  Completer<void>? _movementCompleter;
 
   bool get isMoving => _isMoving || _movementPath.isNotEmpty;
+
+  Future<void> waitForMovement() {
+    if (!isMoving) return Future.value();
+    _movementCompleter ??= Completer<void>();
+    return _movementCompleter!.future;
+  }
+
+  void resetToPosition(int pos, {bool inJail = false}) {
+    _movementPath.clear();
+    _isMoving = false;
+    _stepProgress = 0.0;
+    _hopAltitude = 0.0;
+    _currentPosIndex = pos;
+    player = player.copyWith(position: pos, isInJail: inJail);
+    if (_movementCompleter != null && !_movementCompleter!.isCompleted) {
+      _movementCompleter!.complete();
+      _movementCompleter = null;
+    }
+    _updatePositionOnBoard();
+  }
 
   PlayerTokenComponent({
     required this.player,
@@ -49,6 +71,11 @@ class PlayerTokenComponent extends PositionComponent {
       final bool isSentToJail = updated.isInJail && (!player.isInJail || (oldPos != 10 && newPos == 10));
 
       _movementPath.clear();
+      if (_movementCompleter != null && !_movementCompleter!.isCompleted) {
+        _movementCompleter!.complete();
+      }
+      _movementCompleter = Completer<void>();
+
       if (isSentToJail) {
         // MONOPOLY RULE: Sent to Jail moves directly to Jail WITHOUT passing GO and WITHOUT collecting ₹200!
         if (oldPos >= 10) {
@@ -99,6 +126,10 @@ class PlayerTokenComponent extends PositionComponent {
           _isMoving = false;
           _hopAltitude = 0.0;
           _currentPosIndex = player.position;
+          if (_movementCompleter != null && !_movementCompleter!.isCompleted) {
+            _movementCompleter!.complete();
+            _movementCompleter = null;
+          }
         }
       } else {
         _hopAltitude = sin(_stepProgress * pi) * 16.0;
@@ -107,6 +138,10 @@ class PlayerTokenComponent extends PositionComponent {
       _isMoving = false;
       _hopAltitude = 0.0;
       _currentPosIndex = player.position;
+      if (_movementCompleter != null && !_movementCompleter!.isCompleted) {
+        _movementCompleter!.complete();
+        _movementCompleter = null;
+      }
     }
 
     _updatePositionOnBoard();

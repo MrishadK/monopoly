@@ -5,13 +5,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/game_provider.dart';
 import '../../ui/theme/theme_provider.dart';
 import '../../models/property.dart';
+import '../../models/player.dart';
 import 'components/board_component.dart';
 import 'components/player_token_component.dart';
 
 class KuthakaGame extends FlameGame {
   final WidgetRef ref;
 
-  KuthakaGame(this.ref);
+  KuthakaGame(this.ref) {
+    try {
+      ref.read(gameProvider.notifier).attachGame(this);
+    } catch (_) {}
+  }
+
+  @override
+  void onRemove() {
+    try {
+      ref.read(gameProvider.notifier).detachGame(this);
+    } catch (_) {}
+    super.onRemove();
+  }
 
   BoardComponent? board;
   List<PlayerTokenComponent> tokens = [];
@@ -30,6 +43,38 @@ class KuthakaGame extends FlameGame {
   }
 
   bool get isAnyTokenMoving => tokens.any((t) => t.isMoving);
+
+  void syncPlayerToken(Player updated) {
+    final token = tokens.where((t) => t.player.id == updated.id).firstOrNull;
+    if (token != null) {
+      token.updatePlayer(updated);
+    }
+  }
+
+  Future<void> waitForPlayerMovement(String playerId) async {
+    final token = tokens.where((t) => t.player.id == playerId).firstOrNull;
+    if (token != null) {
+      await token.waitForMovement();
+    }
+  }
+
+  Future<void> waitForAllMovements() async {
+    final movingTokens = tokens.where((t) => t.isMoving).toList();
+    if (movingTokens.isNotEmpty) {
+      await Future.wait(movingTokens.map((t) => t.waitForMovement()));
+    }
+  }
+
+  void resetTokens(List<Player> resetPlayers) {
+    for (int i = 0; i < resetPlayers.length && i < tokens.length; i++) {
+      tokens[i].resetToPosition(0);
+      tokens[i].player = resetPlayers[i];
+    }
+    highlightedPropertyIds.clear();
+    highlightColor = null;
+    board?.highlightedPropertyIds.clear();
+    board?.highlightColor = null;
+  }
 
   @override
   Color backgroundColor() => Colors.transparent;

@@ -54,6 +54,8 @@ class Player {
     this.consecutiveTimeouts = 0,
   });
 
+  int get consecutiveSkippedTurns => consecutiveTimeouts;
+
   IconData get tokenIcon {
     switch (token) {
       case PlayerToken.coconut: return Icons.spa_rounded;

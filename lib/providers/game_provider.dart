@@ -16,6 +16,7 @@ import '../services/audio_service.dart';
 import '../services/leaderboard_service.dart';
 import '../services/user_profile_service.dart';
 import '../ui/overlays/emoji_chat_overlay.dart';
+import '../game/kuthaka_game.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum GamePhase { roll, moving, spaceAction, turnEnd, gameOver }
@@ -184,6 +185,27 @@ class GameNotifier extends Notifier<GameState> {
   Timer? _aiTurnEndTimer;
   Timer? _diceRollTimer;
   Timer? _auctionTimer;
+  KuthakaGame? _game;
+
+  void attachGame(KuthakaGame game) {
+    _game = game;
+  }
+
+  void detachGame(KuthakaGame game) {
+    if (_game == game) {
+      _game = null;
+    }
+  }
+
+  bool get isAnyTokenMoving => _game?.isAnyTokenMoving ?? false;
+
+  Future<void> _awaitPlayerMovement(String playerId) async {
+    if (_game != null) {
+      try {
+        await _game!.waitForPlayerMovement(playerId).timeout(const Duration(seconds: 15));
+      } catch (_) {}
+    }
+  }
 
   void _showTransactionNotice({
     required String type,
@@ -282,20 +304,31 @@ class GameNotifier extends Notifier<GameState> {
     _isHost = isHost;
     _localPlayerId = localPlayerId ?? (isHost ? players.firstWhere((p) => p.type == PlayerType.human, orElse: () => players.first).id : null);
 
-    // Auto-assign unique colors so no two players share a color
+    // Auto-assign unique colors
     final coloredPlayers = <Player>[];
     for (int i = 0; i < players.length; i++) {
-      coloredPlayers.add(players[i].copyWith(color: _matchColors[i % _matchColors.length]));
+      coloredPlayers.add(players[i].copyWith(
+        color: _matchColors[i % _matchColors.length],
+      ));
     }
+
+    final freshProperties = GameData.createInitialProperties();
 
     state = GameState(
       players: coloredPlayers,
       currentPlayerIndex: 0,
       phase: GamePhase.roll,
-      properties: GameData.initialProperties,
-      gameLogs: ['Match started with ${coloredPlayers.length} players!'],
+      properties: freshProperties,
+      lastDiceRoll: const [1, 1],
+      isDoubles: false,
+      consecutiveDoubles: 0,
+      turnTimeRemaining: kTurnDurationSeconds,
+      gameLogs: ['Match started with ${coloredPlayers.length} players! 🌴'],
       message: '${coloredPlayers.first.name}\'s Turn to Roll!',
     );
+
+    // Visually reset tokens and clear highlights on Flame board
+    _game?.resetTokens(coloredPlayers);
 
     if (_isHost) {
       ref.read(multiplayerServiceProvider).onPlayerActionReceived = _handleRemotePlayerAction;
@@ -309,7 +342,67 @@ class GameNotifier extends Notifier<GameState> {
 
     _startTurnTimer();
 
-    if (players.first.type == PlayerType.ai) {
+    if (coloredPlayers.first.type == PlayerType.ai) {
+      _scheduleAiTurn();
+    }
+  }
+
+  void restartGame() {
+    _actionLockId++;
+    _turnTimer?.cancel();
+    _transactionTimer?.cancel();
+    _aiTurnTimer?.cancel();
+    _aiTurnEndTimer?.cancel();
+    _diceRollTimer?.cancel();
+    _auctionTimer?.cancel();
+
+    // Completely reset each player to clean initial state
+    final freshPlayers = <Player>[];
+    for (int i = 0; i < state.players.length; i++) {
+      final p = state.players[i];
+      freshPlayers.add(Player(
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        token: p.token,
+        color: _matchColors[i % _matchColors.length],
+        aiPersonality: p.aiPersonality,
+        cash: 1000,
+        position: 0,
+        isBankrupt: false,
+        isInJail: false,
+        turnsInJail: 0,
+        getOutOfJailCards: 0,
+        ownedPropertyIds: const [],
+        consecutiveTimeouts: 0,
+      ));
+    }
+
+    final freshProperties = GameData.createInitialProperties();
+
+    state = GameState(
+      players: freshPlayers,
+      currentPlayerIndex: 0,
+      phase: GamePhase.roll,
+      properties: freshProperties,
+      lastDiceRoll: const [1, 1],
+      isDoubles: false,
+      consecutiveDoubles: 0,
+      turnTimeRemaining: kTurnDurationSeconds,
+      gameLogs: ['Match restarted! Welcome to Kuthaka: Kerala Monopoly! 🌴'],
+      message: '${freshPlayers.first.name}\'s Turn to Roll!',
+    );
+
+    // Visually reset tokens and clear highlights on Flame board
+    _game?.resetTokens(freshPlayers);
+
+    if (_isHost) {
+      _broadcastState();
+    }
+
+    _startTurnTimer();
+
+    if (freshPlayers.first.type == PlayerType.ai) {
       _scheduleAiTurn();
     }
   }
@@ -515,6 +608,7 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== DICE & MOVEMENT ====================
 
   void rollDice() {
+    if (state.phase != GamePhase.roll || state.isRollingDice || isAnyTokenMoving) return;
     if (!_isHost) {
       ref.read(multiplayerServiceProvider).sendPlayerAction('roll_dice', {
         'playerId': state.currentPlayer.id,
@@ -525,7 +619,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _executeRollDice() {
-    if (state.phase != GamePhase.roll || state.isRollingDice) return;
+    if (state.phase != GamePhase.roll || state.isRollingDice || isAnyTokenMoving) return;
     try { ref.read(audioServiceProvider.notifier).playDiceRoll(); } catch (_) {}
     final current = state.currentPlayer;
     if (current.consecutiveTimeouts > 0) {
@@ -553,7 +647,7 @@ class GameNotifier extends Notifier<GameState> {
 
     final lockId = _actionLockId;
     _diceRollTimer?.cancel();
-    _diceRollTimer = Timer(const Duration(milliseconds: 900), () {
+    _diceRollTimer = Timer(const Duration(milliseconds: 900), () async {
       if (lockId != _actionLockId) return;
 
       _addLog('${current.name} rolled $d1 & $d2 (${d1 + d2})${isDouble ? " - DOUBLES!" : ""}');
@@ -566,7 +660,7 @@ class GameNotifier extends Notifier<GameState> {
           clearInspectedProperty: true,
           clearActiveEventCard: true,
         );
-        _sendToJail(current);
+        await _sendToJail(current);
         return;
       }
 
@@ -581,7 +675,7 @@ class GameNotifier extends Notifier<GameState> {
         message: '${current.name} rolled ${d1 + d2}! Moving spaces...',
       );
 
-      _movePlayerStepwise(d1 + d2);
+      await _movePlayerStepwise(d1 + d2);
     });
   }
 
@@ -597,7 +691,8 @@ class GameNotifier extends Notifier<GameState> {
     );
 
     final lockId = _actionLockId;
-    Future.delayed(const Duration(milliseconds: 900), () {
+    _diceRollTimer?.cancel();
+    _diceRollTimer = Timer(const Duration(milliseconds: 900), () async {
       if (lockId != _actionLockId) return;
 
       _addLog('${current.name} in Hospital/Jail rolled $d1 & $d2');
@@ -614,7 +709,7 @@ class GameNotifier extends Notifier<GameState> {
           phase: GamePhase.moving,
           message: '${current.name} rolled doubles and got out of jail!',
         );
-        _movePlayerStepwise(d1 + d2);
+        await _movePlayerStepwise(d1 + d2);
       } else {
         int turns = current.turnsInJail + 1;
         if (turns >= 3) {
@@ -633,7 +728,7 @@ class GameNotifier extends Notifier<GameState> {
             phase: GamePhase.moving,
             message: '${current.name} paid ₹100 fine and was released.',
           );
-          _movePlayerStepwise(d1 + d2);
+          await _movePlayerStepwise(d1 + d2);
         } else {
           _addLog('${current.name} did not roll doubles ($turns/3 turns)');
           final updated = current.copyWith(turnsInJail: turns);
@@ -708,7 +803,7 @@ class GameNotifier extends Notifier<GameState> {
     );
   }
 
-  void _movePlayerStepwise(int totalSteps) {
+  Future<void> _movePlayerStepwise(int totalSteps) async {
     final lockId = _actionLockId;
     final current = state.currentPlayer;
     final targetPos = (current.position + totalSteps) % 40;
@@ -720,15 +815,18 @@ class GameNotifier extends Notifier<GameState> {
       _addLog('${current.name} passed Naattile Thudakkam! Collected ₹200. 💰');
     }
 
-    _updatePlayer(current.copyWith(position: targetPos, cash: newCash));
+    final updated = current.copyWith(position: targetPos, cash: newCash);
+    state = state.copyWith(phase: GamePhase.moving);
+    _updatePlayer(updated);
 
-    // Allow board token hop animation to finish at calibrated slower speed
-    final delayMs = (totalSteps * 360) + 500;
-    Future.delayed(Duration(milliseconds: delayMs), () {
-      if (lockId != _actionLockId) return;
-      state = state.copyWith(phase: GamePhase.spaceAction);
-      _handleSpaceAction();
-    });
+    if (_game != null) {
+      _game!.syncPlayerToken(updated);
+    }
+    await _awaitPlayerMovement(current.id);
+
+    if (lockId != _actionLockId) return;
+    state = state.copyWith(phase: GamePhase.spaceAction);
+    _handleSpaceAction();
   }
 
   // ==================== SPACE ACTIONS ====================
@@ -907,7 +1005,8 @@ class GameNotifier extends Notifier<GameState> {
     }
   }
 
-  void _sendToJail(Player player) {
+  Future<void> _sendToJail(Player player) async {
+    final lockId = _actionLockId;
     try { ref.read(audioServiceProvider.notifier).playJail(); } catch (_) {}
     final isPoliceStationJump = player.position == 30;
     final updated = player.copyWith(
@@ -915,9 +1014,7 @@ class GameNotifier extends Notifier<GameState> {
       isInJail: true,
       turnsInJail: 0,
     );
-    _updatePlayer(updated);
 
-    final lockId = _actionLockId;
     state = state.copyWith(
       phase: GamePhase.moving, // Keep in moving phase during the backward jump!
       consecutiveDoubles: 0,
@@ -926,21 +1023,24 @@ class GameNotifier extends Notifier<GameState> {
           ? '🚨 Police Station! ${player.name} jumping backwards to Central Jail...'
           : '${player.name} sent to Central Jail.',
     );
+    _updatePlayer(updated);
 
-    final delayMs = isPoliceStationJump ? 4800 : 1500;
-    Future.delayed(Duration(milliseconds: delayMs), () {
-      if (lockId != _actionLockId) return;
-      state = state.copyWith(
-        phase: GamePhase.turnEnd,
-        message: '${player.name} is now locked in Central Jail.',
-      );
-      if (player.type == PlayerType.ai) {
-        _scheduleAiTurnEnd();
-      }
-    });
+    if (_game != null) {
+      _game!.syncPlayerToken(updated);
+    }
+    await _awaitPlayerMovement(player.id);
+
+    if (lockId != _actionLockId) return;
+    state = state.copyWith(
+      phase: GamePhase.turnEnd,
+      message: '${player.name} is now locked in Central Jail.',
+    );
+    if (player.type == PlayerType.ai) {
+      _scheduleAiTurnEnd();
+    }
   }
 
-  void _drawEventCard(List<EventCard> cardDeck, String category) {
+  void _drawEventCard(List<EventCard> cardDeck, String category) async {
     final card = cardDeck[_random.nextInt(cardDeck.length)];
     _addLog('${state.currentPlayer.name} drew $category: ${card.title}');
     try { ref.read(audioServiceProvider.notifier).playCardDraw(); } catch (_) {}
@@ -951,10 +1051,11 @@ class GameNotifier extends Notifier<GameState> {
     );
 
     // Apply card effect
-    _applyEventCard(card);
+    await _applyEventCard(card);
   }
 
-  void _applyEventCard(EventCard card) {
+  Future<void> _applyEventCard(EventCard card) async {
+    final lockId = _actionLockId;
     final current = state.currentPlayer;
     switch (card.type) {
       case EventCardType.moneyReward:
@@ -975,14 +1076,24 @@ class GameNotifier extends Notifier<GameState> {
 
       case EventCardType.moveToSpace:
         final dest = card.destinationIndex ?? 0;
-        int cash = current.cash;
-        if (dest < current.position && dest != 10) {
-          cash += 200;
-          _addLog('${current.name} passed Start! +₹200');
+        final willPassStart = dest < current.position && dest != 10;
+        int newCash = current.cash;
+        if (willPassStart) {
+          newCash += 200;
+          _addLog('${current.name} passed Start! +₹200 💰');
         }
-        _updatePlayer(current.copyWith(position: dest, cash: cash));
         _addLog('${current.name} moved to ${GameData.spaces[dest].name}');
-        break;
+        final updated = current.copyWith(position: dest, cash: newCash);
+        state = state.copyWith(phase: GamePhase.moving);
+        _updatePlayer(updated);
+        if (_game != null) {
+          _game!.syncPlayerToken(updated);
+        }
+        await _awaitPlayerMovement(current.id);
+        if (lockId != _actionLockId) return;
+        state = state.copyWith(phase: GamePhase.spaceAction);
+        _handleSpaceAction();
+        return;
 
       case EventCardType.getOutOfJail:
         _updatePlayer(current.copyWith(getOutOfJailCards: current.getOutOfJailCards + 1));
@@ -990,7 +1101,7 @@ class GameNotifier extends Notifier<GameState> {
         break;
 
       case EventCardType.goToJail:
-        _sendToJail(current);
+        await _sendToJail(current);
         return;
 
       case EventCardType.payPerHouse:
@@ -2202,7 +2313,7 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== TURN PROGRESSION ====================
 
   void endTurn() {
-    if (state.phase == GamePhase.moving) return;
+    if (state.phase == GamePhase.moving || isAnyTokenMoving) return;
     if (!_isHost) {
       ref.read(multiplayerServiceProvider).sendPlayerAction('end_turn', {
         'playerId': state.currentPlayer.id,
@@ -2228,6 +2339,10 @@ class GameNotifier extends Notifier<GameState> {
         timer.cancel();
         return;
       }
+      // If tokens are moving, pause turn timer countdown so animation does not cause timeout
+      if (state.phase == GamePhase.moving || isAnyTokenMoving) {
+        return;
+      }
       // If an auction is active, pause the turn timer so bidders aren't rushed
       if (state.activeAuction != null) {
         return;
@@ -2243,7 +2358,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _handleTurnTimeout() {
-    if (state.phase == GamePhase.gameOver) return;
+    if (state.phase == GamePhase.gameOver || state.phase == GamePhase.moving || isAnyTokenMoving) return;
 
     final current = state.currentPlayer;
     final newTimeouts = current.consecutiveTimeouts + 1;
@@ -2363,7 +2478,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _endTurn() {
-    if (state.phase == GamePhase.gameOver || state.phase == GamePhase.moving) return;
+    if (state.phase == GamePhase.gameOver || state.phase == GamePhase.moving || isAnyTokenMoving) return;
 
     // Reset strike count if current player successfully took action
     final current = state.currentPlayer;

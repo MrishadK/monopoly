@@ -46,55 +46,57 @@ class GameData {
     const BoardSpace(index: 39, name: "Kovalam", type: SpaceType.property, propertyId: "prop_22"),
   ];
 
-  static final Map<String, Property> initialProperties = {
+  static Map<String, Property> createInitialProperties() => {
     // Malabar (Brown)
-    "prop_01": Property(id: "prop_01", name: "Vengeri", group: PropertyGroup.malabar, price: 40, rent: [2, 10, 30, 90, 160, 250], upgradeCost: 30, mortgageValue: 20),
-    "prop_02": Property(id: "prop_02", name: "Beypore", group: PropertyGroup.malabar, price: 40, rent: [2, 12, 40, 120, 200, 300], upgradeCost: 30, mortgageValue: 20),
-    "prop_03": Property(id: "prop_03", name: "Nilambur", group: PropertyGroup.malabar, price: 50, rent: [3, 15, 45, 130, 220, 320], upgradeCost: 30, mortgageValue: 25),
+    "prop_01": const Property(id: "prop_01", name: "Vengeri", group: PropertyGroup.malabar, price: 40, rent: [2, 10, 30, 90, 160, 250], upgradeCost: 30, mortgageValue: 20),
+    "prop_02": const Property(id: "prop_02", name: "Beypore", group: PropertyGroup.malabar, price: 40, rent: [2, 12, 40, 120, 200, 300], upgradeCost: 30, mortgageValue: 20),
+    "prop_03": const Property(id: "prop_03", name: "Nilambur", group: PropertyGroup.malabar, price: 50, rent: [3, 15, 45, 130, 220, 320], upgradeCost: 30, mortgageValue: 25),
     
     // Kochi (Pink)
-    "prop_04": Property(id: "prop_04", name: "Payyanur", group: PropertyGroup.kochi, price: 70, rent: [4, 20, 60, 180, 270, 370], upgradeCost: 35, mortgageValue: 35),
-    "prop_05": Property(id: "prop_05", name: "Fort Kochi", group: PropertyGroup.kochi, price: 70, rent: [4, 20, 60, 180, 270, 370], upgradeCost: 35, mortgageValue: 35),
-    "prop_06": Property(id: "prop_06", name: "Marine Drive", group: PropertyGroup.kochi, price: 80, rent: [5, 25, 70, 200, 300, 400], upgradeCost: 35, mortgageValue: 40),
+    "prop_04": const Property(id: "prop_04", name: "Payyanur", group: PropertyGroup.kochi, price: 70, rent: [4, 20, 60, 180, 270, 370], upgradeCost: 35, mortgageValue: 35),
+    "prop_05": const Property(id: "prop_05", name: "Fort Kochi", group: PropertyGroup.kochi, price: 70, rent: [4, 20, 60, 180, 270, 370], upgradeCost: 35, mortgageValue: 35),
+    "prop_06": const Property(id: "prop_06", name: "Marine Drive", group: PropertyGroup.kochi, price: 80, rent: [5, 25, 70, 200, 300, 400], upgradeCost: 35, mortgageValue: 40),
 
     // Thrissur (Light Blue)
-    "prop_07": Property(id: "prop_07", name: "Mattancherry", group: PropertyGroup.thrissur, price: 90, rent: [7, 35, 100, 300, 410, 500], upgradeCost: 65, mortgageValue: 45),
-    "prop_08": Property(id: "prop_08", name: "Vyttila", group: PropertyGroup.thrissur, price: 90, rent: [7, 35, 100, 300, 410, 500], upgradeCost: 65, mortgageValue: 45),
-    "prop_09": Property(id: "prop_09", name: "Swaraj Round", group: PropertyGroup.thrissur, price: 110, rent: [8, 40, 120, 330, 470, 600], upgradeCost: 65, mortgageValue: 55),
+    "prop_07": const Property(id: "prop_07", name: "Mattancherry", group: PropertyGroup.thrissur, price: 90, rent: [7, 35, 100, 300, 410, 500], upgradeCost: 65, mortgageValue: 45),
+    "prop_08": const Property(id: "prop_08", name: "Vyttila", group: PropertyGroup.thrissur, price: 90, rent: [7, 35, 100, 300, 410, 500], upgradeCost: 65, mortgageValue: 45),
+    "prop_09": const Property(id: "prop_09", name: "Swaraj Round", group: PropertyGroup.thrissur, price: 110, rent: [8, 40, 120, 330, 470, 600], upgradeCost: 65, mortgageValue: 55),
 
     // Backwaters (Orange)
-    "prop_10": Property(id: "prop_10", name: "Vadakkunnathan", group: PropertyGroup.backwaters, price: 120, rent: [9, 45, 130, 370, 500, 630], upgradeCost: 70, mortgageValue: 60),
-    "prop_11": Property(id: "prop_11", name: "Athirappilly", group: PropertyGroup.backwaters, price: 120, rent: [9, 45, 130, 370, 500, 630], upgradeCost: 70, mortgageValue: 60),
-    "prop_12": Property(id: "prop_12", name: "Guruvayur", group: PropertyGroup.backwaters, price: 135, rent: [11, 55, 150, 400, 530, 670], upgradeCost: 70, mortgageValue: 70),
+    "prop_10": const Property(id: "prop_10", name: "Vadakkunnathan", group: PropertyGroup.backwaters, price: 120, rent: [9, 45, 130, 370, 500, 630], upgradeCost: 70, mortgageValue: 60),
+    "prop_11": const Property(id: "prop_11", name: "Athirappilly", group: PropertyGroup.backwaters, price: 120, rent: [9, 45, 130, 370, 500, 630], upgradeCost: 70, mortgageValue: 60),
+    "prop_12": const Property(id: "prop_12", name: "Guruvayur", group: PropertyGroup.backwaters, price: 135, rent: [11, 55, 150, 400, 530, 670], upgradeCost: 70, mortgageValue: 70),
 
     // Highlands (Red)
-    "prop_13": Property(id: "prop_13", name: "Alappuzha", group: PropertyGroup.highlands, price: 150, rent: [12, 60, 170, 470, 580, 700], upgradeCost: 100, mortgageValue: 75),
-    "prop_14": Property(id: "prop_14", name: "Kumarakom", group: PropertyGroup.highlands, price: 150, rent: [12, 60, 170, 470, 580, 700], upgradeCost: 100, mortgageValue: 75),
-    "prop_15": Property(id: "prop_15", name: "Kuttanad", group: PropertyGroup.highlands, price: 160, rent: [13, 65, 200, 500, 610, 730], upgradeCost: 100, mortgageValue: 80),
+    "prop_13": const Property(id: "prop_13", name: "Alappuzha", group: PropertyGroup.highlands, price: 150, rent: [12, 60, 170, 470, 580, 700], upgradeCost: 100, mortgageValue: 75),
+    "prop_14": const Property(id: "prop_14", name: "Kumarakom", group: PropertyGroup.highlands, price: 150, rent: [12, 60, 170, 470, 580, 700], upgradeCost: 100, mortgageValue: 75),
+    "prop_15": const Property(id: "prop_15", name: "Kuttanad", group: PropertyGroup.highlands, price: 160, rent: [13, 65, 200, 500, 610, 730], upgradeCost: 100, mortgageValue: 80),
 
     // South Kerala (Yellow)
-    "prop_16": Property(id: "prop_16", name: "Ashtamudi", group: PropertyGroup.southKerala, price: 175, rent: [15, 75, 220, 530, 650, 770], upgradeCost: 100, mortgageValue: 90),
-    "prop_17": Property(id: "prop_17", name: "Munnar", group: PropertyGroup.southKerala, price: 175, rent: [15, 75, 220, 530, 650, 770], upgradeCost: 100, mortgageValue: 90),
-    "prop_18": Property(id: "prop_18", name: "Wayanad", group: PropertyGroup.southKerala, price: 190, rent: [16, 80, 240, 570, 680, 800], upgradeCost: 100, mortgageValue: 95),
+    "prop_16": const Property(id: "prop_16", name: "Ashtamudi", group: PropertyGroup.southKerala, price: 175, rent: [15, 75, 220, 530, 650, 770], upgradeCost: 100, mortgageValue: 90),
+    "prop_17": const Property(id: "prop_17", name: "Munnar", group: PropertyGroup.southKerala, price: 175, rent: [15, 75, 220, 530, 650, 770], upgradeCost: 100, mortgageValue: 90),
+    "prop_18": const Property(id: "prop_18", name: "Wayanad", group: PropertyGroup.southKerala, price: 190, rent: [16, 80, 240, 570, 680, 800], upgradeCost: 100, mortgageValue: 95),
 
     // Premium (Green)
-    "prop_19": Property(id: "prop_19", name: "Vagamon", group: PropertyGroup.premium, price: 200, rent: [17, 85, 260, 600, 730, 850], upgradeCost: 135, mortgageValue: 100),
-    "prop_20": Property(id: "prop_20", name: "Thekkady", group: PropertyGroup.premium, price: 200, rent: [17, 85, 260, 600, 730, 850], upgradeCost: 135, mortgageValue: 100),
-    "prop_21": Property(id: "prop_21", name: "Bekal Fort", group: PropertyGroup.premium, price: 215, rent: [19, 100, 300, 670, 800, 930], upgradeCost: 135, mortgageValue: 110),
+    "prop_19": const Property(id: "prop_19", name: "Vagamon", group: PropertyGroup.premium, price: 200, rent: [17, 85, 260, 600, 730, 850], upgradeCost: 135, mortgageValue: 100),
+    "prop_20": const Property(id: "prop_20", name: "Thekkady", group: PropertyGroup.premium, price: 200, rent: [17, 85, 260, 600, 730, 850], upgradeCost: 135, mortgageValue: 100),
+    "prop_21": const Property(id: "prop_21", name: "Bekal Fort", group: PropertyGroup.premium, price: 215, rent: [19, 100, 300, 670, 800, 930], upgradeCost: 135, mortgageValue: 110),
 
     // Luxury (Dark Blue)
-    "prop_22": Property(id: "prop_22", name: "Kovalam", group: PropertyGroup.luxury, price: 240, rent: [25, 120, 330, 730, 870, 1000], upgradeCost: 135, mortgageValue: 120),
+    "prop_22": const Property(id: "prop_22", name: "Kovalam", group: PropertyGroup.luxury, price: 240, rent: [25, 120, 330, 730, 870, 1000], upgradeCost: 135, mortgageValue: 120),
 
     // Transports (Railroads)
-    "trans_01": Property(id: "trans_01", name: "KSRTC Stand", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
-    "trans_02": Property(id: "trans_02", name: "Kochi Metro", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
-    "trans_03": Property(id: "trans_03", name: "Ferry", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
-    "trans_04": Property(id: "trans_04", name: "Airport", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
+    "trans_01": const Property(id: "trans_01", name: "KSRTC Stand", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
+    "trans_02": const Property(id: "trans_02", name: "Kochi Metro", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
+    "trans_03": const Property(id: "trans_03", name: "Ferry", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
+    "trans_04": const Property(id: "trans_04", name: "Airport", group: PropertyGroup.transport, price: 135, rent: [15, 35, 70, 135, 0, 0], upgradeCost: 0, mortgageValue: 70),
 
     // Utilities
-    "util_01": Property(id: "util_01", name: "KSEB", group: PropertyGroup.utility, price: 100, rent: [0, 0, 0, 0, 0, 0], upgradeCost: 0, mortgageValue: 50),
-    "util_02": Property(id: "util_02", name: "Water Authority", group: PropertyGroup.utility, price: 100, rent: [0, 0, 0, 0, 0, 0], upgradeCost: 0, mortgageValue: 50),
+    "util_01": const Property(id: "util_01", name: "KSEB", group: PropertyGroup.utility, price: 100, rent: [0, 0, 0, 0, 0, 0], upgradeCost: 0, mortgageValue: 50),
+    "util_02": const Property(id: "util_02", name: "Water Authority", group: PropertyGroup.utility, price: 100, rent: [0, 0, 0, 0, 0, 0], upgradeCost: 0, mortgageValue: 50),
   };
+
+  static Map<String, Property> get initialProperties => createInitialProperties();
 
   static final List<EventCard> chanceCards = [
     const EventCard(id: "c1", title: "Heavy Monsoon", description: "Heavy rain damages your property. Pay ₹25.", type: EventCardType.moneyPenalty, amount: 25),

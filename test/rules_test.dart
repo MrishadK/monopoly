@@ -1380,10 +1380,153 @@ void main() {
     final updatedPlayers = state.players.map((p) => p.id == 'p1' ? p1LowCash : p).toList();
     notifier.state = state.copyWith(players: updatedPlayers);
 
-    final unaffordableProp = state.properties['prop_02']!; // price: 60 > 10
+    // price: 40 > 10
     notifier.redeemProperty('prop_02');
     state = container.read(gameProvider);
     expect(state.currentPlayer.cash, 10);
     expect(state.properties['prop_02']?.ownerId, isNull);
+  });
+
+  test('Movement synchronization: turns and rolls cannot advance while moving', () {
+    final container = ProviderContainer();
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', type: PlayerType.human, token: PlayerToken.coconut, color: Colors.blue),
+      const Player(id: 'p2', name: 'Player 2', type: PlayerType.human, token: PlayerToken.houseboat, color: Colors.red),
+    ]);
+
+    // Set phase to moving
+    notifier.state = notifier.state.copyWith(phase: GamePhase.moving);
+    expect(notifier.state.currentPlayerIndex, 0);
+
+    // Attempt to end turn while moving
+    notifier.endTurn();
+    expect(notifier.state.currentPlayerIndex, 0);
+    expect(notifier.state.phase, GamePhase.moving);
+
+    // Attempt to roll dice while moving
+    notifier.rollDice();
+    expect(notifier.state.phase, GamePhase.moving);
+    expect(notifier.state.currentPlayerIndex, 0);
+  });
+
+  test('Restart Match completely resets all player cash, positions, ownership, and properties', () {
+    final container = ProviderContainer();
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', type: PlayerType.human, token: PlayerToken.coconut, color: Colors.blue),
+      const Player(id: 'p2', name: 'Player 2', type: PlayerType.human, token: PlayerToken.houseboat, color: Colors.red),
+    ]);
+
+    // Mutate state with extensive game progression:
+    final mutatedP1 = notifier.state.players[0].copyWith(
+      cash: 3500,
+      position: 25,
+      ownedPropertyIds: ['prop_01', 'prop_02'],
+      consecutiveTimeouts: 2,
+    );
+    final mutatedP2 = notifier.state.players[1].copyWith(
+      cash: 50,
+      position: 10,
+      isInJail: true,
+      turnsInJail: 2,
+      isBankrupt: true,
+    );
+    final mutatedProps = Map<String, Property>.from(notifier.state.properties);
+    mutatedProps['prop_01'] = mutatedProps['prop_01']!.copyWith(
+      ownerId: 'p1',
+      currentLevel: 3,
+    );
+    mutatedProps['prop_02'] = mutatedProps['prop_02']!.copyWith(
+      ownerId: 'p1',
+      isMortgaged: true,
+    );
+
+    notifier.state = notifier.state.copyWith(
+      players: [mutatedP1, mutatedP2],
+      properties: mutatedProps,
+      currentPlayerIndex: 1,
+      phase: GamePhase.turnEnd,
+      lastDiceRoll: const [5, 5],
+      isDoubles: true,
+      consecutiveDoubles: 2,
+      gameLogs: ['Log 1', 'Log 2', 'Log 3'],
+    );
+
+    // Call restartGame()
+    notifier.restartGame();
+    final restartedState = container.read(gameProvider);
+
+    // Check all players reset
+    expect(restartedState.currentPlayerIndex, 0);
+    expect(restartedState.phase, GamePhase.roll);
+    expect(restartedState.lastDiceRoll, const [1, 1]);
+    expect(restartedState.isDoubles, isFalse);
+    expect(restartedState.consecutiveDoubles, 0);
+
+    for (final p in restartedState.players) {
+      expect(p.cash, 1000, reason: '${p.name} cash should be 1000');
+      expect(p.position, 0, reason: '${p.name} position should be 0 (GO)');
+      expect(p.ownedPropertyIds, isEmpty, reason: '${p.name} owned properties should be empty');
+      expect(p.isBankrupt, isFalse, reason: '${p.name} should not be bankrupt');
+      expect(p.isInJail, isFalse, reason: '${p.name} should not be in jail');
+      expect(p.turnsInJail, 0, reason: '${p.name} turnsInJail should be 0');
+      expect(p.consecutiveTimeouts, 0, reason: '${p.name} consecutiveTimeouts should be 0');
+      expect(p.consecutiveSkippedTurns, 0, reason: '${p.name} consecutiveSkippedTurns should be 0');
+    }
+
+    // Check all properties reset to unowned, unmortgaged, level 0
+    for (final prop in restartedState.properties.values) {
+      expect(prop.ownerId, isNull, reason: '${prop.name} ownerId should be null');
+      expect(prop.currentLevel, 0, reason: '${prop.name} currentLevel should be 0');
+      expect(prop.isMortgaged, isFalse, reason: '${prop.name} isMortgaged should be false');
+    }
+
+    // Logs are fresh
+    expect(restartedState.gameLogs.length, 1);
+    expect(restartedState.gameLogs.first, contains('Match restarted'));
+  });
+
+  test('Consecutive skipped-turn counter tracks missed turns and resets on action or restart', () {
+    final container = ProviderContainer();
+    final notifier = container.read(gameProvider.notifier);
+
+    notifier.initializeGame([
+      const Player(id: 'p1', name: 'Player 1', type: PlayerType.human, token: PlayerToken.coconut, color: Colors.blue),
+      const Player(id: 'p2', name: 'Player 2', type: PlayerType.human, token: PlayerToken.houseboat, color: Colors.red),
+    ]);
+
+    // Initially 0
+    expect(container.read(gameProvider).players[0].consecutiveSkippedTurns, 0);
+
+    // Simulate timeout strike 1 on p1
+    final p1Strike1 = container.read(gameProvider).players[0].copyWith(consecutiveTimeouts: 1);
+    notifier.state = notifier.state.copyWith(
+      players: [p1Strike1, container.read(gameProvider).players[1]],
+    );
+    expect(container.read(gameProvider).players[0].consecutiveSkippedTurns, 1);
+
+    // Simulate timeout strike 2 on p1
+    final p1Strike2 = container.read(gameProvider).players[0].copyWith(consecutiveTimeouts: 2);
+    notifier.state = notifier.state.copyWith(
+      players: [p1Strike2, container.read(gameProvider).players[1]],
+    );
+    expect(container.read(gameProvider).players[0].consecutiveSkippedTurns, 2);
+
+    // Normal turn action resets timeouts
+    notifier.endTurn();
+    expect(container.read(gameProvider).players[0].consecutiveSkippedTurns, 0);
+
+    // Set strike again and restart
+    final p1StrikeAgain = container.read(gameProvider).players[0].copyWith(consecutiveTimeouts: 2);
+    notifier.state = notifier.state.copyWith(
+      players: [p1StrikeAgain, container.read(gameProvider).players[1]],
+    );
+    expect(container.read(gameProvider).players[0].consecutiveSkippedTurns, 2);
+
+    notifier.restartGame();
+    expect(container.read(gameProvider).players[0].consecutiveSkippedTurns, 0);
   });
 }
