@@ -149,12 +149,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: _buildTopBar(context, gameState, isOnline, multiplayer.activeRoomId),
               ),
 
-              // ==================== PLAYER CARDS ====================
+              // ==================== PLAYER CARDS (COMPACT LEFT) ====================
               Positioned(
                 top: 54,
                 left: 10,
-                right: 10,
-                child: _buildFriendsGrid2N(context, gameState, voiceService),
+                child: _buildCompactPlayerCards(context, gameState, voiceService, constraints.maxWidth - 64),
               ),
 
               // ==================== FLOATING EMOJI ====================
@@ -393,55 +392,53 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildFriendsGrid2N(BuildContext context, GameState gameState, VoiceStreamState voiceService) {
+  Widget _buildCompactPlayerCards(
+    BuildContext context,
+    GameState gameState,
+    VoiceStreamState voiceService,
+    double maxAvailableWidth,
+  ) {
     final players = gameState.players;
-    final rows = <Widget>[];
 
-    for (int i = 0; i < players.length; i += 2) {
-      final p1 = players[i];
-      final p1Index = i;
-      final hasP2 = (i + 1 < players.length);
-      final p2 = hasP2 ? players[i + 1] : null;
-      final p2Index = i + 1;
-
-      rows.add(
-        Row(
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxAvailableWidth),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(child: _buildPlayerCard(p1, p1Index, gameState, voiceService)),
-            const SizedBox(width: 8),
-            if (p2 != null)
-              Expanded(child: _buildPlayerCard(p2, p2Index, gameState, voiceService))
-            else
-              const Spacer(),
+            for (int i = 0; i < players.length; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              _buildCompactPlayerCard(players[i], i, gameState, voiceService),
+            ],
           ],
         ),
-      );
-
-      if (i + 2 < players.length) {
-        rows.add(const SizedBox(height: 8));
-      }
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: rows,
+      ),
     );
   }
 
-  Widget _buildPlayerCard(Player player, int index, GameState gameState, VoiceStreamState voiceService) {
+  Widget _buildCompactPlayerCard(
+    Player player,
+    int index,
+    GameState gameState,
+    VoiceStreamState voiceService,
+  ) {
     final isTurn = index == gameState.currentPlayerIndex;
     final isDark = context.isDark;
     final activeBorderColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488);
-    
+
     // Calculate houses and hotels
     int houses = 0;
     int hotels = 0;
     for (var propId in player.ownedPropertyIds) {
-      final prop = gameState.properties[propId]!;
-      if (prop.currentLevel == 5) {
-        hotels++;
-      } else {
-        houses += prop.currentLevel;
+      final prop = gameState.properties[propId];
+      if (prop != null) {
+        if (prop.currentLevel == 5) {
+          hotels++;
+        } else {
+          houses += prop.currentLevel;
+        }
       }
     }
 
@@ -460,20 +457,21 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      width: 142,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isTurn ? activeBorderColor : (isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
-          width: isTurn ? 2.0 : 1.0,
+          width: isTurn ? 1.8 : 1.0,
         ),
         boxShadow: isTurn
             ? [
                 BoxShadow(
-                  color: activeBorderColor.withValues(alpha: isDark ? 0.40 : 0.28),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: activeBorderColor.withValues(alpha: isDark ? 0.35 : 0.22),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ]
             : context.subtleShadow,
@@ -483,30 +481,31 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         children: [
           // Avatar with decorative ring
           Container(
-            padding: const EdgeInsets.all(2),
+            padding: const EdgeInsets.all(1.5),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: ringColor, width: 2),
+              border: Border.all(color: ringColor, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: ringColor.withValues(alpha: 0.35),
-                  blurRadius: 4,
+                  color: ringColor.withValues(alpha: 0.3),
+                  blurRadius: 3,
                 ),
               ],
             ),
             child: CircleAvatar(
-              radius: 18,
+              radius: 13,
               backgroundImage: avatarImage,
             ),
           ),
-          const SizedBox(width: 8),
-          
+          const SizedBox(width: 6),
+
           // Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Name & BOT badge
                 Row(
                   children: [
                     Flexible(
@@ -514,31 +513,31 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                         player.name,
                         style: GoogleFonts.outfit(
                           color: context.textPrimary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10.5,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (index == 0) ...[
-                      const SizedBox(width: 3),
-                      const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD4AF37), size: 14),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD4AF37), size: 11),
                     ],
                     if (player.type == PlayerType.ai) ...[
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                         decoration: BoxDecoration(
                           color: context.cardAltColor,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: context.borderColor, width: 0.8),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(color: context.borderColor, width: 0.6),
                         ),
                         child: Text(
                           'BOT',
                           style: GoogleFonts.outfit(
                             color: context.textSecondary,
-                            fontSize: 7.5,
+                            fontSize: 7,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -546,64 +545,57 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 1),
+                // Cash
                 Text(
                   _formatCurrency(player.cash),
                   style: GoogleFonts.outfit(
                     color: context.textPrimary,
-                    fontSize: 15,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 2),
+                // Property stats (houses, hotels)
                 Row(
                   children: [
-                    const Icon(Icons.home_rounded, size: 11, color: Color(0xFF10B981)),
-                    const SizedBox(width: 2),
-                    Text('$houses', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 9.5, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.location_city_rounded, size: 11, color: Color(0xFF0284C7)),
-                    const SizedBox(width: 2),
-                    Text('$hotels', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 9.5, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 6),
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 2),
-                    Text('0', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.home_rounded, size: 9, color: Color(0xFF10B981)),
+                    const SizedBox(width: 1),
+                    Text('$houses', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 8, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.location_city_rounded, size: 9, color: Color(0xFF0284C7)),
+                    const SizedBox(width: 1),
+                    Text('$hotels', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 8, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
             ),
           ),
 
-          // Glowing Turn indicator
+          // Mini turn dot / pill
           if (isTurn)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+              margin: const EdgeInsets.only(left: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: isDark
                       ? [const Color(0xFF00E5FF), const Color(0xFF0D9488)]
                       : [const Color(0xFF00B4D8), const Color(0xFF0D9488)],
                 ),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(6),
                 boxShadow: [
                   BoxShadow(
                     color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488)).withValues(alpha: 0.45),
-                    blurRadius: 6,
+                    blurRadius: 4,
                   ),
                 ],
               ),
               child: Text(
-                'YOUR TURN',
+                'TURN',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
-                  fontSize: 8.5,
+                  fontSize: 6.5,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 0.4,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
