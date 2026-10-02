@@ -9,6 +9,8 @@ import '../../services/voice_stream_service.dart';
 import '../../providers/game_provider.dart';
 import 'game_screen.dart';
 import '../widgets/webrtc_audio_renderer.dart';
+import '../../ui/theme/app_theme.dart';
+import '../../ui/theme/theme_provider.dart';
 
 class WaitingRoomScreen extends ConsumerStatefulWidget {
   final String roomId;
@@ -274,10 +276,11 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     if (_roomPlayers.length >= 6) return;
     String botName = _botNames[(_roomPlayers.length - 1) % _botNames.length];
     AiPersonality personality = AiPersonality.conservative;
+    final isDark = context.isDark;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -295,22 +298,26 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     Text(
                       'ADD AI OPPONENT',
                       style: GoogleFonts.outfit(
-                        color: const Color(0xFF0F172A),
+                        color: context.textPrimary,
                         fontWeight: FontWeight.w900,
                         fontSize: 18,
                         letterSpacing: 1.5,
                       ),
                     ),
-                    const Icon(Icons.smart_toy_rounded, color: Color(0xFF047857)),
+                    Icon(
+                      Icons.smart_toy_rounded,
+                      color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Select AI Strategy:', style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 13)),
+                Text('Select AI Strategy:', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 13)),
                 const SizedBox(height: 8),
                 DropdownButton<AiPersonality>(
                   value: personality,
+                  dropdownColor: context.cardColor,
                   isExpanded: true,
-                  style: GoogleFonts.outfit(color: const Color(0xFF0F172A), fontSize: 15),
+                  style: GoogleFonts.outfit(color: context.textPrimary, fontSize: 15),
                   items: AiPersonality.values.map((p) {
                     return DropdownMenuItem(
                       value: p,
@@ -327,7 +334,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                   height: 50,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF047857),
+                      backgroundColor: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
@@ -382,25 +389,28 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: context.cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: context.borderColor),
+        ),
         title: Text(
           'Leave Waiting Room?',
-          style: GoogleFonts.outfit(color: const Color(0xFF0F172A), fontWeight: FontWeight.bold),
+          style: GoogleFonts.outfit(color: context.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: Text(
           widget.isHost
               ? 'You are the host. Leaving will close this room for all connected friends.'
               : 'You will disconnect from this room lobby.',
-          style: GoogleFonts.outfit(color: const Color(0xFF64748B)),
+          style: GoogleFonts.outfit(color: context.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL', style: TextStyle(color: Color(0xFF64748B))),
+            child: Text('CANCEL', style: TextStyle(color: context.textMuted)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: KuthakaColors.crimson, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
               _handleExit();
@@ -466,6 +476,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final voiceService = ref.watch(voiceStreamServiceProvider);
+    final isDark = context.isDark;
 
     return PopScope(
       canPop: false,
@@ -473,23 +484,59 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
         if (!didPop) _leaveRoomConfirm();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: context.bgColor,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: context.cardColor,
           elevation: 0.5,
-          iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+          iconTheme: IconThemeData(color: context.textPrimary),
           title: Text(
             widget.isHost ? 'WAITING ROOM (HOST)' : 'WAITING ROOM (GUEST)',
             style: GoogleFonts.outfit(
-              color: const Color(0xFF0F172A),
+              color: context.textPrimary,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.5,
               fontSize: 17,
             ),
           ),
           actions: [
+            // Theme Toggle Pill
+            InkWell(
+              onTap: () => ref.read(themeModeProvider.notifier).toggle(),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF242C3D) : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF475569) : const Color(0xFFF59E0B),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                      size: 13,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isDark ? 'Dark' : 'Light',
+                      style: GoogleFonts.outfit(
+                        color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFFB45309),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
             IconButton(
-              icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFDC2626)),
+              icon: const Icon(Icons.exit_to_app_rounded, color: KuthakaColors.crimson),
               tooltip: 'Leave Room',
               onPressed: _leaveRoomConfirm,
             ),
@@ -506,24 +553,26 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.cardColor,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4)),
-                    ],
+                    border: Border.all(color: context.borderColor),
+                    boxShadow: context.cardShadow,
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.vpn_key_rounded, color: Color(0xFFB45309), size: 16),
+                          Icon(
+                            Icons.vpn_key_rounded,
+                            color: isDark ? KuthakaColors.gold : const Color(0xFFB45309),
+                            size: 16,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'ROOM PIN CODE',
                             style: GoogleFonts.outfit(
-                              color: const Color(0xFF64748B),
+                              color: context.textSecondary,
                               fontSize: 12,
                               letterSpacing: 2,
                               fontWeight: FontWeight.w800,
@@ -538,7 +587,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                           Text(
                             widget.roomId,
                             style: GoogleFonts.outfit(
-                              color: const Color(0xFF0F172A),
+                              color: context.textPrimary,
                               fontSize: 38,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 6,
@@ -553,7 +602,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('Room Code ${widget.roomId} copied to clipboard!'),
-                                  backgroundColor: const Color(0xFF047857),
+                                  backgroundColor: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
@@ -565,13 +614,13 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: context.cardAltColor,
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                                border: Border.all(color: context.borderColor),
                               ),
                               child: Icon(
                                 _copied ? Icons.check_rounded : Icons.copy_rounded,
-                                color: const Color(0xFF0F172A),
+                                color: context.textPrimary,
                                 size: 20,
                               ),
                             ),
@@ -580,7 +629,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                       ),
                       Text(
                         'Share this PIN with friends so they can join from their phone',
-                        style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 11),
+                        style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 11),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
@@ -590,12 +639,12 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: context.cardAltColor,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: voiceService.isSpeaking
-                                  ? const Color(0xFF10B981)
-                                  : const Color(0xFFE2E8F0),
+                                  ? (isDark ? KuthakaColors.emerald : const Color(0xFF10B981))
+                                  : context.borderColor,
                               width: voiceService.isSpeaking ? 1.8 : 1.0,
                             ),
                           ),
@@ -620,13 +669,13 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                   padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
                                     color: voiceService.isPushToTalkActive
-                                        ? const Color(0xFFDCFCE7)
+                                        ? (isDark ? const Color(0xFF0D3B2E) : const Color(0xFFDCFCE7))
                                         : Colors.transparent,
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     voiceService.isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                                    color: voiceService.isMicMuted ? const Color(0xFFEF4444) : const Color(0xFF047857),
+                                    color: voiceService.isMicMuted ? KuthakaColors.crimson : (isDark ? KuthakaColors.emerald : const Color(0xFF047857)),
                                     size: 22,
                                   ),
                                 ),
@@ -643,7 +692,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                       height: 8 + (voiceService.myAudioLevel * 18 * (index % 2 == 0 ? 1 : 0.6)),
                                       margin: const EdgeInsets.symmetric(horizontal: 1.5),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF047857),
+                                        color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
                                         borderRadius: BorderRadius.circular(2),
                                       ),
                                     );
@@ -655,7 +704,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                       ? 'TALKING...'
                                       : (voiceService.isMicMuted ? 'Mic Off' : 'Mic Live'),
                                   style: GoogleFonts.outfit(
-                                    color: voiceService.isMicMuted ? const Color(0xFF64748B) : const Color(0xFF047857),
+                                    color: voiceService.isMicMuted ? context.textMuted : (isDark ? KuthakaColors.emerald : const Color(0xFF047857)),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -669,7 +718,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                 },
                                 child: Icon(
                                   voiceService.isSpeakerMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                                  color: voiceService.isSpeakerMuted ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
+                                  color: voiceService.isSpeakerMuted ? context.textMuted : context.textPrimary,
                                   size: 20,
                                 ),
                               ),
@@ -678,13 +727,13 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE0F2FE),
+                                  color: isDark ? const Color(0xFF0F2942) : const Color(0xFFE0F2FE),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
                                   'PEER VOICE MESH',
                                   style: GoogleFonts.outfit(
-                                    color: const Color(0xFF0369A1),
+                                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
                                     fontSize: 9,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 0.5,
@@ -707,7 +756,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     Text(
                       'PLAYERS (${_roomPlayers.length}/6)',
                       style: GoogleFonts.outfit(
-                        color: const Color(0xFF334155),
+                        color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.2,
@@ -716,10 +765,10 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     if (widget.isHost && _roomPlayers.length < 6)
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFECFDF5),
-                          foregroundColor: const Color(0xFF047857),
+                          backgroundColor: isDark ? const Color(0xFF0D3B2E) : const Color(0xFFECFDF5),
+                          foregroundColor: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
                           elevation: 0,
-                          side: const BorderSide(color: Color(0xFF047857)),
+                          side: BorderSide(color: isDark ? KuthakaColors.emerald : const Color(0xFF047857)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         ),
@@ -731,14 +780,13 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // ==================== 4 PLAYER SLOTS ====================
+                // ==================== 6 PLAYER SLOTS ====================
                 Expanded(
                   child: ListView.builder(
                     itemCount: 6,
                     itemBuilder: (context, index) {
                       if (index < _roomPlayers.length) {
                         final p = _roomPlayers[index];
-                        // The host is always at index 0, EXCEPT if we are a guest who hasn't received sync yet
                         final isHostSlot = index == 0 && (widget.isHost || _roomPlayers.length > 1);
                         final isMe = p.id == widget.myPlayer.id;
 
@@ -746,12 +794,10 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.cardColor,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                            boxShadow: const [
-                              BoxShadow(color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 2)),
-                            ],
+                            border: Border.all(color: context.borderColor),
+                            boxShadow: context.subtleShadow,
                           ),
                           child: Row(
                             children: [
@@ -771,7 +817,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                           child: Text(
                                             p.name,
                                             style: GoogleFonts.outfit(
-                                              color: const Color(0xFF0F172A),
+                                              color: context.textPrimary,
                                               fontWeight: FontWeight.w800,
                                               fontSize: 15,
                                             ),
@@ -783,10 +829,18 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFFF1F5F9),
+                                              color: context.cardAltColor,
                                               borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: context.borderColor),
                                             ),
-                                            child: const Text('YOU', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF475569))),
+                                            child: Text(
+                                              'YOU',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w900,
+                                                color: context.textSecondary,
+                                              ),
+                                            ),
                                           ),
                                         ],
                                         const SizedBox(width: 8),
@@ -794,16 +848,20 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: isHostSlot
-                                                ? const Color(0xFFFEF3C7)
-                                                : (p.type == PlayerType.human ? const Color(0xFFE0E7FF) : const Color(0xFFF3E8FF)),
+                                                ? (isDark ? const Color(0xFF3D2E0A) : const Color(0xFFFEF3C7))
+                                                : (p.type == PlayerType.human
+                                                    ? (isDark ? const Color(0xFF1E1E38) : const Color(0xFFE0E7FF))
+                                                    : (isDark ? const Color(0xFF2E1A3D) : const Color(0xFFF3E8FF))),
                                             borderRadius: BorderRadius.circular(8),
                                           ),
                                           child: Text(
                                             isHostSlot ? 'HOST' : (p.type == PlayerType.human ? 'GUEST' : 'BOT'),
                                             style: GoogleFonts.outfit(
                                               color: isHostSlot
-                                                  ? const Color(0xFF92400E)
-                                                  : (p.type == PlayerType.human ? const Color(0xFF3730A3) : const Color(0xFF6B21A8)),
+                                                  ? (isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E))
+                                                  : (p.type == PlayerType.human
+                                                      ? (isDark ? const Color(0xFF818CF8) : const Color(0xFF3730A3))
+                                                      : (isDark ? const Color(0xFFC084FC) : const Color(0xFF6B21A8))),
                                               fontWeight: FontWeight.w900,
                                               fontSize: 10,
                                             ),
@@ -816,14 +874,14 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                       p.type == PlayerType.ai
                                           ? 'Personality: ${p.aiPersonality?.name.toUpperCase()} • ₹${widget.startingCash}'
                                           : 'Piece: ${p.tokenName} • ₹${widget.startingCash}',
-                                      style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 11),
+                                      style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 11),
                                     ),
                                   ],
                                 ),
                               ),
                               if (widget.isHost && !isHostSlot)
                                 IconButton(
-                                  icon: const Icon(Icons.close_rounded, color: Color(0xFFDC2626), size: 20),
+                                  icon: const Icon(Icons.close_rounded, color: KuthakaColors.crimson, size: 20),
                                   tooltip: 'Kick Player',
                                   onPressed: () => _removePlayer(index),
                                 ),
@@ -837,16 +895,16 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: context.cardAltColor,
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Row(
                           children: [
                             CircleAvatar(
                               radius: 20,
-                              backgroundColor: const Color(0xFFE2E8F0),
-                              child: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF94A3B8), size: 18),
+                              backgroundColor: isDark ? const Color(0xFF2A2A3A) : const Color(0xFFE2E8F0),
+                              child: Icon(Icons.person_add_alt_1_rounded, color: context.textMuted, size: 18),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -855,11 +913,11 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                                 children: [
                                   Text(
                                     'Slot ${index + 1}: Open for Player',
-                                    style: GoogleFonts.outfit(color: const Color(0xFF334155), fontWeight: FontWeight.w700, fontSize: 13),
+                                    style: GoogleFonts.outfit(color: context.textPrimary, fontWeight: FontWeight.w700, fontSize: 13),
                                   ),
                                   Text(
                                     'Waiting for friend or add an AI Bot...',
-                                    style: GoogleFonts.outfit(color: const Color(0xFF94A3B8), fontSize: 11),
+                                    style: GoogleFonts.outfit(color: context.textMuted, fontSize: 11),
                                   ),
                                 ],
                               ),
@@ -867,8 +925,8 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                             if (widget.isHost)
                               OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF047857),
-                                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                  foregroundColor: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
+                                  side: BorderSide(color: context.borderColor),
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
@@ -892,7 +950,9 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     height: 52,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _roomPlayers.length >= 2 ? const Color(0xFF047857) : const Color(0xFFCBD5E1),
+                        backgroundColor: _roomPlayers.length >= 2
+                            ? (isDark ? KuthakaColors.emerald : const Color(0xFF047857))
+                            : (isDark ? const Color(0xFF2A2A3A) : const Color(0xFFCBD5E1)),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         elevation: _roomPlayers.length >= 2 ? 4 : 0,
@@ -914,7 +974,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     const SizedBox(height: 6),
                     Text(
                       'Tip: Tap "+ ADD BOT" above if playing solo or waiting for friends',
-                      style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 11),
+                      style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 11),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -923,23 +983,27 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: context.borderColor),
+                      boxShadow: context.subtleShadow,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(
+                        SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF047857)),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Text(
                           'WAITING FOR HOST TO START MATCH...',
                           style: GoogleFonts.outfit(
-                            color: const Color(0xFF047857),
+                            color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.2,
                             fontSize: 12,

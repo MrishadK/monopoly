@@ -6,6 +6,8 @@ import '../../models/public_room.dart';
 import '../../services/multiplayer_service.dart';
 import '../../services/user_profile_service.dart';
 import '../../services/voice_stream_service.dart';
+import '../../ui/theme/app_theme.dart';
+import '../../ui/theme/theme_provider.dart';
 import 'user_profile_screen.dart';
 import 'waiting_room_screen.dart';
 import 'leaderboard_screen.dart';
@@ -174,30 +176,70 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   Widget build(BuildContext context) {
     final profile = ref.watch(userProfileProvider);
     final myPlayer = profile.toPlayer(cash: _startingCash);
+    final isDark = context.isDark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: context.bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.cardColor,
         elevation: 0.5,
-        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+        iconTheme: IconThemeData(color: context.textPrimary),
         title: Text(
           'MULTIPLAYER LOUNGE',
           style: GoogleFonts.outfit(
-            color: const Color(0xFF0F172A),
+            color: context.textPrimary,
             fontWeight: FontWeight.w900,
             letterSpacing: 2,
             fontSize: 18,
           ),
         ),
         actions: [
+          // Theme Toggle Pill
+          InkWell(
+            onTap: () => ref.read(themeModeProvider.notifier).toggle(),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF242C3D) : const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF475569) : const Color(0xFFF59E0B),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    size: 13,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFD97706),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isDark ? 'Dark' : 'Light',
+                    style: GoogleFonts.outfit(
+                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFFB45309),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.leaderboard_rounded, color: Color(0xFF047857)),
+            icon: Icon(
+              Icons.leaderboard_rounded,
+              color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
+            ),
             tooltip: 'Kerala Tycoons Leaderboard',
             onPressed: _openLeaderboard,
           ),
           IconButton(
-            icon: const Icon(Icons.manage_accounts_rounded, color: Color(0xFF0F172A)),
+            icon: Icon(Icons.manage_accounts_rounded, color: context.textPrimary),
             tooltip: 'Edit Player Profile',
             onPressed: _openProfileSetup,
           ),
@@ -209,7 +251,15 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFFECFDF5),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0D3B2E) : const Color(0xFFECFDF5),
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? const Color(0xFF134E3A) : const Color(0xFFA7F3D0),
+                  width: 0.8,
+                ),
+              ),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -225,7 +275,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 Text(
                   'Game Network: Online',
                   style: GoogleFonts.outfit(
-                    color: const Color(0xFF065F46),
+                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF065F46),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -247,12 +297,10 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.cardColor,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                          boxShadow: const [
-                            BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 3)),
-                          ],
+                          border: Border.all(color: context.borderColor),
+                          boxShadow: context.subtleShadow,
                         ),
                         child: Row(
                           children: [
@@ -272,7 +320,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                         child: Text(
                                           profile.name,
                                           style: GoogleFonts.outfit(
-                                            color: const Color(0xFF0F172A),
+                                            color: context.textPrimary,
                                             fontWeight: FontWeight.w800,
                                             fontSize: 17,
                                           ),
@@ -283,13 +331,16 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFFEF3C7),
+                                          color: isDark ? const Color(0xFF3D2E0A) : const Color(0xFFFEF3C7),
                                           borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: isDark ? const Color(0xFFF59E0B).withValues(alpha: 0.5) : const Color(0xFFFDE68A),
+                                          ),
                                         ),
                                         child: Text(
                                           'READY',
                                           style: GoogleFonts.outfit(
-                                            color: const Color(0xFF92400E),
+                                            color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
                                             fontSize: 10,
                                             fontWeight: FontWeight.w900,
                                           ),
@@ -299,15 +350,18 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                   ),
                                   Text(
                                     'Token: ${myPlayer.tokenName}',
-                                    style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 13),
+                                    style: GoogleFonts.outfit(
+                                      color: context.textSecondary,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                             OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF0F172A),
-                                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                foregroundColor: context.textPrimary,
+                                side: BorderSide(color: context.borderColor),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               ),
@@ -324,13 +378,18 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
+                            color: isDark ? const Color(0xFF3B1010) : const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFFECACA)),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFECACA),
+                            ),
                           ),
                           child: Text(
                             _error,
-                            style: GoogleFonts.outfit(color: const Color(0xFFB91C1C), fontSize: 13),
+                            style: GoogleFonts.outfit(
+                              color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+                              fontSize: 13,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -341,12 +400,16 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                       // ==================== 2. LIVE PUBLIC ROOMS DISCOVERY ====================
                       Row(
                         children: [
-                          const Icon(Icons.radar_rounded, size: 18, color: Color(0xFF047857)),
+                          Icon(
+                            Icons.radar_rounded,
+                            size: 18,
+                            color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'LIVE PUBLIC ROOMS',
                             style: GoogleFonts.outfit(
-                              color: const Color(0xFF334155),
+                              color: context.textPrimary,
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
                               letterSpacing: 1.2,
@@ -355,7 +418,10 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                           const Spacer(),
                           Text(
                             '${_publicRooms.length} available',
-                            style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12),
+                            style: GoogleFonts.outfit(
+                              color: context.textSecondary,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
@@ -365,19 +431,24 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.cardColor,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: context.borderColor),
+                            boxShadow: context.subtleShadow,
                           ),
                           child: Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFF1F5F9),
+                                decoration: BoxDecoration(
+                                  color: context.cardAltColor,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                                child: Icon(
+                                  Icons.search_rounded,
+                                  size: 20,
+                                  color: context.textMuted,
+                                ),
                               ),
                               const SizedBox(width: 14),
                               Expanded(
@@ -387,14 +458,17 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                     Text(
                                       'No open public games right now',
                                       style: GoogleFonts.outfit(
-                                        color: const Color(0xFF0F172A),
+                                        color: context.textPrimary,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13,
                                       ),
                                     ),
                                     Text(
                                       'Host a room below to be seen by other players!',
-                                      style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12),
+                                      style: GoogleFonts.outfit(
+                                        color: context.textSecondary,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -413,23 +487,25 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                             return Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: context.cardColor,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFCBD5E1)),
-                                boxShadow: const [
-                                  BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 2)),
-                                ],
+                                border: Border.all(color: context.borderColor),
+                                boxShadow: context.subtleShadow,
                               ),
                               child: Row(
                                 children: [
                                   Container(
                                     width: 40,
                                     height: 40,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFECFDF5),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF0D3B2E) : const Color(0xFFECFDF5),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(Icons.meeting_room_rounded, color: Color(0xFF047857), size: 20),
+                                    child: Icon(
+                                      Icons.meeting_room_rounded,
+                                      color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
+                                      size: 20,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -439,7 +515,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                         Text(
                                           '${room.hostName}\'s Room',
                                           style: GoogleFonts.outfit(
-                                            color: const Color(0xFF0F172A),
+                                            color: context.textPrimary,
                                             fontWeight: FontWeight.w800,
                                             fontSize: 14,
                                           ),
@@ -449,17 +525,25 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                             Text(
                                               'PIN: ${room.roomId}',
                                               style: GoogleFonts.outfit(
-                                                color: const Color(0xFF64748B),
+                                                color: context.textSecondary,
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 12,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            const Icon(Icons.people_alt_rounded, size: 12, color: Color(0xFF94A3B8)),
+                                            Icon(
+                                              Icons.people_alt_rounded,
+                                              size: 12,
+                                              color: context.textMuted,
+                                            ),
                                             const SizedBox(width: 3),
                                             Text(
                                               '${room.playerCount}/${room.maxPlayers}',
-                                              style: const TextStyle(color: Color(0xFF64748B), fontSize: 11, fontWeight: FontWeight.bold),
+                                              style: TextStyle(
+                                                color: context.textSecondary,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -468,7 +552,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                   ),
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF047857),
+                                      backgroundColor: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -491,12 +575,10 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.cardColor,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                          boxShadow: const [
-                            BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4)),
-                          ],
+                          border: Border.all(color: context.borderColor),
+                          boxShadow: context.cardShadow,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,11 +587,15 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(10),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFFEF3C7),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF3D2E0A) : const Color(0xFFFEF3C7),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.add_home_work_rounded, color: Color(0xFFB45309), size: 22),
+                                  child: Icon(
+                                    Icons.add_home_work_rounded,
+                                    color: isDark ? KuthakaColors.gold : const Color(0xFFB45309),
+                                    size: 22,
+                                  ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -519,14 +605,17 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                       Text(
                                         'CREATE NEW ROOM',
                                         style: GoogleFonts.outfit(
-                                          color: const Color(0xFF0F172A),
+                                          color: context.textPrimary,
                                           fontWeight: FontWeight.w900,
                                           fontSize: 16,
                                         ),
                                       ),
                                       Text(
                                         'Host a match & gather friends in waiting lobby',
-                                        style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12),
+                                        style: GoogleFonts.outfit(
+                                          color: context.textSecondary,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -537,7 +626,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                             Text(
                               'STARTING CASH PER PLAYER',
                               style: GoogleFonts.outfit(
-                                color: const Color(0xFF64748B),
+                                color: context.textSecondary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.1,
@@ -546,11 +635,11 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                _cashOptionChip(1000, '₹1,000'),
+                                _cashOptionChip(context, 1000, '₹1,000', isDark),
                                 const SizedBox(width: 8),
-                                _cashOptionChip(1500, '₹1,500'),
+                                _cashOptionChip(context, 1500, '₹1,500', isDark),
                                 const SizedBox(width: 8),
-                                _cashOptionChip(2500, '₹2,500'),
+                                _cashOptionChip(context, 2500, '₹2,500', isDark),
                               ],
                             ),
                             const SizedBox(height: 18),
@@ -559,7 +648,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                               height: 50,
                               child: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF047857),
+                                  backgroundColor: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
                                   foregroundColor: Colors.white,
                                   elevation: 2,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -584,12 +673,10 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.cardColor,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                          boxShadow: const [
-                            BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4)),
-                          ],
+                          border: Border.all(color: context.borderColor),
+                          boxShadow: context.cardShadow,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,11 +685,15 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(10),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFE0E7FF),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E1B4B) : const Color(0xFFE0E7FF),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.vpn_key_rounded, color: Color(0xFF4338CA), size: 22),
+                                  child: Icon(
+                                    Icons.vpn_key_rounded,
+                                    color: isDark ? const Color(0xFF818CF8) : const Color(0xFF4338CA),
+                                    size: 22,
+                                  ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -612,14 +703,17 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                       Text(
                                         'JOIN WITH PRIVATE PIN',
                                         style: GoogleFonts.outfit(
-                                          color: const Color(0xFF0F172A),
+                                          color: context.textPrimary,
                                           fontWeight: FontWeight.w900,
                                           fontSize: 16,
                                         ),
                                       ),
                                       Text(
                                         'Enter 6-digit code shared by host',
-                                        style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12),
+                                        style: GoogleFonts.outfit(
+                                          color: context.textSecondary,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -633,7 +727,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                               maxLength: 6,
                               textAlign: TextAlign.center,
                               style: GoogleFonts.outfit(
-                                color: const Color(0xFF0F172A),
+                                color: context.textPrimary,
                                 fontSize: 24,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 8,
@@ -641,21 +735,27 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                               decoration: InputDecoration(
                                 counterText: '',
                                 hintText: '000000',
-                                hintStyle: GoogleFonts.outfit(color: const Color(0xFFCBD5E1), letterSpacing: 8),
+                                hintStyle: GoogleFonts.outfit(
+                                  color: context.textMuted,
+                                  letterSpacing: 8,
+                                ),
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
+                                fillColor: context.cardAltColor,
                                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                                  borderSide: BorderSide(color: context.borderColor),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                                  borderSide: BorderSide(color: context.borderColor),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(color: Color(0xFF047857), width: 2),
+                                  borderSide: BorderSide(
+                                    color: isDark ? KuthakaColors.emerald : const Color(0xFF047857),
+                                    width: 2,
+                                  ),
                                 ),
                               ),
                             ),
@@ -665,9 +765,14 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                               height: 50,
                               child: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF0F172A),
+                                  backgroundColor: isDark ? const Color(0xFF252538) : const Color(0xFF0F172A),
                                   foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: BorderSide(
+                                      color: isDark ? context.borderColor : Colors.transparent,
+                                    ),
+                                  ),
                                 ),
                                 onPressed: _isLoadingJoin ? null : _joinFromInput,
                                 icon: _isLoadingJoin
@@ -692,19 +797,24 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.cardColor,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: context.borderColor),
+                            boxShadow: context.subtleShadow,
                           ),
                           child: Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFFFFBEB),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF3D2E0A) : const Color(0xFFFFFBEB),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD97706), size: 22),
+                                child: Icon(
+                                  Icons.workspace_premium_rounded,
+                                  color: isDark ? KuthakaColors.gold : const Color(0xFFD97706),
+                                  size: 22,
+                                ),
                               ),
                               const SizedBox(width: 14),
                               Expanded(
@@ -714,19 +824,22 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                     Text(
                                       'Kerala Tycoons Hall of Fame',
                                       style: GoogleFonts.outfit(
-                                        color: const Color(0xFF0F172A),
+                                        color: context.textPrimary,
                                         fontWeight: FontWeight.w800,
                                         fontSize: 14,
                                       ),
                                     ),
                                     Text(
                                       'See live top rankings from Kerala League',
-                                      style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12),
+                                      style: GoogleFonts.outfit(
+                                        color: context.textSecondary,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                              Icon(Icons.chevron_right_rounded, color: context.textMuted),
                             ],
                           ),
                         ),
@@ -743,7 +856,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     );
   }
 
-  Widget _cashOptionChip(int amount, String label) {
+  Widget _cashOptionChip(BuildContext context, int amount, String label, bool isDark) {
     final isSelected = _startingCash == amount;
     return Expanded(
       child: InkWell(
@@ -753,17 +866,23 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+            color: isSelected
+                ? (isDark ? const Color(0xFF0D3B2E) : const Color(0xFFECFDF5))
+                : context.cardAltColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? const Color(0xFF047857) : const Color(0xFFE2E8F0),
+              color: isSelected
+                  ? (isDark ? KuthakaColors.emerald : const Color(0xFF047857))
+                  : context.borderColor,
               width: isSelected ? 2 : 1,
             ),
           ),
           child: Text(
             label,
             style: GoogleFonts.outfit(
-              color: isSelected ? const Color(0xFF047857) : const Color(0xFF475569),
+              color: isSelected
+                  ? (isDark ? KuthakaColors.emerald : const Color(0xFF047857))
+                  : context.textSecondary,
               fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
               fontSize: 13,
             ),
