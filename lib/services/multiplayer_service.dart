@@ -76,9 +76,23 @@ class MultiplayerService {
     });
 
     // Query persistent Postgres game_rooms table
+    final staleCutoff = DateTime.now().subtract(const Duration(minutes: 1)).toIso8601String();
+
+    // Automatically purge stale rooms (> 1 min without heartbeat) or with 0 players
+    client.from('game_rooms')
+      .delete()
+      .lt('updated_at', staleCutoff)
+      .then((_) {})
+      .catchError((err) {
+        debugPrint('[MultiplayerService] game_rooms auto-purge: $err');
+      });
+
+    // Query only fresh, active waiting rooms
     client.from('game_rooms')
       .select('room_id, host_name, player_count, max_players, starting_cash, updated_at')
       .eq('status', 'waiting')
+      .gt('updated_at', staleCutoff)
+      .gt('player_count', 0)
       .then((rows) {
         for (final row in rows) {
           final rId = row['room_id']?.toString() ?? '';
