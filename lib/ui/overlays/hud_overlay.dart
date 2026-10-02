@@ -762,30 +762,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           _buildBottomDockItem(
             context,
             index: 1,
-            icon: Icons.swap_horiz_rounded,
-            label: 'Trade',
-            onTap: () {
-              setState(() => _activeNavIndex = 1);
-              if (isMyTurn) showDialog(context: context, builder: (_) => const TradeDialog());
-            },
-          ),
-          _buildBottomDockItem(
-            context,
-            index: 2,
-            icon: Icons.bolt_rounded,
-            label: 'Actions',
-            onTap: () {
-              setState(() => _activeNavIndex = 2);
-            },
-          ),
-          _buildBottomDockItem(
-            context,
-            index: 3,
             icon: Icons.emoji_emotions_rounded,
             label: 'Chat / Emoji',
             hasNotification: true,
             onTap: () {
-              setState(() => _activeNavIndex = 3);
+              setState(() => _activeNavIndex = 1);
               showDialog(
                 context: context,
                 barrierColor: Colors.black26,
@@ -795,20 +776,20 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           ),
           _buildBottomDockItem(
             context,
-            index: 4,
+            index: 2,
             icon: Icons.history_rounded,
             label: 'Logs',
             onTap: () {
-              setState(() => _activeNavIndex = 4);
+              setState(() => _activeNavIndex = 2);
             },
           ),
           _buildBottomDockItem(
             context,
-            index: 5,
+            index: 3,
             icon: Icons.settings_rounded,
             label: 'Settings',
             onTap: () {
-              setState(() => _activeNavIndex = 5);
+              setState(() => _activeNavIndex = 3);
               showDialog(context: context, builder: (_) => const GameMenuDialog());
             },
           ),
