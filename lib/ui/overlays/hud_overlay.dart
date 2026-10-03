@@ -1,4 +1,4 @@
-import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,249 +35,7 @@ class HudOverlay extends ConsumerStatefulWidget {
 
 class _HudOverlayState extends ConsumerState<HudOverlay> {
   int _activeNavIndex = 0;
-  BoardInteractionMode _interactionMode = BoardInteractionMode.none;
 
-  void _clearInteractionMode() {
-    setState(() => _interactionMode = BoardInteractionMode.none);
-    widget.game.setHighlightedProperties({});
-    widget.game.onPropertyTappedCustom = null;
-  }
-
-  void _activateRedeemMode(GameState gameState, Player currentPlayer) {
-    if (_interactionMode == BoardInteractionMode.redeem) {
-      _clearInteractionMode();
-      return;
-    }
-
-    final mortgagedProps = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && p.isMortgaged)
-        .toList();
-
-    if (mortgagedProps.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'No mortgaged properties available to redeem.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFEF4444),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    final affordableProps = mortgagedProps
-        .where((p) => currentPlayer.cash >= p.unmortgageCost)
-        .toList();
-
-    if (affordableProps.isEmpty) {
-      final minCost = mortgagedProps.map((p) => p.unmortgageCost).reduce(min);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Insufficient funds: You need at least ₹$minCost to redeem any mortgaged property.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFEF4444),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    final eligibleIds = affordableProps.map((p) => p.id).toSet();
-
-    setState(() => _interactionMode = BoardInteractionMode.redeem);
-    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF10B981));
-    widget.game.onPropertyTappedCustom = (Property prop) {
-      final currentGs = ref.read(gameProvider);
-      final currentP = currentGs.currentPlayer;
-      final currentProp = currentGs.properties[prop.id] ?? prop;
-
-      if (currentProp.ownerId != currentP.id) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'You can only redeem properties that you own.',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: const Color(0xFFEF4444),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-
-      if (!currentProp.isMortgaged) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${currentProp.name} is not mortgaged.',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: const Color(0xFFEF4444),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-
-      final redeemCost = currentProp.unmortgageCost;
-      if (currentP.cash < redeemCost) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Insufficient funds: Redeeming ${currentProp.name} costs ₹$redeemCost, but you have ₹${currentP.cash}.',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: const Color(0xFFEF4444),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-
-      ref.read(gameProvider.notifier).redeemProperty(currentProp.id);
-
-      final updatedGs = ref.read(gameProvider);
-      final updatedP = updatedGs.currentPlayer;
-      final newEligible = updatedGs.properties.values
-          .where((p) => p.ownerId == updatedP.id && p.isMortgaged && updatedP.cash >= p.unmortgageCost)
-          .map((p) => p.id)
-          .toSet();
-
-      if (newEligible.isEmpty) {
-        _clearInteractionMode();
-      } else {
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFF10B981));
-      }
-    };
-  }
-
-  void _activateBuildMode(GameState gameState, Player currentPlayer) {
-    if (_interactionMode == BoardInteractionMode.build) {
-      _clearInteractionMode();
-      return;
-    }
-
-    final hasMonopoly = gameState.properties.values.any(
-      (p) => p.ownerId == currentPlayer.id && p.isMonopoly(gameState.properties),
-    );
-
-    if (!hasMonopoly) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'You need to own all properties in a complete color group before building.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFD97706),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && p.canUpgrade(gameState.properties, currentPlayer.cash))
-        .map((p) => p.id)
-        .toSet();
-
-    setState(() => _interactionMode = BoardInteractionMode.build);
-    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF7C3AED));
-    widget.game.onPropertyTappedCustom = (Property prop) {
-      if (prop.ownerId == currentPlayer.id && prop.canUpgrade(ref.read(gameProvider).properties, currentPlayer.cash)) {
-        ref.read(gameProvider.notifier).upgradeProperty(prop.id);
-        final updated = ref.read(gameProvider);
-        final newEligible = updated.properties.values
-            .where((p) => p.ownerId == currentPlayer.id && p.canUpgrade(updated.properties, currentPlayer.cash))
-            .map((p) => p.id)
-            .toSet();
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFF7C3AED));
-      }
-    };
-  }
-
-  void _activateMortgageMode(GameState gameState, Player currentPlayer) {
-    if (_interactionMode == BoardInteractionMode.mortgage) {
-      _clearInteractionMode();
-      return;
-    }
-
-    final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && (p.canMortgage(gameState.properties) || p.canUnmortgage(currentPlayer.cash)))
-        .map((p) => p.id)
-        .toSet();
-
-    if (eligibleIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'You have no properties available to mortgage or unmortgage.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFEA580C),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _interactionMode = BoardInteractionMode.mortgage);
-    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFEA580C));
-    widget.game.onPropertyTappedCustom = (Property prop) {
-      if (prop.ownerId == currentPlayer.id && (prop.canMortgage(ref.read(gameProvider).properties) || prop.canUnmortgage(currentPlayer.cash))) {
-        ref.read(gameProvider.notifier).toggleMortgage(prop.id);
-        final updated = ref.read(gameProvider);
-        final newEligible = updated.properties.values
-            .where((p) => p.ownerId == currentPlayer.id && (p.canMortgage(updated.properties) || p.canUnmortgage(currentPlayer.cash)))
-            .map((p) => p.id)
-            .toSet();
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFFEA580C));
-      }
-    };
-  }
-
-  void _activateSellMode(GameState gameState, Player currentPlayer) {
-    if (_interactionMode == BoardInteractionMode.sell) {
-      _clearInteractionMode();
-      return;
-    }
-
-    final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && p.canDowngrade(gameState.properties))
-        .map((p) => p.id)
-        .toSet();
-
-    if (eligibleIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'You have no houses or hotels eligible to sell.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFE11D48),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _interactionMode = BoardInteractionMode.sell);
-    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFE11D48));
-    widget.game.onPropertyTappedCustom = (Property prop) {
-      if (prop.ownerId == currentPlayer.id && prop.canDowngrade(ref.read(gameProvider).properties)) {
-        ref.read(gameProvider.notifier).sellBuilding(prop.id);
-        final updated = ref.read(gameProvider);
-        final newEligible = updated.properties.values
-            .where((p) => p.ownerId == currentPlayer.id && p.canDowngrade(updated.properties))
-            .map((p) => p.id)
-            .toSet();
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFFE11D48));
-      }
-    };
-  }
 
   @override
   void initState() {
@@ -364,7 +122,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.isDark;
     final gameState = ref.watch(gameProvider);
     final currentPlayer = gameState.currentPlayer;
     final voiceService = ref.watch(voiceStreamServiceProvider);
@@ -382,11 +139,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final double diceWidth = board != null ? (board.size.x * 0.72) : 300.0;
 
     ref.listen(gameProvider, (prev, next) {
-      if (prev?.currentPlayerIndex != next.currentPlayerIndex || next.gameLogs.length <= 1) {
-        if (_interactionMode != BoardInteractionMode.none) {
-          _clearInteractionMode();
-        }
-      }
+      // Empty block for now, or you can completely remove the listen if it's empty
     });
 
     return RepaintBoundary(
@@ -441,14 +194,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (_interactionMode != BoardInteractionMode.none)
-                      _buildInteractionModeCard(context, isDark)
-                    else ...[
-                      _buildDiceTray(context, gameState, currentPlayer, isMyTurn),
-                      if (gameState.phase == GamePhase.turnEnd && isMyTurn) ...[
-                        const SizedBox(height: 6),
-                        _buildMainActionButton(context, gameState, currentPlayer),
-                      ],
+                    _buildDiceTray(context, gameState, currentPlayer, isMyTurn),
+                    if (gameState.phase == GamePhase.turnEnd && isMyTurn) ...[
+                      const SizedBox(height: 6),
+                      _buildMainActionButton(context, gameState, currentPlayer),
                     ],
                   ],
                 ),
@@ -910,12 +659,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               backgroundColor: Colors.transparent,
               builder: (_) => const PortfolioSheet(),
             );
-          }),
-          _buildBottomDockActionButton(context, Icons.info_outline_rounded, 'Details', const Color(0xFF475569), () {
-            final p = prop ?? (space?.propertyId != null ? gameState.properties[space!.propertyId] : null);
-            if (p != null) {
-              ref.read(gameProvider.notifier).inspectProperty(p);
-            }
           }),
         ],
       ),
@@ -1474,109 +1217,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildInteractionModeCard(BuildContext context, bool isDark) {
-    String title;
-    IconData icon;
-    Color accentColor;
-    String description;
 
-    switch (_interactionMode) {
-      case BoardInteractionMode.redeem:
-        title = 'REDEEM MODE';
-        icon = Icons.lock_open_rounded;
-        accentColor = const Color(0xFF10B981);
-        description = 'Select a mortgaged property to redeem it. Redeeming a property removes its mortgage after paying the mortgage value plus 10% interest.';
-        break;
-      case BoardInteractionMode.build:
-        title = 'BUILD MODE';
-        icon = Icons.apartment_rounded;
-        accentColor = const Color(0xFF7C3AED);
-        description = 'Tap highlighted properties to construct houses/hotels. Official Monopoly rules require building evenly across a monopoly group.';
-        break;
-      case BoardInteractionMode.mortgage:
-        title = 'MORTGAGE MODE';
-        icon = Icons.home_work_rounded;
-        accentColor = const Color(0xFFEA580C);
-        description = 'Tap highlighted properties to mortgage (receive 50% value) or unmortgage (+10% interest). No buildings may exist on any property in the group.';
-        break;
-      case BoardInteractionMode.sell:
-        title = 'SELL BUILDINGS';
-        icon = Icons.sell_rounded;
-        accentColor = const Color(0xFFE11D48);
-        description = 'Tap highlighted properties to sell houses/hotels back to the bank for 50% of purchase price. Must sell evenly across group.';
-        break;
-      case BoardInteractionMode.none:
-        return const SizedBox.shrink();
-    }
-
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 320),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withValues(alpha: 0.8), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: accentColor.withValues(alpha: 0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: accentColor, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.outfit(
-                  color: accentColor,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.outfit(
-              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: _clearInteractionMode,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-              decoration: BoxDecoration(
-                color: accentColor,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'CLOSE',
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildJailActionTray(
     BuildContext context,
