@@ -241,10 +241,9 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   // ==================== FRAME ====================
 
   void _drawFrame(Canvas canvas, Rect rect) {
-    // 3D elevated drop shadow
+    // 3D elevated drop shadow (optimized for web)
     final shadowPaint = Paint()
-      ..color = isDark ? Colors.black.withValues(alpha: 0.65) : Colors.black.withValues(alpha: 0.20)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+      ..color = isDark ? Colors.black.withValues(alpha: 0.50) : Colors.black.withValues(alpha: 0.15);
     canvas.drawRRect(RRect.fromRectAndRadius(rect.shift(const Offset(0, 4)), const Radius.circular(16)), shadowPaint);
 
     // Board surface base

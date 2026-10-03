@@ -262,12 +262,17 @@ class PlayerTokenComponent extends PositionComponent {
       width: pW * 0.9 * shadowScale,
       height: pW * 0.35 * shadowScale,
     );
-    canvas.drawOval(
-      shadowRect,
-      Paint()
-        ..color = Colors.black.withValues(alpha: shadowAlpha)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
+    final shadowPaint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(centerX, groundY),
+        pW * 0.45 * shadowScale, // radius
+        [
+          Colors.black.withValues(alpha: shadowAlpha),
+          Colors.black.withValues(alpha: 0.0),
+        ],
+      );
+
+    canvas.drawOval(shadowRect, shadowPaint);
 
     // ==================== 2. 3D SCULPTED PAWN FIGURINE ====================
     if (_cachedPawnPicture == null ||
