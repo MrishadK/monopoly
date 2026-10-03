@@ -142,6 +142,12 @@ class AudioNotifier extends Notifier<AudioState> {
     _playSound('click.wav');
   }
 
+  void playPawnMove() {
+    if (!state.isSfxEnabled) return;
+    HapticFeedback.selectionClick();
+    _playSound('pawn_move.mp3');
+  }
+
   void playVictory() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.vibrate();

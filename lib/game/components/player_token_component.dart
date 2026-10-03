@@ -4,9 +4,11 @@ import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
+import '../kuthaka_game.dart';
+import '../../services/audio_service.dart';
 import 'board_component.dart';
 
-class PlayerTokenComponent extends PositionComponent {
+class PlayerTokenComponent extends PositionComponent with HasGameReference<KuthakaGame> {
   Player player;
   final int playerIndex;
   double boardWidth;
@@ -129,6 +131,11 @@ class PlayerTokenComponent extends PositionComponent {
     super.update(dt);
 
     if (_movementPath.isNotEmpty) {
+      if (!_isMoving || _stepProgress == 0.0) {
+        try {
+          game.ref.read(audioServiceProvider.notifier).playPawnMove();
+        } catch (_) {}
+      }
       _isMoving = true;
       // Hop speed: 3.5 spaces per second for smooth, responsive feel
       const double speed = 3.5;
