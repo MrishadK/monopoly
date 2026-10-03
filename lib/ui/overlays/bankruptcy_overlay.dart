@@ -12,11 +12,15 @@ class BankruptcyOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gameState = ref.watch(gameProvider);
-    final record = gameState.activeBankruptcyRecord;
+    final hasRecord = ref.watch(gameProvider.select((s) => s.activeBankruptcyRecord != null));
+    if (!hasRecord) return const SizedBox.shrink();
+
+    final record = ref.watch(gameProvider.select((s) => s.activeBankruptcyRecord));
     if (record == null) return const SizedBox.shrink();
 
-    return _BankruptcyModal(record: record);
+    return RepaintBoundary(
+      child: _BankruptcyModal(record: record),
+    );
   }
 }
 

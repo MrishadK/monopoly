@@ -390,8 +390,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       }
     });
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
+    return RepaintBoundary(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
         return SizedBox.expand(
           child: Stack(
             fit: StackFit.expand,
@@ -468,7 +469,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           ),
         );
       },
-    );
+    ),
+  );
   }
 
   Widget _buildTopBar(BuildContext context, GameState gameState, bool isOnline, String? roomId) {
@@ -562,46 +564,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               const SizedBox(width: 4),
               
               // Turn Timer (e.g. 🟢 39s)
-              Builder(builder: (context) {
-                final isAuction = gameState.activeAuction != null;
-                final isWarning = !isAuction && gameState.turnTimeRemaining <= 10;
-                final timerColor = isAuction
-                    ? KuthakaColors.gold
-                    : (isWarning ? KuthakaColors.crimson : (isDark ? const Color(0xFF10B981) : const Color(0xFF047857)));
-                
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isAuction
-                        ? context.goldBg
-                        : (isWarning ? context.crimsonBg : context.emeraldBg),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: timerColor),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: timerColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${gameState.turnTimeRemaining}s',
-                        style: GoogleFonts.outfit(
-                          color: timerColor,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
+              const _HudTurnTimerBadge(),
               
               const SizedBox(width: 4),
               
@@ -1951,5 +1914,53 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       (match) => ',',
     );
     return '₹$formattedRemaining,$lastThree';
+  }
+}
+
+class _HudTurnTimerBadge extends ConsumerWidget {
+  const _HudTurnTimerBadge();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = context.isDark;
+    final isAuction = ref.watch(gameProvider.select((s) => s.activeAuction != null));
+    final timeRemaining = ref.watch(turnTimerRemainingProvider);
+    final isWarning = !isAuction && timeRemaining <= 10;
+    final timerColor = isAuction
+        ? KuthakaColors.gold
+        : (isWarning ? KuthakaColors.crimson : (isDark ? const Color(0xFF10B981) : const Color(0xFF047857)));
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: isAuction
+            ? context.goldBg
+            : (isWarning ? context.crimsonBg : context.emeraldBg),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: timerColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              color: timerColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            '${timeRemaining}s',
+            style: GoogleFonts.outfit(
+              color: timerColor,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

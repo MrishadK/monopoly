@@ -14,6 +14,20 @@ class PropertyCardOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hasProperty = ref.watch(gameProvider.select((s) => s.inspectedProperty != null));
+    if (!hasProperty) return const SizedBox.shrink();
+
+    return const RepaintBoundary(
+      child: _PropertyCardOverlayContent(),
+    );
+  }
+}
+
+class _PropertyCardOverlayContent extends ConsumerWidget {
+  const _PropertyCardOverlayContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameProvider);
     final prop = gameState.inspectedProperty;
 

@@ -151,6 +151,7 @@ class _TumblingDicePairWidgetState extends State<TumblingDicePairWidget>
   final Random _rnd = Random();
   int _displayD1 = 1;
   int _displayD2 = 1;
+  int _lastFaceUpdateMs = 0;
 
   @override
   void initState() {
@@ -163,10 +164,14 @@ class _TumblingDicePairWidgetState extends State<TumblingDicePairWidget>
       duration: const Duration(milliseconds: 900),
     )..addListener(() {
         if (widget.isRolling) {
-          setState(() {
-            _displayD1 = _rnd.nextInt(6) + 1;
-            _displayD2 = _rnd.nextInt(6) + 1;
-          });
+          final now = DateTime.now().millisecondsSinceEpoch;
+          if (now - _lastFaceUpdateMs >= 80) {
+            _lastFaceUpdateMs = now;
+            setState(() {
+              _displayD1 = _rnd.nextInt(6) + 1;
+              _displayD2 = _rnd.nextInt(6) + 1;
+            });
+          }
         }
       });
 
@@ -179,6 +184,7 @@ class _TumblingDicePairWidgetState extends State<TumblingDicePairWidget>
   void didUpdateWidget(covariant TumblingDicePairWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isRolling && !oldWidget.isRolling) {
+      _lastFaceUpdateMs = 0;
       _controller.repeat();
     } else if (!widget.isRolling && oldWidget.isRolling) {
       _controller.stop();
@@ -200,42 +206,44 @@ class _TumblingDicePairWidgetState extends State<TumblingDicePairWidget>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final t = _controller.value * 2 * pi;
-          final rot1 = widget.isRolling ? sin(t * 3) * 0.4 : 0.0;
-          final rot2 = widget.isRolling ? -cos(t * 3) * 0.4 : 0.0;
-          final bounce1 = widget.isRolling ? -sin(t * 4).abs() * 8.0 : 0.0;
-          final bounce2 = widget.isRolling ? -cos(t * 4).abs() * 8.0 : 0.0;
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final t = _controller.value * 2 * pi;
+            final rot1 = widget.isRolling ? sin(t * 3) * 0.4 : 0.0;
+            final rot2 = widget.isRolling ? -cos(t * 3) * 0.4 : 0.0;
+            final bounce1 = widget.isRolling ? -sin(t * 4).abs() * 8.0 : 0.0;
+            final bounce2 = widget.isRolling ? -cos(t * 4).abs() * 8.0 : 0.0;
 
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Transform.translate(
-                offset: Offset(0, bounce1),
-                child: DiceFaceWidget(
-                  value: _displayD1,
-                  size: widget.diceSize,
-                  rotation: rot1,
-                  elevation: widget.isRolling ? 8.0 : 4.0,
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Transform.translate(
+                  offset: Offset(0, bounce1),
+                  child: DiceFaceWidget(
+                    value: _displayD1,
+                    size: widget.diceSize,
+                    rotation: rot1,
+                    elevation: widget.isRolling ? 8.0 : 4.0,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Transform.translate(
-                offset: Offset(0, bounce2),
-                child: DiceFaceWidget(
-                  value: _displayD2,
-                  size: widget.diceSize,
-                  rotation: rot2,
-                  elevation: widget.isRolling ? 8.0 : 4.0,
+                const SizedBox(width: 10),
+                Transform.translate(
+                  offset: Offset(0, bounce2),
+                  child: DiceFaceWidget(
+                    value: _displayD2,
+                    size: widget.diceSize,
+                    rotation: rot2,
+                    elevation: widget.isRolling ? 8.0 : 4.0,
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

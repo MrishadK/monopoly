@@ -7,14 +7,28 @@ import '../../models/player.dart';
 import '../../services/user_profile_service.dart';
 import '../../services/multiplayer_service.dart';
 
-class AuctionOverlay extends ConsumerStatefulWidget {
+class AuctionOverlay extends ConsumerWidget {
   const AuctionOverlay({super.key});
 
   @override
-  ConsumerState<AuctionOverlay> createState() => _AuctionOverlayState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasAuction = ref.watch(gameProvider.select((s) => s.activeAuction != null));
+    if (!hasAuction) return const SizedBox.shrink();
+
+    return const RepaintBoundary(
+      child: _AuctionOverlayModal(),
+    );
+  }
 }
 
-class _AuctionOverlayState extends ConsumerState<AuctionOverlay> {
+class _AuctionOverlayModal extends ConsumerStatefulWidget {
+  const _AuctionOverlayModal();
+
+  @override
+  ConsumerState<_AuctionOverlayModal> createState() => _AuctionOverlayModalState();
+}
+
+class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
   final TextEditingController _customBidController = TextEditingController();
 
   @override

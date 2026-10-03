@@ -17,6 +17,20 @@ class GameOverOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isGameOver = ref.watch(gameProvider.select((s) => s.phase == GamePhase.gameOver));
+    if (!isGameOver) return const SizedBox.shrink();
+
+    return const RepaintBoundary(
+      child: _GameOverOverlayContent(),
+    );
+  }
+}
+
+class _GameOverOverlayContent extends ConsumerWidget {
+  const _GameOverOverlayContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameProvider);
     if (gameState.phase != GamePhase.gameOver) return const SizedBox.shrink();
 

@@ -1665,7 +1665,8 @@ void main() {
 
     final state = container.read(gameProvider);
     final startTileName = GameData.spaces[0].name;
-    final destTileName = GameData.spaces[state.currentPlayer.position].name;
+    final rollDestIndex = (state.lastDiceRoll[0] + state.lastDiceRoll[1]) % 40;
+    final destTileName = GameData.spaces[rollDestIndex].name;
 
     expect(
       state.gameLogs.any((l) => l.contains('moved from $startTileName to $destTileName')),

@@ -23,6 +23,17 @@ enum GamePhase { roll, moving, spaceAction, turnEnd, gameOver }
 
 const int kTurnDurationSeconds = 45;
 
+class TurnTimerNotifier extends Notifier<int> {
+  @override
+  int build() => kTurnDurationSeconds;
+
+  void setTime(int seconds) {
+    state = seconds;
+  }
+}
+
+final turnTimerRemainingProvider = NotifierProvider<TurnTimerNotifier, int>(TurnTimerNotifier.new);
+
 class GameState {
   final List<Player> players;
   final int currentPlayerIndex;
@@ -178,6 +189,9 @@ class GameNotifier extends Notifier<GameState> {
   bool get isHost => _isHost;
   String? _localPlayerId;
   String? get localPlayerId => _localPlayerId;
+  int _turnTimeRemaining = kTurnDurationSeconds;
+  int get liveTurnTimeRemaining => _turnTimeRemaining;
+
   int _actionLockId = 0;
   Timer? _turnTimer;
   Timer? _transactionTimer;
@@ -274,6 +288,12 @@ class GameNotifier extends Notifier<GameState> {
   @override
   set state(GameState value) {
     super.state = value;
+    if (value.turnTimeRemaining != _turnTimeRemaining) {
+      _turnTimeRemaining = value.turnTimeRemaining;
+      try {
+        ref.read(turnTimerRemainingProvider.notifier).setTime(value.turnTimeRemaining);
+      } catch (_) {}
+    }
     _broadcastState();
   }
 
@@ -2420,7 +2440,8 @@ class GameNotifier extends Notifier<GameState> {
     _turnTimer?.cancel();
     if (state.phase == GamePhase.gameOver) return;
 
-    state = state.copyWith(turnTimeRemaining: kTurnDurationSeconds);
+    _turnTimeRemaining = kTurnDurationSeconds;
+    ref.read(turnTimerRemainingProvider.notifier).setTime(kTurnDurationSeconds);
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.phase == GamePhase.gameOver) {
         timer.cancel();
@@ -2434,11 +2455,13 @@ class GameNotifier extends Notifier<GameState> {
       if (state.activeAuction != null) {
         return;
       }
-      final remaining = state.turnTimeRemaining - 1;
-      if (remaining > 0) {
-        state = state.copyWith(turnTimeRemaining: remaining);
+      _turnTimeRemaining--;
+      if (_turnTimeRemaining > 0) {
+        ref.read(turnTimerRemainingProvider.notifier).setTime(_turnTimeRemaining);
       } else {
         timer.cancel();
+        _turnTimeRemaining = 0;
+        ref.read(turnTimerRemainingProvider.notifier).setTime(0);
         _handleTurnTimeout();
       }
     });

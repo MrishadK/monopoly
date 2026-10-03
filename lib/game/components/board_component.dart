@@ -20,8 +20,30 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   ui.Image? dayCenterImage;
   ui.Image? nightCenterImage;
 
-  Set<String> highlightedPropertyIds = {};
-  Color? highlightColor;
+  Set<String> _highlightedPropertyIds = {};
+  Set<String> get highlightedPropertyIds => _highlightedPropertyIds;
+  set highlightedPropertyIds(Set<String> value) {
+    _highlightedPropertyIds = value;
+    _boardNeedsRepaint = true;
+  }
+
+  Color? _highlightColor;
+  Color? get highlightColor => _highlightColor;
+  set highlightColor(Color? value) {
+    _highlightColor = value;
+    _boardNeedsRepaint = true;
+  }
+
+  // Display-List Caching for 60+ FPS zero-overhead board rendering
+  ui.Picture? _cachedBoardPicture;
+  bool _boardNeedsRepaint = true;
+
+  // Precomputed geometry lookups
+  final List<Rect> _cachedSpaceRects = List.filled(40, Rect.zero);
+  final List<Offset> _cachedTileCenters = List.filled(40, Offset.zero);
+  Offset _cachedJailCellCenter = Offset.zero;
+  double _lastGeomWidth = -1;
+  double _lastGeomHeight = -1;
 
   BoardComponent({
     required this.properties,
@@ -30,11 +52,38 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     this.isDoubles = false,
     this.isDark = false,
     this.onPropertyTapped,
-    this.highlightedPropertyIds = const {},
-    this.highlightColor,
-  });
+    Set<String> highlightedPropertyIds = const {},
+    Color? highlightColor,
+  }) {
+    _highlightedPropertyIds = highlightedPropertyIds;
+    _highlightColor = highlightColor;
+  }
+
+  void _recomputeCachedGeometry() {
+    if (size.x <= 0 || size.y <= 0) return;
+    _lastGeomWidth = size.x;
+    _lastGeomHeight = size.y;
+
+    final cornerW = size.x * 0.13;
+    final cornerH = size.y * 0.13;
+    final spaceW = (size.x - (2 * cornerW)) / 9;
+    final spaceH = (size.y - (2 * cornerH)) / 9;
+
+    for (int i = 0; i < 40; i++) {
+      final r = _getSpaceRect(i, cornerW, cornerH, spaceW, spaceH);
+      _cachedSpaceRects[i] = r;
+      if (i == 10) {
+        final innerCell = Rect.fromLTWH(r.left + r.width * 0.35, r.top, r.width * 0.65, r.height * 0.65);
+        _cachedJailCellCenter = innerCell.center;
+      }
+      _cachedTileCenters[i] = r.center;
+    }
+  }
 
   Rect getSpaceRect(int index) {
+    if (index >= 0 && index < 40 && _lastGeomWidth == size.x && _lastGeomHeight == size.y) {
+      return _cachedSpaceRects[index];
+    }
     double cornerW = size.x * 0.13;
     double cornerH = size.y * 0.13;
     double spaceW = (size.x - (2 * cornerW)) / 9;
@@ -43,6 +92,12 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   }
 
   Offset getTileCenter(int index, {bool isInJail = false}) {
+    if (index >= 0 && index < 40 && _lastGeomWidth == size.x && _lastGeomHeight == size.y) {
+      if (index == 10 && isInJail) {
+        return _cachedJailCellCenter;
+      }
+      return _cachedTileCenters[index];
+    }
     final r = getSpaceRect(index);
     if (index == 10 && isInJail) {
       final innerCell = Rect.fromLTWH(r.left + r.width * 0.35, r.top, r.width * 0.65, r.height * 0.65);
@@ -52,18 +107,73 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   }
 
   @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _recomputeCachedGeometry();
+    _boardNeedsRepaint = true;
+  }
+
+  @override
+  void onRemove() {
+    _cachedBoardPicture?.dispose();
+    _cachedBoardPicture = null;
+    super.onRemove();
+  }
+
+  @override
   Future<void> onLoad() async {
     await super.onLoad();
+    _recomputeCachedGeometry();
     try {
       dayCenterImage = await Flame.images.load('board_center_day.jpg');
+      _boardNeedsRepaint = true;
     } catch (e) {
       debugPrint('Could not load board_center_day.jpg: $e');
     }
     try {
       nightCenterImage = await Flame.images.load('board_center_night.jpg');
+      _boardNeedsRepaint = true;
     } catch (e) {
       debugPrint('Could not load board_center_night.jpg: $e');
     }
+  }
+
+  bool _havePropertiesChanged(Map<String, Property> newProps) {
+    if (identical(properties, newProps)) return false;
+    if (properties.length != newProps.length) return true;
+    for (final entry in newProps.entries) {
+      final old = properties[entry.key];
+      if (old == null) return true;
+      if (old.ownerId != entry.value.ownerId ||
+          old.currentLevel != entry.value.currentLevel ||
+          old.isMortgaged != entry.value.isMortgaged) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _havePlayersChanged(List<Player> newPlayers) {
+    if (identical(players, newPlayers)) return false;
+    if (players.length != newPlayers.length) return true;
+    for (int i = 0; i < players.length; i++) {
+      if (players[i].id != newPlayers[i].id ||
+          players[i].color != newPlayers[i].color ||
+          players[i].name != newPlayers[i].name) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _haveHighlightsChanged(Set<String>? newHighlights, Color? newColor) {
+    if (newColor != _highlightColor) return true;
+    if (newHighlights == null) return false;
+    if (_highlightedPropertyIds.length != newHighlights.length) return true;
+    for (final id in newHighlights) {
+      if (!_highlightedPropertyIds.contains(id)) return true;
+    }
+    return false;
   }
 
   void updateData({
@@ -75,26 +185,57 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     Set<String>? highlightedProperties,
     Color? customHighlightColor,
   }) {
-    properties = newProperties;
-    players = newPlayers;
+    bool needsRepaint = false;
+    if (this.isDark != isDark) {
+      this.isDark = isDark;
+      needsRepaint = true;
+    }
+    if (_haveHighlightsChanged(highlightedProperties, customHighlightColor)) {
+      if (highlightedProperties != null) {
+        _highlightedPropertyIds = highlightedProperties;
+      }
+      if (customHighlightColor != null) {
+        _highlightColor = customHighlightColor;
+      }
+      needsRepaint = true;
+    }
+    if (_havePropertiesChanged(newProperties)) {
+      properties = newProperties;
+      needsRepaint = true;
+    }
+    if (_havePlayersChanged(newPlayers)) {
+      players = newPlayers;
+      needsRepaint = true;
+    }
+
     lastDiceRoll = dice;
     isDoubles = doubles;
-    this.isDark = isDark;
-    if (highlightedProperties != null) {
-      highlightedPropertyIds = highlightedProperties;
-    }
-    if (customHighlightColor != null) {
-      highlightColor = customHighlightColor;
+
+    if (needsRepaint) {
+      _boardNeedsRepaint = true;
     }
   }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    final rect = size.toRect();
-    _drawFrame(canvas, rect);
-    _drawBoardCenter(canvas, rect);
-    _drawAllSpaces(canvas);
+    if (size.x <= 0 || size.y <= 0) return;
+    if (_lastGeomWidth != size.x || _lastGeomHeight != size.y) {
+      _recomputeCachedGeometry();
+      _boardNeedsRepaint = true;
+    }
+    if (_boardNeedsRepaint || _cachedBoardPicture == null) {
+      _cachedBoardPicture?.dispose();
+      final recorder = ui.PictureRecorder();
+      final recordingCanvas = Canvas(recorder);
+      final rect = size.toRect();
+      _drawFrame(recordingCanvas, rect);
+      _drawBoardCenter(recordingCanvas, rect);
+      _drawAllSpaces(recordingCanvas);
+      _cachedBoardPicture = recorder.endRecording();
+      _boardNeedsRepaint = false;
+    }
+    canvas.drawPicture(_cachedBoardPicture!);
   }
 
   // ==================== FRAME ====================
@@ -169,13 +310,8 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   // ==================== ALL SPACES ====================
 
   void _drawAllSpaces(Canvas canvas) {
-    double cornerW = size.x * 0.13;
-    double cornerH = size.y * 0.13;
-    double spaceW = (size.x - (2 * cornerW)) / 9;
-    double spaceH = (size.y - (2 * cornerH)) / 9;
-
     for (int i = 0; i < 40; i++) {
-      final rect = _getSpaceRect(i, cornerW, cornerH, spaceW, spaceH);
+      final rect = getSpaceRect(i);
       _drawSingleSpace(canvas, i, rect);
     }
 
@@ -185,7 +321,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       if (space.propertyId != null) {
         final prop = properties[space.propertyId];
         if (prop != null && prop.ownerId != null) {
-          final rect = _getSpaceRect(i, cornerW, cornerH, spaceW, spaceH);
+          final rect = getSpaceRect(i);
           _drawOwnershipInwardExtension(canvas, i, rect, prop);
         }
       }
@@ -1181,13 +1317,8 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     super.onTapDown(event);
     final localPos = event.localPosition;
 
-    double cornerW = size.x * 0.13;
-    double cornerH = size.y * 0.13;
-    double spaceW = (size.x - (2 * cornerW)) / 9;
-    double spaceH = (size.y - (2 * cornerH)) / 9;
-
     for (int i = 0; i < 40; i++) {
-      final r = _getSpaceRect(i, cornerW, cornerH, spaceW, spaceH);
+      final r = getSpaceRect(i);
       if (r.contains(Offset(localPos.x, localPos.y))) {
         final space = GameData.spaces[i];
         if (space.propertyId != null) {

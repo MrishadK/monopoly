@@ -120,18 +120,20 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             child: Column(
               children: [
                 Expanded(
-                  child: GameWidget(
-                    game: _game,
-                    overlayBuilderMap: {
-                      'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
-                      'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),
-                      'event_card': (context, KuthakaGame game) => const EventCardOverlay(),
-                      'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
-                      'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
-                      'auction': (context, KuthakaGame game) => const AuctionOverlay(),
-                      'trade_proposal': (context, KuthakaGame game) => const TradeProposalOverlay(),
-                    },
-                    initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction', 'trade_proposal'],
+                  child: RepaintBoundary(
+                    child: GameWidget(
+                      game: _game,
+                      overlayBuilderMap: {
+                        'hud': (context, KuthakaGame game) => HudOverlay(game: game, ref: ref),
+                        'property_card': (context, KuthakaGame game) => const PropertyCardOverlay(),
+                        'event_card': (context, KuthakaGame game) => const EventCardOverlay(),
+                        'bankruptcy': (context, KuthakaGame game) => const BankruptcyOverlay(),
+                        'game_over': (context, KuthakaGame game) => const GameOverOverlay(),
+                        'auction': (context, KuthakaGame game) => const AuctionOverlay(),
+                        'trade_proposal': (context, KuthakaGame game) => const TradeProposalOverlay(),
+                      },
+                      initialActiveOverlays: const ['hud', 'property_card', 'event_card', 'bankruptcy', 'game_over', 'auction', 'trade_proposal'],
+                    ),
                   ),
                 ),
                 const WebrtcAudioRenderer(),

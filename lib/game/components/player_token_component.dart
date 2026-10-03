@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
@@ -10,6 +11,13 @@ class PlayerTokenComponent extends PositionComponent {
   final int playerIndex;
   double boardWidth;
   double boardHeight;
+
+  // Cached 3D sculpted pawn figurine display list
+  ui.Picture? _cachedPawnPicture;
+  Color? _cachedColor;
+  PlayerToken? _cachedToken;
+  double _cachedPW = 0.0;
+  double _cachedPH = 0.0;
 
   // Waypoint path animation
   int _currentPosIndex = 0;
@@ -49,6 +57,13 @@ class PlayerTokenComponent extends PositionComponent {
   }) {
     _currentPosIndex = player.position;
     _updatePositionOnBoard();
+  }
+
+  @override
+  void onRemove() {
+    _cachedPawnPicture?.dispose();
+    _cachedPawnPicture = null;
+    super.onRemove();
   }
 
   @override
@@ -134,7 +149,8 @@ class PlayerTokenComponent extends PositionComponent {
       } else {
         _hopAltitude = sin(_stepProgress * pi) * 16.0;
       }
-    } else {
+      _updatePositionOnBoard();
+    } else if (_isMoving) {
       _isMoving = false;
       _hopAltitude = 0.0;
       _currentPosIndex = player.position;
@@ -142,9 +158,8 @@ class PlayerTokenComponent extends PositionComponent {
         _movementCompleter!.complete();
         _movementCompleter = null;
       }
+      _updatePositionOnBoard();
     }
-
-    _updatePositionOnBoard();
   }
 
   Offset getTileCenter(int index, {bool isInJail = false}) {
@@ -208,23 +223,20 @@ class PlayerTokenComponent extends PositionComponent {
       curY = curPos.dy + (nextPos.dy - curPos.dy) * _stepProgress;
     }
 
-    // Symmetrical offset for up to 4 players so tokens never overlap each other
-    final offsets = [
-      Offset(-spaceW * 0.14, -spaceH * 0.12),
-      Offset(spaceW * 0.14, -spaceH * 0.12),
-      Offset(-spaceW * 0.14, spaceH * 0.12),
-      Offset(spaceW * 0.14, spaceH * 0.12),
-    ];
-    final offset = offsets[playerIndex % offsets.length];
+    // Direct mathematical offset for 4 players (avoids per-frame List allocation)
+    final double signX = (playerIndex % 2 == 0) ? -1.0 : 1.0;
+    final double signY = (playerIndex < 2) ? -1.0 : 1.0;
+    final double offX = signX * (spaceW * 0.14);
+    final double offY = signY * (spaceH * 0.12);
 
     double pawnWidth = (spaceW * 0.52).clamp(13.0, 32.0);
     double pawnHeight = pawnWidth * 1.38;
     size = Vector2(pawnWidth, pawnHeight + 20);
 
-    // Position component so bottom-center is at (curX + offset.dx, curY + offset.dy - _hopAltitude)
+    // Position component so bottom-center is at (curX + offX, curY + offY - _hopAltitude)
     position = Vector2(
-      curX + offset.dx - pawnWidth / 2,
-      curY + offset.dy - pawnHeight - _hopAltitude,
+      curX + offX - pawnWidth / 2,
+      curY + offY - pawnHeight - _hopAltitude,
     );
   }
 
@@ -234,12 +246,13 @@ class PlayerTokenComponent extends PositionComponent {
 
     final pW = width;
     final pH = height - 20;
+    if (pW <= 0 || pH <= 0) return;
     final centerX = pW / 2;
     final groundY = pH + _hopAltitude; // Ground level for shadow
 
     // ==================== 1. DYNAMIC GROUND SHADOW ====================
-    double shadowScale = max(0.5, 1.0 - (_hopAltitude / 30.0));
-    double shadowAlpha = max(0.15, 0.45 - (_hopAltitude / 50.0));
+    final double shadowScale = max(0.5, 1.0 - (_hopAltitude / 30.0));
+    final double shadowAlpha = max(0.15, 0.45 - (_hopAltitude / 50.0));
 
     final shadowRect = Rect.fromCenter(
       center: Offset(centerX, groundY),
@@ -254,6 +267,27 @@ class PlayerTokenComponent extends PositionComponent {
     );
 
     // ==================== 2. 3D SCULPTED PAWN FIGURINE ====================
+    if (_cachedPawnPicture == null ||
+        _cachedColor != player.color ||
+        _cachedToken != player.token ||
+        _cachedPW != pW ||
+        _cachedPH != pH) {
+      _recordPawnPicture(pW, pH);
+    }
+    canvas.drawPicture(_cachedPawnPicture!);
+  }
+
+  void _recordPawnPicture(double pW, double pH) {
+    _cachedPawnPicture?.dispose();
+    _cachedColor = player.color;
+    _cachedToken = player.token;
+    _cachedPW = pW;
+    _cachedPH = pH;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final centerX = pW / 2;
+
     final pawnColor = player.color;
     final darkShade = Color.lerp(pawnColor, Colors.black, 0.45)!;
     final lightShade = Color.lerp(pawnColor, Colors.white, 0.45)!;
@@ -345,6 +379,8 @@ class PlayerTokenComponent extends PositionComponent {
 
     // --- E. Engraved Identity Icon on Torso ---
     _drawEngravedPawnIcon(canvas, Offset(centerX, (torsoTop + torsoBottom) / 2));
+
+    _cachedPawnPicture = recorder.endRecording();
   }
 
   void _drawEngravedPawnIcon(Canvas canvas, Offset center) {

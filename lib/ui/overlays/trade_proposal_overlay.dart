@@ -11,6 +11,20 @@ class TradeProposalOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hasTradeOffer = ref.watch(gameProvider.select((s) => s.activeTradeOffer != null));
+    if (!hasTradeOffer) return const SizedBox.shrink();
+
+    return const RepaintBoundary(
+      child: _TradeProposalOverlayContent(),
+    );
+  }
+}
+
+class _TradeProposalOverlayContent extends ConsumerWidget {
+  const _TradeProposalOverlayContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameProvider);
     final offer = gameState.activeTradeOffer;
 

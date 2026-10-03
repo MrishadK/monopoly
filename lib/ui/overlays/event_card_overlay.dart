@@ -10,6 +10,20 @@ class EventCardOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hasCard = ref.watch(gameProvider.select((s) => s.activeEventCard != null));
+    if (!hasCard) return const SizedBox.shrink();
+
+    return const RepaintBoundary(
+      child: _EventCardOverlayContent(),
+    );
+  }
+}
+
+class _EventCardOverlayContent extends ConsumerWidget {
+  const _EventCardOverlayContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameProvider);
     final card = gameState.activeEventCard;
 
