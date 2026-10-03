@@ -196,14 +196,17 @@ class PlayerTokenComponent extends PositionComponent {
       final innerCell = Rect.fromLTWH(r.left + r.width * 0.35, r.top, r.width * 0.65, r.height * 0.65);
       return innerCell.center;
     }
+    
+    // Shift pawn base downwards on vertical edges so it doesn't spill over into the tile above
+    if ((index > 10 && index < 20) || (index > 30 && index < 40)) {
+      return Offset(r.center.dx, r.center.dy + spaceH * 0.35);
+    }
     return r.center;
   }
 
   void _updatePositionOnBoard() {
-    double cornerW = boardWidth * 0.13;
-    double cornerH = boardHeight * 0.13;
-    double spaceW = (boardWidth - (2 * cornerW)) / 9;
-    double spaceH = (boardHeight - (2 * cornerH)) / 9;
+    double spaceW = (boardWidth - (2 * (boardWidth * 0.13))) / 9;
+    double spaceH = (boardHeight - (2 * (boardHeight * 0.13))) / 9;
 
     Offset curPos = getTileCenter(
       _currentPosIndex,

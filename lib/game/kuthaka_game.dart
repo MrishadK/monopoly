@@ -98,22 +98,24 @@ class KuthakaGame extends FlameGame {
     _lastWidth = size.x;
     _lastHeight = size.y;
 
-    // Calculate optimal board size to preserve clearance for top header, bottom HUDs, and right dock
+    // Calculate optimal board size to preserve clearance for top header and bottom HUDs
     final bool isPortrait = size.y > size.x;
     double topPadding = isPortrait ? 134.0 : 66.0;
-    double bottomPadding = isPortrait ? 76.0 : 70.0;
-    double rightMargin = isPortrait ? 58.0 : 68.0;
-    double availableWidth = size.x - 12 - rightMargin;
+    // Increased bottom padding to accommodate both bottom docks
+    double bottomPadding = isPortrait ? 144.0 : 130.0; 
+
+    // Board is horizontally centered with slight padding
+    double availableWidth = size.x - 16.0; 
     double availableHeight = size.y - (topPadding + bottomPadding);
     double boardSize = min(availableWidth, availableHeight);
     boardSize = max(boardSize, 260); // Minimum sensible size
 
-    double posX = 8.0;
-    if (size.x - rightMargin > boardSize + 16) {
-      posX = (size.x - rightMargin - boardSize) / 2 + 4;
-    }
+    // Perfectly center horizontally
+    double posX = (size.x - boardSize) / 2;
+    
+    // Perfectly center vertically within the available space
     double verticalSlack = max(0.0, availableHeight - boardSize);
-    double posY = topPadding + verticalSlack * 0.35;
+    double posY = topPadding + (verticalSlack / 2);
 
     final gameState = ref.read(gameProvider);
     final isDark = ref.read(themeModeProvider.notifier).isDark;

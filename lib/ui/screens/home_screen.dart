@@ -358,7 +358,7 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
 
                 Text(
-                  'v1.0.5 • Made with Kerala Pride',
+                  'v1.0.6 • Made with Kerala Pride',
                   style: GoogleFonts.outfit(
                     color: context.textMuted,
                     fontSize: 11,
