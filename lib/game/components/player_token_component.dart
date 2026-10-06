@@ -211,9 +211,9 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
       return (parent as BoardComponent).getTileCenter(index, isInJail: isInJail);
     }
 
-    // Mathematical coordinate geometry derived directly from board tile specifications (cornerRatio = 0.1555)
-    double cornerW = boardWidth * 0.1555;
-    double cornerH = boardHeight * 0.1555;
+    // Mathematical coordinate geometry derived directly from board tile specifications
+    double cornerW = boardWidth * BoardComponent.cornerRatio;
+    double cornerH = boardHeight * BoardComponent.cornerRatio;
     double spaceW = (boardWidth - (2 * cornerW)) / 9;
     double spaceH = (boardHeight - (2 * cornerH)) / 9;
 
@@ -238,8 +238,8 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
 
     if (index == 10) {
       return isInJail
-          ? Offset(r.left + r.width * 0.50, r.top + r.height * 0.44)
-          : Offset(r.left + r.width * 0.50, r.top + r.height * 0.72);
+          ? Offset(r.left + r.width * 0.50, r.top + r.height * 0.35)
+          : Offset(r.left + r.width * 0.50, r.top + r.height * 0.78);
     }
     
     // Shift pawn base downwards on vertical edges so it doesn't spill over into the tile above
@@ -250,8 +250,8 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   }
 
   void _updatePositionOnBoard() {
-    double cornerW = boardWidth * 0.1555;
-    double cornerH = boardHeight * 0.1555;
+    double cornerW = boardWidth * BoardComponent.cornerRatio;
+    double cornerH = boardHeight * BoardComponent.cornerRatio;
     double spaceW = (boardWidth - (2 * cornerW)) / 9;
     double spaceH = (boardHeight - (2 * cornerH)) / 9;
 
