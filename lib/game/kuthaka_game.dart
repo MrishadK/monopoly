@@ -171,11 +171,12 @@ class KuthakaGame extends FlameGame {
     _lastWidth = size.x;
     _lastHeight = size.y;
 
-    // Calculate optimal board size to preserve clearance for top header and bottom HUDs
+    // Calculate optimal board size to guarantee zero overlap with top header, player cards, and bottom docks
     final bool isPortrait = size.y > size.x;
-    double topPadding = isPortrait ? 134.0 : 66.0;
-    // Increased bottom padding to accommodate both bottom docks
-    double bottomPadding = isPortrait ? 144.0 : 130.0; 
+    // Top bar is at y=8..50, player cards are at y=54..108 (or up to ~168 on portrait with 4 players).
+    // Ensuring generous clearance so the Monopoly board NEVER overlaps player cards or headers under any aspect ratio.
+    final double topPadding = isPortrait ? 180.0 : 125.0;
+    final double bottomPadding = isPortrait ? 144.0 : 135.0; 
 
     // Board is horizontally centered with slight padding
     double availableWidth = size.x - 16.0; 

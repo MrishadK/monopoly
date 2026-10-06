@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -67,9 +69,18 @@ class AudioNotifier extends Notifier<AudioState> {
 
   AudioPlayer? _bgmPlayer;
 
+  static bool get _isTesting {
+    if (!kIsWeb) {
+      try {
+        if (Platform.environment.containsKey('FLUTTER_TEST')) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
   void startLoFiAmbient() async {
     state = state.copyWith(isLoFiAmbientPlaying: true);
-    if (!state.isMusicEnabled) return;
+    if (!state.isMusicEnabled || _isTesting) return;
 
     _bgmPlayer ??= AudioPlayer();
     _bgmPlayer!.setReleaseMode(ReleaseMode.loop);
@@ -87,7 +98,7 @@ class AudioNotifier extends Notifier<AudioState> {
   // ==================== SOUND EFFECTS (SFX) ====================
 
   void _playSound(String fileName) async {
-    if (!state.isSfxEnabled) return;
+    if (!state.isSfxEnabled || _isTesting) return;
     try {
       final player = AudioPlayer();
       await player.setVolume(state.sfxVolume);
@@ -128,6 +139,12 @@ class AudioNotifier extends Notifier<AudioState> {
     if (!state.isSfxEnabled) return;
     HapticFeedback.heavyImpact();
     _playSound('jail.wav');
+  }
+
+  void playPoliceSiren() {
+    if (!state.isSfxEnabled) return;
+    HapticFeedback.heavyImpact();
+    _playSound('police_siren.wav');
   }
 
   void playCardDraw() {

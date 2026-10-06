@@ -708,7 +708,7 @@ class GameNotifier extends Notifier<GameState> {
 
     state = state.copyWith(
       isRollingDice: true,
-      message: '${current.name} in Hospital/Lockup rolling for doubles...',
+      message: '${current.name} in Lockup rolling for doubles...',
     );
 
     final lockId = _actionLockId;
@@ -716,7 +716,7 @@ class GameNotifier extends Notifier<GameState> {
     _diceRollTimer = Timer(const Duration(milliseconds: 900), () async {
       if (lockId != _actionLockId) return;
 
-      _addLog('${current.name} in Hospital/Jail rolled $d1 & $d2');
+      _addLog('${current.name} in Lockup rolled $d1 & $d2');
 
       if (isDouble) {
         _addLog('🎉 Doubles! ${current.name} escapes from Lockup free!');
@@ -988,14 +988,14 @@ class GameNotifier extends Notifier<GameState> {
         break;
 
       case SpaceType.jail:
-        _addLog('${current.name} is Just Visiting the Hospital/Jail.');
+        _addLog('${current.name} is Just Visiting Jail.');
         if (state.isDoubles && !current.isInJail) {
           _addLog('🎲 Doubles! ${current.name} gets another roll!');
           state = state.copyWith(
             phase: GamePhase.roll,
             isDoubles: false,
             turnTimeRemaining: kTurnDurationSeconds,
-            message: 'Just visiting. Rolled DOUBLES! Roll again! 🎲',
+            message: 'Just visiting Jail. Rolled DOUBLES! Roll again! 🎲',
           );
           _startTurnTimer();
           if (current.type == PlayerType.ai) {
@@ -1004,7 +1004,7 @@ class GameNotifier extends Notifier<GameState> {
         } else {
           state = state.copyWith(
             phase: GamePhase.turnEnd,
-            message: 'Just visiting the Hospital.',
+            message: 'Just visiting Jail.',
           );
           if (current.type == PlayerType.ai) {
             _scheduleAiTurnEnd();
@@ -1043,7 +1043,10 @@ class GameNotifier extends Notifier<GameState> {
     final fromTileName = player.position < GameData.spaces.length
         ? GameData.spaces[player.position].name
         : 'Space ${player.position}';
-    try { ref.read(audioServiceProvider.notifier).playJail(); } catch (_) {}
+    try {
+      ref.read(audioServiceProvider.notifier).playPoliceSiren();
+      ref.read(audioServiceProvider.notifier).playJail();
+    } catch (_) {}
     final isPoliceStationJump = player.position == 30;
     final updated = player.copyWith(
       position: 10,
@@ -1052,12 +1055,12 @@ class GameNotifier extends Notifier<GameState> {
     );
 
     state = state.copyWith(
-      phase: GamePhase.moving, // Keep in moving phase during the backward jump!
+      phase: GamePhase.moving, // Keep in moving phase during the direct fly to jail!
       consecutiveDoubles: 0,
       isDoubles: false,
       message: isPoliceStationJump
-          ? '🚨 Police Station! ${player.name} jumping backwards to Central Jail...'
-          : '${player.name} sent to Central Jail.',
+          ? '🚨 Police Station! ${player.name} sent directly to Jail...'
+          : '🚨 ${player.name} sent directly to Jail.',
     );
     _updatePlayer(updated);
 
@@ -1067,10 +1070,10 @@ class GameNotifier extends Notifier<GameState> {
     await _awaitPlayerMovement(player.id);
 
     if (lockId != _actionLockId) return;
-    _addLog('${player.name} was sent from $fromTileName to Police Station / Jail.');
+    _addLog('${player.name} was arrested from $fromTileName and sent to Jail.');
     state = state.copyWith(
       phase: GamePhase.turnEnd,
-      message: '${player.name} is now locked in Central Jail.',
+      message: '${player.name} is now locked in Jail.',
     );
     if (player.type == PlayerType.ai) {
       _scheduleAiTurnEnd();

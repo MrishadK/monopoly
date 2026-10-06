@@ -27,6 +27,10 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   double _cachedShadowPW = 0.0;
   double _cachedShadowPH = 0.0;
 
+  // Direct flight to jail animation
+  bool _isDirectFlightToJail = false;
+  int _flightStartPos = 0;
+
   // Waypoint path animation
   int _currentPosIndex = 0;
   final List<int> _movementPath = [];
@@ -35,7 +39,7 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   double _hopAltitude = 0.0;
   Completer<void>? _movementCompleter;
 
-  bool get isMoving => _isMoving || _movementPath.isNotEmpty;
+  bool get isMoving => _isMoving || _isDirectFlightToJail || _movementPath.isNotEmpty;
 
   Future<void> waitForMovement() {
     if (!isMoving) return Future.value();
@@ -44,6 +48,7 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   }
 
   void resetToPosition(int pos, {bool inJail = false}) {
+    _isDirectFlightToJail = false;
     _movementPath.clear();
     _isMoving = false;
     _stepProgress = 0.0;
@@ -105,27 +110,18 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
       _movementCompleter = Completer<void>();
 
       if (isSentToJail) {
-        // MONOPOLY RULE: Sent to Jail moves directly to Jail WITHOUT passing GO and WITHOUT collecting ₹200!
-        if (oldPos >= 10) {
-          // Backward movement: oldPos - 1 down to 10 (never passes 0)
-          for (int pos = oldPos - 1; pos >= 10; pos--) {
-            _movementPath.add(pos);
-          }
-        } else {
-          // Forward movement from <10 up to 10 (e.g. from 7 to 10, never passes 0)
-          for (int pos = oldPos + 1; pos <= 10; pos++) {
-            _movementPath.add(pos);
-          }
-        }
-        if (_movementPath.isEmpty) {
-          _movementPath.add(10);
-        }
+        // Direct flight to Central Lockup across the board (no circling around the table!)
+        _flightStartPos = oldPos;
+        _currentPosIndex = 10;
+        _isDirectFlightToJail = true;
         _isMoving = true;
         _stepProgress = 0.0;
+        _hopAltitude = 0.0;
         try {
           game.wakeEngine();
         } catch (_) {}
       } else if (oldPos != newPos) {
+        _isDirectFlightToJail = false;
         // Clockwise forward steps
         int forwardSteps = (newPos - oldPos) % 40;
         if (forwardSteps <= 0) forwardSteps += 40;
@@ -146,6 +142,30 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   @override
   void update(double dt) {
     super.update(dt);
+
+    if (_isDirectFlightToJail) {
+      _isMoving = true;
+      // Fly across the board in ~0.8 seconds (speed = 1.25)
+      const double speed = 1.25;
+      _stepProgress += speed * dt;
+
+      if (_stepProgress >= 1.0) {
+        _stepProgress = 1.0;
+        _isDirectFlightToJail = false;
+        _isMoving = false;
+        _hopAltitude = 0.0;
+        _currentPosIndex = 10;
+        if (_movementCompleter != null && !_movementCompleter!.isCompleted) {
+          _movementCompleter!.complete();
+          _movementCompleter = null;
+        }
+      } else {
+        // Parabolic arc while flying directly across the board
+        _hopAltitude = sin(_stepProgress * pi) * 52.0;
+      }
+      _updatePositionOnBoard();
+      return;
+    }
 
     if (_movementPath.isNotEmpty) {
       if (!_isMoving || _stepProgress == 0.0) {
@@ -191,9 +211,9 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
       return (parent as BoardComponent).getTileCenter(index, isInJail: isInJail);
     }
 
-    // Mathematical coordinate geometry derived directly from board tile specifications
-    double cornerW = boardWidth * 0.13;
-    double cornerH = boardHeight * 0.13;
+    // Mathematical coordinate geometry derived directly from board tile specifications (cornerRatio = 0.1555)
+    double cornerW = boardWidth * 0.1555;
+    double cornerH = boardHeight * 0.1555;
     double spaceW = (boardWidth - (2 * cornerW)) / 9;
     double spaceH = (boardHeight - (2 * cornerH)) / 9;
 
@@ -209,16 +229,17 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
     } else if (index == 20) {
       r = Rect.fromLTWH(0, 0, cornerW, cornerH);
     } else if (index > 20 && index < 30) {
-      r = Rect.fromLTWH(cornerW + (index - 20 - 1) * spaceW, 0, spaceW, cornerH);
+      r = Rect.fromLTWH(cornerW + (index - 21) * spaceW, 0, spaceW, cornerH);
     } else if (index == 30) {
       r = Rect.fromLTWH(boardWidth - cornerW, 0, cornerW, cornerH);
     } else {
-      r = Rect.fromLTWH(boardWidth - cornerW, cornerH + (index - 30 - 1) * spaceH, cornerW, spaceH);
+      r = Rect.fromLTWH(boardWidth - cornerW, cornerH + (index - 31) * spaceH, cornerW, spaceH);
     }
 
-    if (index == 10 && isInJail) {
-      final innerCell = Rect.fromLTWH(r.left + r.width * 0.35, r.top, r.width * 0.65, r.height * 0.65);
-      return innerCell.center;
+    if (index == 10) {
+      return isInJail
+          ? Offset(r.left + r.width * 0.50, r.top + r.height * 0.44)
+          : Offset(r.left + r.width * 0.50, r.top + r.height * 0.72);
     }
     
     // Shift pawn base downwards on vertical edges so it doesn't spill over into the tile above
@@ -229,32 +250,43 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   }
 
   void _updatePositionOnBoard() {
-    double spaceW = (boardWidth - (2 * (boardWidth * 0.13))) / 9;
-    double spaceH = (boardHeight - (2 * (boardHeight * 0.13))) / 9;
+    double cornerW = boardWidth * 0.1555;
+    double cornerH = boardHeight * 0.1555;
+    double spaceW = (boardWidth - (2 * cornerW)) / 9;
+    double spaceH = (boardHeight - (2 * cornerH)) / 9;
 
-    Offset curPos = getTileCenter(
-      _currentPosIndex,
-      isInJail: (_currentPosIndex == 10 && player.isInJail && _movementPath.isEmpty),
-    );
-
-    double curX = curPos.dx;
-    double curY = curPos.dy;
-
-    if (_movementPath.isNotEmpty) {
-      final nextTile = _movementPath.first;
-      final nextPos = getTileCenter(
-        nextTile,
-        isInJail: (nextTile == 10 && player.isInJail && _movementPath.length == 1),
+    Offset curPos;
+    if (_isDirectFlightToJail) {
+      final startPos = getTileCenter(_flightStartPos, isInJail: false);
+      final destPos = getTileCenter(10, isInJail: true);
+      curPos = Offset(
+        startPos.dx + (destPos.dx - startPos.dx) * _stepProgress,
+        startPos.dy + (destPos.dy - startPos.dy) * _stepProgress,
       );
-      curX = curPos.dx + (nextPos.dx - curPos.dx) * _stepProgress;
-      curY = curPos.dy + (nextPos.dy - curPos.dy) * _stepProgress;
+    } else {
+      curPos = getTileCenter(
+        _currentPosIndex,
+        isInJail: (_currentPosIndex == 10 && player.isInJail && _movementPath.isEmpty),
+      );
+
+      if (_movementPath.isNotEmpty) {
+        final nextTile = _movementPath.first;
+        final nextPos = getTileCenter(
+          nextTile,
+          isInJail: (nextTile == 10 && player.isInJail && _movementPath.length == 1),
+        );
+        curPos = Offset(
+          curPos.dx + (nextPos.dx - curPos.dx) * _stepProgress,
+          curPos.dy + (nextPos.dy - curPos.dy) * _stepProgress,
+        );
+      }
     }
 
     // Direct mathematical offset for 4 players (avoids per-frame List allocation)
     final double signX = (playerIndex % 2 == 0) ? -1.0 : 1.0;
     final double signY = (playerIndex < 2) ? -1.0 : 1.0;
-    final double offX = signX * (spaceW * 0.14);
-    final double offY = signY * (spaceH * 0.12);
+    final double offX = signX * (spaceW * 0.12);
+    final double offY = signY * (spaceH * 0.10);
 
     double pawnWidth = (spaceW * 0.52).clamp(13.0, 32.0);
     double pawnHeight = pawnWidth * 1.38;
@@ -262,8 +294,8 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
 
     // Position component so bottom-center is at (curX + offX, curY + offY - _hopAltitude)
     position.setValues(
-      curX + offX - pawnWidth / 2,
-      curY + offY - pawnHeight - _hopAltitude,
+      curPos.dx + offX - pawnWidth / 2,
+      curPos.dy + offY - pawnHeight - _hopAltitude,
     );
   }
 

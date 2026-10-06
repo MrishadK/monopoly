@@ -636,6 +636,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               );
             }
           }),
+          _buildBottomDockActionButton(context, Icons.lock_open_rounded, 'Redeem', const Color(0xFF10B981), () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const PortfolioSheet(),
+            );
+          }),
           _buildBottomDockActionButton(context, Icons.home_work_rounded, 'Mortgage', const Color(0xFFEA580C), () {
             showModalBottomSheet(
               context: context,
