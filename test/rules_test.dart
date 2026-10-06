@@ -1674,4 +1674,494 @@ void main() {
       reason: 'Expected log containing "moved from $startTileName to $destTileName", got: ${state.gameLogs}',
     );
   });
+
+  // =========================================================================
+  // NEGATIVE BALANCE & DEBT RESOLUTION TESTS
+  // =========================================================================
+
+  test('Negative Balance Rule: Rent deficit creates negative balance without automatic mortgaging, full rent is transferred', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 100,
+        ownedPropertyIds: ['prop_01'], // Owned property with mortgage value 30
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 500,
+        ownedPropertyIds: ['prop_02'],
+      ),
+    ]);
+
+    // Give p1 an unmortgaged property
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1', isMortgaged: false);
+    // prop_02 owned by p2 with high rent (e.g. level 4)
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p2', currentLevel: 4);
+    notifier.state = state.copyWith(properties: props);
+
+    final prop2Rent = props['prop_02']!.getRent(props, 7);
+    expect(prop2Rent, greaterThan(100)); // Rent exceeds p1 cash (100)
+
+    // Player 1 lands on prop_02 and pays rent
+    notifier.payRentForTest(props['prop_02']!);
+
+    state = container.read(gameProvider);
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    final p2 = state.players.firstWhere((p) => p.id == 'p2');
+
+    // 1. Balance must be negative: 100 - rent
+    expect(p1.cash, 100 - prop2Rent);
+    expect(p1.cash, lessThan(0));
+
+    // 2. Creditor receives full rent: 500 + rent
+    expect(p2.cash, 500 + prop2Rent);
+
+    // 3. NO automatic mortgaging: prop_01 is still unmortgaged!
+    expect(state.properties['prop_01']?.isMortgaged, isFalse);
+
+    // 4. Current turn transitions to turnEnd normally without mid-turn bankruptcy
+    expect(p1.isBankrupt, isFalse);
+    expect(state.phase, GamePhase.turnEnd);
+    expect(p1.lastCreditorId, 'p2');
+  });
+
+  test('Negative Balance Rule: Tax deficit creates negative balance without automatic mortgaging', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 40,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1', isMortgaged: false);
+    notifier.state = state.copyWith(properties: props);
+
+    // Pay ₹100 Luxury Tax when having only ₹40
+    notifier.payTaxForTest(100, 'Luxury Tax');
+
+    state = container.read(gameProvider);
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+
+    // 1. Balance must be negative: 40 - 100 = -60
+    expect(p1.cash, -60);
+
+    // 2. NO automatic mortgaging
+    expect(state.properties['prop_01']?.isMortgaged, isFalse);
+
+    // 3. Not bankrupt, turn progresses to turnEnd
+    expect(p1.isBankrupt, isFalse);
+    expect(state.phase, GamePhase.turnEnd);
+    expect(p1.lastCreditorId, isNull); // Debt to bank
+  });
+
+  test('Turn Progression: Indebted player completes current turn normally and can end turn', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: -150,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    notifier.state = container.read(gameProvider).copyWith(phase: GamePhase.turnEnd);
+
+    // p1 ends turn
+    notifier.endTurn();
+
+    final state = container.read(gameProvider);
+    // Advances to p2 normally
+    expect(state.currentPlayer.id, 'p2');
+    expect(state.phase, GamePhase.roll);
+  });
+
+  test('Debt Resolution: Next turn starts in GamePhase.debtResolution when balance < 0, blocks rolling', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: -200, // p2 is in debt
+      ),
+    ]);
+
+    // p1 finishes their turn
+    notifier.state = container.read(gameProvider).copyWith(phase: GamePhase.turnEnd);
+    notifier.endTurn();
+
+    var state = container.read(gameProvider);
+
+    // Now it's p2's turn
+    expect(state.currentPlayer.id, 'p2');
+    // Because p2's balance < 0, game enters debtResolution phase!
+    expect(state.phase, GamePhase.debtResolution);
+
+    // Attempting to roll dice is blocked!
+    notifier.rollDice();
+    state = container.read(gameProvider);
+    expect(state.isRollingDice, isFalse);
+    expect(state.phase, GamePhase.debtResolution);
+  });
+
+  test('Debt Resolution: Disallowed actions (buy, upgrade, unmortgage) are blocked during debt resolution', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: -100,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1', isMortgaged: true);
+    notifier.state = state.copyWith(
+      phase: GamePhase.debtResolution,
+      properties: props,
+    );
+
+    // 1. Cannot buy property
+    notifier.buyProperty('prop_02');
+    state = container.read(gameProvider);
+    expect(state.properties['prop_02']?.ownerId, isNull);
+
+    // 2. Cannot upgrade property
+    notifier.upgradeProperty('prop_01');
+    state = container.read(gameProvider);
+    expect(state.properties['prop_01']?.currentLevel, 0);
+
+    // 3. Cannot redeem (unmortgage) property
+    notifier.redeemProperty('prop_01');
+    state = container.read(gameProvider);
+    expect(state.properties['prop_01']?.isMortgaged, isTrue);
+  });
+
+  test('Debt Resolution: Mortgaging eligible property raises cash and exiting debt resolution transitions to roll phase', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: -50,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    final prop1 = props['prop_01']!.copyWith(ownerId: 'p1', isMortgaged: false);
+    props['prop_01'] = prop1;
+    final mortgageVal = prop1.mortgageValue; // e.g. 30 or 50+
+    notifier.state = state.copyWith(
+      phase: GamePhase.debtResolution,
+      properties: props,
+    );
+
+    // p1 mortgages prop_01: cash becomes -50 + mortgageVal
+    notifier.toggleMortgage('prop_01');
+
+    state = container.read(gameProvider);
+    final p1 = state.currentPlayer;
+    expect(state.properties['prop_01']?.isMortgaged, isTrue);
+    expect(p1.cash, -50 + mortgageVal);
+
+    if (p1.cash >= 0) {
+      // Once balance >= 0, phase exits debt resolution and becomes roll!
+      expect(state.phase, GamePhase.roll);
+    }
+  });
+
+  test('Debt Resolution: Selling buildings raises cash and exiting debt resolution transitions to roll phase', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: -15,
+        ownedPropertyIds: ['prop_01', 'prop_02'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    final prop1 = props['prop_01']!.copyWith(ownerId: 'p1', currentLevel: 2);
+    final prop2 = props['prop_02']!.copyWith(ownerId: 'p1', currentLevel: 2);
+    props['prop_01'] = prop1;
+    props['prop_02'] = prop2;
+    notifier.state = state.copyWith(
+      phase: GamePhase.debtResolution,
+      properties: props,
+    );
+
+    final refund = prop1.upgradeCost ~/ 2;
+    expect(refund, greaterThanOrEqualTo(15));
+
+    // Sell 1 building on prop_01
+    notifier.sellBuilding('prop_01');
+
+    state = container.read(gameProvider);
+    final p1 = state.currentPlayer;
+    expect(state.properties['prop_01']?.currentLevel, 1);
+    expect(p1.cash, -15 + refund);
+    expect(p1.cash, greaterThanOrEqualTo(0));
+
+    // Restores roll phase!
+    expect(state.phase, GamePhase.roll);
+  });
+
+  test('Debt Resolution: Timer expiration auto-declares bankruptcy if balance is still negative', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: -100,
+        ownedPropertyIds: ['prop_01'],
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1');
+    notifier.state = state.copyWith(
+      phase: GamePhase.debtResolution,
+      properties: props,
+    );
+
+    // Timeout occurs while in debt resolution
+    notifier.handleTurnTimeoutForTest();
+
+    state = container.read(gameProvider);
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    expect(p1.isBankrupt, isTrue);
+  });
+
+  test('Bankruptcy Rule: Bankrupt player loses all properties and buildings return to bank (currentLevel: 0)', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: -100,
+        ownedPropertyIds: ['prop_01'],
+        lastCreditorId: 'p2',
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 500,
+      ),
+      const Player(
+        id: 'p3',
+        name: 'Player 3',
+        token: PlayerToken.houseboat,
+        color: Colors.green,
+        type: PlayerType.human,
+        cash: 1000,
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    // prop_01 has 3 houses
+    props['prop_01'] = props['prop_01']!.copyWith(ownerId: 'p1', currentLevel: 3);
+    notifier.state = state.copyWith(
+      phase: GamePhase.debtResolution,
+      properties: props,
+    );
+
+    // Voluntary surrender
+    notifier.surrenderPlayer('p1');
+
+    state = container.read(gameProvider);
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    final p2 = state.players.firstWhere((p) => p.id == 'p2');
+
+    expect(p1.isBankrupt, isTrue);
+    expect(p1.ownedPropertyIds, isEmpty);
+
+    // Property transferred to creditor p2, but all houses/hotels returned to bank!
+    final prop1 = state.properties['prop_01'];
+    expect(prop1?.ownerId, 'p2');
+    expect(prop1?.currentLevel, 0); // Must be 0!
+    expect(p2.ownedPropertyIds, contains('prop_01'));
+
+    // Creditor cash is NOT reduced by negative cash
+    expect(p2.cash, 500);
+  });
+
+  test('Doubles Rule: Rolling doubles while indebted does not grant an extra roll', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(gameProvider.notifier);
+    notifier.initializeGame([
+      const Player(
+        id: 'p1',
+        name: 'Player 1',
+        token: PlayerToken.coconut,
+        color: Colors.red,
+        type: PlayerType.human,
+        cash: 50,
+      ),
+      const Player(
+        id: 'p2',
+        name: 'Player 2',
+        token: PlayerToken.elephant,
+        color: Colors.blue,
+        type: PlayerType.human,
+        cash: 1000,
+        ownedPropertyIds: ['prop_02'],
+      ),
+    ]);
+
+    var state = container.read(gameProvider);
+    final props = Map<String, Property>.from(state.properties);
+    props['prop_02'] = props['prop_02']!.copyWith(ownerId: 'p2', currentLevel: 3);
+    notifier.state = state.copyWith(
+      isDoubles: true,
+      consecutiveDoubles: 1,
+      properties: props,
+    );
+
+    // Pays rent exceeding cash (rent > 50)
+    notifier.payRentForTest(props['prop_02']!);
+
+    state = container.read(gameProvider);
+    final p1 = state.players.firstWhere((p) => p.id == 'p1');
+    expect(p1.cash, lessThan(0));
+
+    // Because balance is negative, doubles must NOT grant another roll!
+    // Instead phase must be turnEnd.
+    expect(state.phase, GamePhase.turnEnd);
+    expect(state.isDoubles, isFalse);
+  });
 }

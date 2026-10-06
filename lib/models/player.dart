@@ -36,6 +36,7 @@ class Player {
   final int getOutOfJailCards;
   final List<String> ownedPropertyIds;
   final int consecutiveTimeouts;
+  final String? lastCreditorId;
   
   const Player({
     required this.id,
@@ -52,6 +53,7 @@ class Player {
     this.getOutOfJailCards = 0,
     this.ownedPropertyIds = const [],
     this.consecutiveTimeouts = 0,
+    this.lastCreditorId,
   });
 
   int get consecutiveSkippedTurns => consecutiveTimeouts;
@@ -126,6 +128,8 @@ class Player {
     int? getOutOfJailCards,
     List<String>? ownedPropertyIds,
     int? consecutiveTimeouts,
+    String? lastCreditorId,
+    bool clearLastCreditorId = false,
   }) {
     return Player(
       id: id ?? this.id,
@@ -142,6 +146,7 @@ class Player {
       getOutOfJailCards: getOutOfJailCards ?? this.getOutOfJailCards,
       ownedPropertyIds: ownedPropertyIds ?? List.from(this.ownedPropertyIds),
       consecutiveTimeouts: consecutiveTimeouts ?? this.consecutiveTimeouts,
+      lastCreditorId: clearLastCreditorId ? null : (lastCreditorId ?? this.lastCreditorId),
     );
   }
 
@@ -161,6 +166,7 @@ class Player {
       'getOutOfJailCards': getOutOfJailCards,
       'ownedPropertyIds': ownedPropertyIds,
       'consecutiveTimeouts': consecutiveTimeouts,
+      'lastCreditorId': lastCreditorId,
     };
   }
 
@@ -182,6 +188,7 @@ class Player {
       getOutOfJailCards: map['getOutOfJailCards'] ?? 0,
       ownedPropertyIds: List<String>.from(map['ownedPropertyIds'] ?? const []),
       consecutiveTimeouts: (map['consecutiveTimeouts'] as num?)?.toInt() ?? 0,
+      lastCreditorId: map['lastCreditorId'] as String?,
     );
   }
 }

@@ -44,6 +44,20 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateRedeemMode(GameState gameState, Player currentPlayer) {
+    if (gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Redeeming properties is not allowed during debt resolution.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     if (_interactionMode == BoardInteractionMode.redeem) {
       _clearInteractionMode();
       return;
@@ -156,6 +170,20 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateBuildMode(GameState gameState, Player currentPlayer) {
+    if (gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Building is not allowed during debt resolution.',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     if (_interactionMode == BoardInteractionMode.build) {
       _clearInteractionMode();
       return;
@@ -205,8 +233,13 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       return;
     }
 
+    final bool isIndebted = gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0;
+
     final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && (p.canMortgage(gameState.properties) || p.canUnmortgage(currentPlayer.cash)))
+        .where((p) => p.ownerId == currentPlayer.id && (
+            p.canMortgage(gameState.properties) ||
+            (!isIndebted && p.canUnmortgage(currentPlayer.cash))
+        ))
         .map((p) => p.id)
         .toSet();
 
@@ -214,7 +247,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'You have no properties available to mortgage or unmortgage.',
+            isIndebted
+                ? 'You have no properties available to mortgage.'
+                : 'You have no properties available to mortgage or unmortgage.',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           ),
           backgroundColor: const Color(0xFFEA580C),
@@ -227,11 +262,47 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     setState(() => _interactionMode = BoardInteractionMode.mortgage);
     widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFEA580C));
     widget.game.onPropertyTappedCustom = (Property prop) {
-      if (prop.ownerId == currentPlayer.id && (prop.canMortgage(ref.read(gameProvider).properties) || prop.canUnmortgage(currentPlayer.cash))) {
+      final currentGs = ref.read(gameProvider);
+      final currentP = currentGs.currentPlayer;
+      final bool nowIndebted = currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
+
+      if (prop.isMortgaged && nowIndebted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Unmortgaging is not allowed during debt resolution.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      if (prop.ownerId == currentP.id && (prop.canMortgage(currentGs.properties) || (!nowIndebted && prop.canUnmortgage(currentP.cash)))) {
         ref.read(gameProvider.notifier).toggleMortgage(prop.id);
         final updated = ref.read(gameProvider);
+        if (updated.phase != GamePhase.debtResolution && updated.currentPlayer.cash >= 0 && nowIndebted) {
+          _clearInteractionMode();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Debt resolved! You may now roll the dice.',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: const Color(0xFF10B981),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+
         final newEligible = updated.properties.values
-            .where((p) => p.ownerId == currentPlayer.id && (p.canMortgage(updated.properties) || p.canUnmortgage(currentPlayer.cash)))
+            .where((p) => p.ownerId == currentP.id && (
+                p.canMortgage(updated.properties) ||
+                (updated.phase != GamePhase.debtResolution && p.canUnmortgage(updated.currentPlayer.cash))
+            ))
             .map((p) => p.id)
             .toSet();
         widget.game.setHighlightedProperties(newEligible, const Color(0xFFEA580C));
@@ -267,9 +338,25 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     setState(() => _interactionMode = BoardInteractionMode.sell);
     widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFE11D48));
     widget.game.onPropertyTappedCustom = (Property prop) {
+      final wasIndebted = ref.read(gameProvider).phase == GamePhase.debtResolution;
       if (prop.ownerId == currentPlayer.id && prop.canDowngrade(ref.read(gameProvider).properties)) {
         ref.read(gameProvider.notifier).sellBuilding(prop.id);
         final updated = ref.read(gameProvider);
+        if (updated.phase != GamePhase.debtResolution && updated.currentPlayer.cash >= 0 && wasIndebted) {
+          _clearInteractionMode();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Debt resolved! You may now roll the dice.',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: const Color(0xFF10B981),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+
         final newEligible = updated.properties.values
             .where((p) => p.ownerId == currentPlayer.id && p.canDowngrade(updated.properties))
             .map((p) => p.id)
@@ -443,6 +530,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   children: [
                     if (_interactionMode != BoardInteractionMode.none)
                       _buildInteractionModeCard(context, isDark)
+                    else if (gameState.phase == GamePhase.debtResolution)
+                      _buildDebtResolutionCard(context, gameState, currentPlayer, isMyTurn)
                     else ...[
                       _buildDiceTray(context, gameState, currentPlayer, isMyTurn),
                       if (gameState.phase == GamePhase.turnEnd && isMyTurn) ...[
@@ -810,7 +899,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 Text(
                   _formatCurrency(player.cash),
                   style: GoogleFonts.outfit(
-                    color: context.textPrimary,
+                    color: player.cash < 0 ? const Color(0xFFEF4444) : context.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
@@ -863,6 +952,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
   Widget _buildRightActionDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
     final isDark = context.isDark;
+    final isDebtPhase = gameState.phase == GamePhase.debtResolution;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -879,7 +969,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             context,
             Icons.lock_open_rounded,
             'Redeem',
-            const Color(0xFF10B981),
+            isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF10B981),
             () => _activateRedeemMode(gameState, currentPlayer),
             highlight: _interactionMode == BoardInteractionMode.redeem,
           ),
@@ -887,8 +977,21 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             context,
             Icons.swap_horiz_rounded,
             'Trade',
-            const Color(0xFF2563EB),
+            isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF2563EB),
             () {
+              if (isDebtPhase) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Trading is paused during debt resolution. Please mortgage or sell buildings to resolve debt.',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                    ),
+                    backgroundColor: const Color(0xFFEF4444),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+                return;
+              }
               if (isMyTurn) showDialog(context: context, builder: (_) => const TradeDialog());
             },
           ),
@@ -896,7 +999,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             context,
             Icons.apartment_rounded,
             'Build',
-            const Color(0xFF7C3AED),
+            isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF7C3AED),
             () => _activateBuildMode(gameState, currentPlayer),
             highlight: _interactionMode == BoardInteractionMode.build,
           ),
@@ -1115,7 +1218,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   Widget _buildDiceTray(BuildContext context, GameState gameState, Player current, bool isMyTurn) {
-    final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && !widget.game.isAnyTokenMoving && current.type == PlayerType.human;
+    final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && !widget.game.isAnyTokenMoving && current.type == PlayerType.human && current.cash >= 0;
     final isDark = context.isDark;
 
     // Detect if current player landed on an unowned property during space action
@@ -1569,6 +1672,189 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   fontSize: 12,
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebtResolutionCard(
+    BuildContext context,
+    GameState gameState,
+    Player current,
+    bool isMyTurn,
+  ) {
+    final isDark = context.isDark;
+    final timerRemaining = ref.watch(turnTimerRemainingProvider);
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 320),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF1A0B12) : const Color(0xFFFFF1F2)).withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE11D48), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE11D48).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFE11D48), size: 18),
+              const SizedBox(width: 6),
+              Text(
+                'DEBT RESOLUTION',
+                style: GoogleFonts.outfit(
+                  color: const Color(0xFFE11D48),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE11D48).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '⏱️ ${timerRemaining}s',
+                  style: GoogleFonts.outfit(
+                    color: const Color(0xFFE11D48),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isMyTurn
+                ? 'Balance: -₹${-current.cash}. You must raise ₹${-current.cash} to roll dice.'
+                : '${current.name}\'s balance is -₹${-current.cash}. Resolving debt...',
+            style: GoogleFonts.outfit(
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (isMyTurn) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildDebtActionButton(
+                  icon: Icons.home_work_rounded,
+                  label: 'Mortgage',
+                  color: const Color(0xFFEA580C),
+                  onTap: () => _activateMortgageMode(gameState, current),
+                ),
+                const SizedBox(width: 6),
+                _buildDebtActionButton(
+                  icon: Icons.sell_rounded,
+                  label: 'Sell Houses',
+                  color: const Color(0xFFE11D48),
+                  onTap: () => _activateSellMode(gameState, current),
+                ),
+                const SizedBox(width: 6),
+                _buildDebtActionButton(
+                  icon: Icons.flag_rounded,
+                  label: 'Surrender',
+                  color: const Color(0xFF64748B),
+                  onTap: () => _confirmBankruptcy(context, current),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebtActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color, width: 1.2),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmBankruptcy(BuildContext context, Player current) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+            const SizedBox(width: 8),
+            Text(
+              'Declare Bankruptcy?',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: ctx.textPrimary),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to surrender? All your assets will be forfeited and you will be eliminated from the game.',
+          style: GoogleFonts.outfit(color: ctx.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: GoogleFonts.outfit(color: ctx.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              ref.read(gameProvider.notifier).surrenderPlayer(current.id);
+            },
+            child: Text(
+              'Surrender',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white),
             ),
           ),
         ],

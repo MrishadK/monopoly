@@ -53,8 +53,12 @@ class PortfolioSheet extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      'Cash: ₹${current.cash}  •  Net Worth: ₹${current.calculateNetWorth(gameState.properties)}',
-                      style: GoogleFonts.outfit(color: const Color(0xFF475569), fontSize: 13, fontWeight: FontWeight.bold),
+                      'Cash: ${current.cash < 0 ? "-₹${-current.cash}" : "₹${current.cash}"}  •  Net Worth: ₹${current.calculateNetWorth(gameState.properties)}',
+                      style: GoogleFonts.outfit(
+                        color: current.cash < 0 ? const Color(0xFFEF4444) : const Color(0xFF475569),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),

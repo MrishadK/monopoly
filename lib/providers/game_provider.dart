@@ -19,7 +19,7 @@ import '../ui/overlays/emoji_chat_overlay.dart';
 import '../game/kuthaka_game.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-enum GamePhase { roll, moving, spaceAction, turnEnd, gameOver }
+enum GamePhase { roll, moving, spaceAction, turnEnd, gameOver, debtResolution }
 
 const int kTurnDurationSeconds = 45;
 
@@ -631,7 +631,7 @@ class GameNotifier extends Notifier<GameState> {
   // ==================== DICE & MOVEMENT ====================
 
   void rollDice() {
-    if (state.phase != GamePhase.roll || state.isRollingDice || isAnyTokenMoving) return;
+    if (state.phase != GamePhase.roll || state.currentPlayer.cash < 0 || state.isRollingDice || isAnyTokenMoving) return;
     if (!_isHost) {
       ref.read(multiplayerServiceProvider).sendPlayerAction('roll_dice', {
         'playerId': state.currentPlayer.id,
@@ -642,7 +642,7 @@ class GameNotifier extends Notifier<GameState> {
   }
 
   void _executeRollDice() {
-    if (state.phase != GamePhase.roll || state.isRollingDice || isAnyTokenMoving) return;
+    if (state.phase != GamePhase.roll || state.currentPlayer.cash < 0 || state.isRollingDice || isAnyTokenMoving) return;
     try { ref.read(audioServiceProvider.notifier).playDiceRoll(); } catch (_) {}
     final current = state.currentPlayer;
     if (current.consecutiveTimeouts > 0) {
@@ -737,7 +737,7 @@ class GameNotifier extends Notifier<GameState> {
           // Forced bail
           _addLog('${current.name} served 3 turns. Paid ₹100 fine and is freed.');
           final updated = current.copyWith(
-            cash: max(0, current.cash - 100),
+            cash: current.cash - 100,
             isInJail: false,
             turnsInJail: 0,
           );
@@ -1103,12 +1103,12 @@ class GameNotifier extends Notifier<GameState> {
 
       case EventCardType.moneyPenalty:
         final penalty = card.amount ?? 20;
-        if (current.cash >= penalty) {
-          _updatePlayer(current.copyWith(cash: current.cash - penalty));
-          _addLog('${current.name} paid ₹$penalty');
-        } else {
-          _handleCashDeficit(current, penalty);
-        }
+        final newCash = current.cash - penalty;
+        _updatePlayer(current.copyWith(
+          cash: newCash,
+          lastCreditorId: newCash < 0 ? null : current.lastCreditorId,
+        ));
+        _addLog('${current.name} paid ₹$penalty');
         break;
 
       case EventCardType.moveToSpace:
@@ -1162,11 +1162,11 @@ class GameNotifier extends Notifier<GameState> {
         }
         final totalFee = (houses * (card.houseFee ?? 25)) + (resorts * (card.resortFee ?? 100));
         _addLog('${current.name} owes ₹$totalFee for repairs ($houses houses, $resorts resorts)');
-        if (current.cash >= totalFee) {
-          _updatePlayer(current.copyWith(cash: current.cash - totalFee));
-        } else {
-          _handleCashDeficit(current, totalFee);
-        }
+        final newCashAfterFee = current.cash - totalFee;
+        _updatePlayer(current.copyWith(
+          cash: newCashAfterFee,
+          lastCreditorId: newCashAfterFee < 0 ? null : current.lastCreditorId,
+        ));
         break;
 
       default:
@@ -1187,115 +1187,93 @@ class GameNotifier extends Notifier<GameState> {
 
     _addLog('${current.name} pays ₹$rent rent to ${owner.name} for ${prop.name}');
 
-    if (current.cash >= rent) {
-      _transferMoney(current.id, owner.id, rent);
-      try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
+    // Always transfer full rent unconditionally
+    _transferMoney(current.id, owner.id, rent);
+    try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
 
-      _showTransactionNotice(
-        type: 'rent',
-        title: 'RENT PAID',
-        description: '${current.name} paid ₹$rent rent to ${owner.name} for ${prop.name}',
-        icon: '💸',
-        color: const Color(0xFFE11D48),
+    // Record creditor if player is now in debt
+    final updatedCurrent = state.players.firstWhere((p) => p.id == current.id);
+    if (updatedCurrent.cash < 0) {
+      _updatePlayer(updatedCurrent.copyWith(lastCreditorId: owner.id));
+    }
+
+    _showTransactionNotice(
+      type: 'rent',
+      title: 'RENT PAID',
+      description: '${current.name} paid ₹$rent rent to ${owner.name} for ${prop.name}',
+      icon: '💸',
+      color: const Color(0xFFE11D48),
+    );
+
+    // Rule 6: If indebted, doubles does NOT grant another roll!
+    if (state.isDoubles && !updatedCurrent.isInJail && updatedCurrent.cash >= 0) {
+      _addLog('🎲 Doubles! ${updatedCurrent.name} gets another roll!');
+      state = state.copyWith(
+        phase: GamePhase.roll,
+        isDoubles: false,
+        turnTimeRemaining: kTurnDurationSeconds,
+        message: 'Paid ₹$rent rent to ${owner.name}. Rolled DOUBLES! Roll again! 🎲',
       );
-
-      if (state.isDoubles && !current.isInJail) {
-        _addLog('🎲 Doubles! ${current.name} gets another roll!');
-        state = state.copyWith(
-          phase: GamePhase.roll,
-          isDoubles: false,
-          turnTimeRemaining: kTurnDurationSeconds,
-          message: 'Paid ₹$rent rent to ${owner.name}. Rolled DOUBLES! Roll again! 🎲',
-        );
-        _startTurnTimer();
-        if (current.type == PlayerType.ai) {
-          _scheduleAiTurn();
-        }
-      } else {
-        state = state.copyWith(
-          phase: GamePhase.turnEnd,
-          message: 'Paid ₹$rent rent to ${owner.name}',
-        );
-        if (current.type == PlayerType.ai) {
-          _scheduleAiTurnEnd();
-        }
+      _startTurnTimer();
+      if (updatedCurrent.type == PlayerType.ai) {
+        _scheduleAiTurn();
       }
     } else {
-      _handleCashDeficit(current, rent, creditorId: owner.id);
+      state = state.copyWith(
+        phase: GamePhase.turnEnd,
+        isDoubles: false,
+        message: updatedCurrent.cash < 0
+            ? 'Paid ₹$rent rent to ${owner.name}. Balance is negative (₹${updatedCurrent.cash})!'
+            : 'Paid ₹$rent rent to ${owner.name}',
+      );
+      if (updatedCurrent.type == PlayerType.ai) {
+        _scheduleAiTurnEnd();
+      }
     }
   }
 
   void _payTax(int amount, String taxName) {
     final current = state.currentPlayer;
     _addLog('${current.name} owes ₹$amount in $taxName');
-    if (current.cash >= amount) {
-      _updatePlayer(current.copyWith(cash: current.cash - amount));
-      try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
+    final newCash = current.cash - amount;
+    _updatePlayer(current.copyWith(
+      cash: newCash,
+      lastCreditorId: newCash < 0 ? null : current.lastCreditorId,
+    ));
+    try { ref.read(audioServiceProvider.notifier).playCoins(); } catch (_) {}
 
-      _showTransactionNotice(
-        type: 'tax',
-        title: 'TAX PAID',
-        description: '${current.name} paid ₹$amount in $taxName',
-        icon: '🏛️',
-        color: const Color(0xFF64748B),
+    _showTransactionNotice(
+      type: 'tax',
+      title: 'TAX PAID',
+      description: '${current.name} paid ₹$amount in $taxName',
+      icon: '🏛️',
+      color: const Color(0xFF64748B),
+    );
+
+    final updatedCurrent = state.players.firstWhere((p) => p.id == current.id);
+    if (state.isDoubles && !updatedCurrent.isInJail && updatedCurrent.cash >= 0) {
+      _addLog('🎲 Doubles! ${updatedCurrent.name} gets another roll!');
+      state = state.copyWith(
+        phase: GamePhase.roll,
+        isDoubles: false,
+        turnTimeRemaining: kTurnDurationSeconds,
+        message: 'Paid ₹$amount in $taxName. Rolled DOUBLES! Roll again! 🎲',
       );
-
-      if (state.isDoubles && !current.isInJail) {
-        _addLog('🎲 Doubles! ${current.name} gets another roll!');
-        state = state.copyWith(
-          phase: GamePhase.roll,
-          isDoubles: false,
-          turnTimeRemaining: kTurnDurationSeconds,
-          message: 'Paid ₹$amount in $taxName. Rolled DOUBLES! Roll again! 🎲',
-        );
-        _startTurnTimer();
-        if (current.type == PlayerType.ai) {
-          _scheduleAiTurn();
-        }
-      } else {
-        state = state.copyWith(
-          phase: GamePhase.turnEnd,
-          message: 'Paid ₹$amount in $taxName',
-        );
-        if (current.type == PlayerType.ai) {
-          _scheduleAiTurnEnd();
-        }
+      _startTurnTimer();
+      if (updatedCurrent.type == PlayerType.ai) {
+        _scheduleAiTurn();
       }
     } else {
-      _handleCashDeficit(current, amount);
-    }
-  }
-
-  void _handleCashDeficit(Player player, int amountNeeded, {String? creditorId}) {
-    // Attempt emergency mortgage of unmortgaged properties
-    int deficit = amountNeeded - player.cash;
-    final newProps = Map<String, Property>.from(state.properties);
-    int raised = 0;
-
-    for (final propId in player.ownedPropertyIds) {
-      final prop = newProps[propId];
-      if (prop != null && !prop.isMortgaged && prop.currentLevel == 0) {
-        newProps[propId] = prop.copyWith(isMortgaged: true);
-        raised += prop.mortgageValue;
-        _addLog('${player.name} mortgaged ${prop.name} for ₹${prop.mortgageValue}');
-        if (raised >= deficit) break;
-      }
-    }
-
-    final newCash = player.cash + raised;
-    if (newCash >= amountNeeded) {
-      _updatePlayer(player.copyWith(cash: newCash - amountNeeded));
-      state = state.copyWith(properties: newProps, phase: GamePhase.turnEnd);
-      if (creditorId != null) {
-        final creditor = state.players.firstWhere((p) => p.id == creditorId);
-        _updatePlayer(creditor.copyWith(cash: creditor.cash + amountNeeded));
-      }
-      if (player.type == PlayerType.ai) {
+      state = state.copyWith(
+        phase: GamePhase.turnEnd,
+        isDoubles: false,
+        message: updatedCurrent.cash < 0
+            ? 'Paid ₹$amount in $taxName. Balance is negative (₹${updatedCurrent.cash})!'
+            : 'Paid ₹$amount in $taxName',
+      );
+      if (updatedCurrent.type == PlayerType.ai) {
         _scheduleAiTurnEnd();
       }
-    } else {
-      // Bankruptcy!
-      _declareBankrupt(player, creditorId: creditorId);
     }
   }
 
@@ -1326,6 +1304,7 @@ class GameNotifier extends Notifier<GameState> {
   void _executeRedeemProperty(String propertyId) {
     final prop = state.properties[propertyId];
     final current = state.currentPlayer;
+    if (state.phase == GamePhase.debtResolution || current.cash < 0) return;
     if (prop == null || prop.ownerId != current.id || !prop.isMortgaged) return;
 
     final cost = prop.unmortgageCost;
@@ -1360,6 +1339,7 @@ class GameNotifier extends Notifier<GameState> {
     try { ref.read(audioServiceProvider.notifier).playBuy(); } catch (_) {}
     final prop = state.properties[propertyId];
     final current = state.currentPlayer;
+    if (state.phase == GamePhase.debtResolution || current.cash < 0) return;
     if (prop == null || prop.ownerId != null) return;
 
     if (current.cash >= prop.price) {
@@ -1826,6 +1806,7 @@ class GameNotifier extends Notifier<GameState> {
     final prop = state.properties[propertyId];
     if (prop == null || prop.ownerId == null) return;
     final owner = state.players.firstWhere((p) => p.id == prop.ownerId);
+    if (state.phase == GamePhase.debtResolution || owner.cash < 0) return;
 
     if (prop.canUpgrade(state.properties, owner.cash)) {
       final newLevel = prop.currentLevel + 1;
@@ -1896,7 +1877,11 @@ class GameNotifier extends Notifier<GameState> {
         color: const Color(0xFFD97706),
       );
       state = state.copyWith(properties: newProps);
+      _checkDebtResolution();
     } else if (prop.isMortgaged && prop.canUnmortgage(owner.cash)) {
+      // Disallowed during debt resolution
+      if (state.phase == GamePhase.debtResolution || owner.cash < 0) return;
+
       newProps[propertyId] = prop.copyWith(isMortgaged: false);
       _updatePlayer(owner.copyWith(cash: owner.cash - prop.unmortgageCost));
       _addLog('${owner.name} unmortgaged ${prop.name} (-₹${prop.unmortgageCost})');
@@ -1957,6 +1942,7 @@ class GameNotifier extends Notifier<GameState> {
       properties: newProps,
       message: 'Sold $buildingType on ${prop.name} for ₹$refund',
     );
+    _checkDebtResolution();
   }
 
 
@@ -2108,6 +2094,7 @@ class GameNotifier extends Notifier<GameState> {
       color: const Color(0xFF2563EB),
     );
 
+    _checkDebtResolution();
     _broadcastState();
     return true;
   }
@@ -2471,6 +2458,21 @@ class GameNotifier extends Notifier<GameState> {
     if (state.phase == GamePhase.gameOver || state.phase == GamePhase.moving || isAnyTokenMoving) return;
 
     final current = state.currentPlayer;
+
+    // Debt Resolution timeout rule:
+    // If the debt-resolution timer expires while the player's balance is still negative,
+    // automatically declare the player bankrupt.
+    if (state.phase == GamePhase.debtResolution || current.cash < 0) {
+      if (current.cash < 0) {
+        _addLog('⏱️ Debt timer expired for ${current.name} (Balance: ₹${current.cash}). Automatically declared bankrupt!');
+        _declareBankrupt(current);
+        return;
+      } else {
+        _checkDebtResolution();
+        return;
+      }
+    }
+
     final newTimeouts = current.consecutiveTimeouts + 1;
     _addLog('⏱️ ${current.name}\'s 45s turn timer expired! (Strike $newTimeouts/3)');
 
@@ -2567,23 +2569,31 @@ class GameNotifier extends Notifier<GameState> {
     }
 
     final nextPlayer = state.players[nextIdx];
+    final bool isIndebted = nextPlayer.cash < 0;
 
     state = state.copyWith(
       currentPlayerIndex: nextIdx,
-      phase: GamePhase.roll,
+      phase: isIndebted ? GamePhase.debtResolution : GamePhase.roll,
       consecutiveDoubles: 0,
       isDoubles: false,
       clearActiveEventCard: true,
       clearInspectedProperty: true,
       clearActiveAuction: true,
+      clearActiveTradeOffer: true,
       turnTimeRemaining: kTurnDurationSeconds,
-      message: '${nextPlayer.name}\'s Turn!',
+      message: isIndebted
+          ? '${nextPlayer.name} has a negative balance (₹${nextPlayer.cash})! Resolve debt before rolling.'
+          : '${nextPlayer.name}\'s Turn!',
     );
 
     _startTurnTimer();
 
     if (nextPlayer.type == PlayerType.ai) {
-      _scheduleAiTurn();
+      if (isIndebted) {
+        _scheduleAiDebtResolution();
+      } else {
+        _scheduleAiTurn();
+      }
     }
   }
 
@@ -2596,8 +2606,8 @@ class GameNotifier extends Notifier<GameState> {
       _updatePlayer(current.copyWith(consecutiveTimeouts: 0));
     }
 
-    // If rolled doubles, get another roll (unless currently in jail)
-    if (state.isDoubles && !state.currentPlayer.isInJail) {
+    // Rule 6: If rolled doubles and balance is not in debt, get another roll
+    if (state.isDoubles && !state.currentPlayer.isInJail && state.currentPlayer.cash >= 0) {
       _addLog('${state.currentPlayer.name} rolled Doubles! Roll again! 🎲');
       state = state.copyWith(
         phase: GamePhase.roll,
@@ -2621,24 +2631,113 @@ class GameNotifier extends Notifier<GameState> {
     }
 
     final nextPlayer = state.players[nextIdx];
+    final bool isIndebted = nextPlayer.cash < 0;
 
     state = state.copyWith(
       currentPlayerIndex: nextIdx,
-      phase: GamePhase.roll,
+      phase: isIndebted ? GamePhase.debtResolution : GamePhase.roll,
       consecutiveDoubles: 0,
       isDoubles: false,
       clearActiveEventCard: true,
       clearInspectedProperty: true,
       clearActiveTradeOffer: true,
       turnTimeRemaining: kTurnDurationSeconds,
-      message: '${nextPlayer.name}\'s Turn!',
+      message: isIndebted
+          ? '${nextPlayer.name} has a negative balance (₹${nextPlayer.cash})! Resolve debt before rolling.'
+          : '${nextPlayer.name}\'s Turn!',
     );
 
     _startTurnTimer();
 
     if (nextPlayer.type == PlayerType.ai) {
-      _scheduleAiTurn();
+      if (isIndebted) {
+        _scheduleAiDebtResolution();
+      } else {
+        _scheduleAiTurn();
+      }
     }
+  }
+
+  void _checkDebtResolution() {
+    if (state.phase != GamePhase.debtResolution) return;
+    final current = state.currentPlayer;
+    if (current.cash >= 0) {
+      _addLog('${current.name} resolved their debt (Balance: ₹${current.cash})! Can now roll dice.');
+      _updatePlayer(current.copyWith(clearLastCreditorId: true));
+      state = state.copyWith(
+        phase: GamePhase.roll,
+        turnTimeRemaining: kTurnDurationSeconds,
+        message: 'Debt resolved! You may now roll the dice. 🎲',
+      );
+      _startTurnTimer();
+      if (current.type == PlayerType.ai) {
+        _scheduleAiTurn();
+      }
+    }
+  }
+
+  void _scheduleAiDebtResolution() {
+    _aiTurnTimer?.cancel();
+    final lockId = _actionLockId;
+    state = state.copyWith(isAiThinking: true);
+
+    _aiTurnTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (lockId != _actionLockId) return;
+      state = state.copyWith(isAiThinking: false);
+
+      final current = state.currentPlayer;
+      if (current.type != PlayerType.ai || state.phase != GamePhase.debtResolution) return;
+
+      _handleAiDebtResolution(current);
+    });
+  }
+
+  void _handleAiDebtResolution(Player ai) {
+    // 1. Sell buildings
+    bool soldAny = true;
+    while (state.currentPlayer.cash < 0 && soldAny) {
+      soldAny = false;
+      for (final pId in state.currentPlayer.ownedPropertyIds) {
+        final p = state.properties[pId];
+        if (p != null && p.currentLevel > 0) {
+          final groupProps = state.properties.values.where((gp) => gp.group == p.group);
+          final hasHigher = groupProps.any((gp) => gp.id != p.id && gp.currentLevel > p.currentLevel);
+          if (!hasHigher) {
+            _executeSellBuilding(p.id);
+            soldAny = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (state.currentPlayer.cash >= 0) {
+      _checkDebtResolution();
+      return;
+    }
+
+    // 2. Mortgage properties
+    bool mortgagedAny = true;
+    while (state.currentPlayer.cash < 0 && mortgagedAny) {
+      mortgagedAny = false;
+      for (final pId in state.currentPlayer.ownedPropertyIds) {
+        final p = state.properties[pId];
+        if (p != null && !p.isMortgaged && p.canMortgage(state.properties)) {
+          _executeToggleMortgage(p.id);
+          mortgagedAny = true;
+          break;
+        }
+      }
+    }
+
+    if (state.currentPlayer.cash >= 0) {
+      _checkDebtResolution();
+      return;
+    }
+
+    // 3. Declare bankruptcy if unable to resolve debt
+    _addLog('${ai.name} cannot raise sufficient funds to resolve debt.');
+    _declareBankrupt(state.currentPlayer);
   }
 
   // ==================== BANKRUPTCY & TRANSFERS ====================
@@ -2667,18 +2766,33 @@ class GameNotifier extends Notifier<GameState> {
   @visibleForTesting
   void updatePlayerForTest(Player updated) => _updatePlayer(updated);
 
+  @visibleForTesting
+  void payRentForTest(Property prop) => _payRent(prop);
+
+  @visibleForTesting
+  void payTaxForTest(int amount, String taxName) => _payTax(amount, taxName);
+
+  @visibleForTesting
+  void handleTurnTimeoutForTest() => _handleTurnTimeout();
+
   void _declareBankrupt(Player player, {String? creditorId}) {
+    _turnTimer?.cancel();
     try { ref.read(audioServiceProvider.notifier).playBankruptcy(); } catch (_) {}
     _addLog('${player.name} went bankrupt and surrendered all assets.');
 
+    final effectiveCreditorId = creditorId ?? player.lastCreditorId;
     final newProps = Map<String, Property>.from(state.properties);
     final newPlayers = List<Player>.from(state.players);
     final playerIdx = newPlayers.indexWhere((p) => p.id == player.id);
 
-    // Transfer properties to creditor or release to bank
+    // Transfer properties to creditor or release to bank.
+    // In all cases, all houses and hotels are cleared and returned to the bank (currentLevel: 0).
     for (final propId in player.ownedPropertyIds) {
-      if (creditorId != null) {
-        newProps[propId] = newProps[propId]!.copyWith(ownerId: creditorId);
+      if (effectiveCreditorId != null) {
+        newProps[propId] = newProps[propId]!.copyWith(
+          ownerId: effectiveCreditorId,
+          currentLevel: 0,
+        );
       } else {
         newProps[propId] = newProps[propId]!.copyWith(
           clearOwner: true,
@@ -2688,18 +2802,18 @@ class GameNotifier extends Notifier<GameState> {
       }
     }
 
-    if (creditorId != null) {
-      final credIdx = newPlayers.indexWhere((p) => p.id == creditorId);
+    if (effectiveCreditorId != null) {
+      final credIdx = newPlayers.indexWhere((p) => p.id == effectiveCreditorId);
       if (credIdx != -1) {
         newPlayers[credIdx] = newPlayers[credIdx].copyWith(
-          cash: newPlayers[credIdx].cash + player.cash,
+          cash: newPlayers[credIdx].cash + max(0, player.cash),
           ownedPropertyIds: [...newPlayers[credIdx].ownedPropertyIds, ...player.ownedPropertyIds],
         );
       }
     }
 
-    final creditor = creditorId != null
-        ? newPlayers.cast<Player?>().firstWhere((p) => p?.id == creditorId, orElse: () => null)
+    final creditor = effectiveCreditorId != null
+        ? newPlayers.cast<Player?>().firstWhere((p) => p?.id == effectiveCreditorId, orElse: () => null)
         : null;
 
     final bankruptcyRecord = BankruptcyRecord(
@@ -2716,6 +2830,7 @@ class GameNotifier extends Notifier<GameState> {
       isBankrupt: true,
       cash: 0,
       ownedPropertyIds: const [],
+      clearLastCreditorId: true,
     );
 
     // Persist real bankruptcy decree log in Supabase Postgres
