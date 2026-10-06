@@ -43,10 +43,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateRedeemMode(GameState gameState, Player currentPlayer) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-
     if (gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -155,10 +151,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateBuildMode(GameState gameState, Player currentPlayer) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-
     if (gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -277,10 +269,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateMortgageMode(GameState gameState, Player currentPlayer) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-
     if (_interactionMode == BoardInteractionMode.mortgage) {
       _clearInteractionMode();
       return;
@@ -399,10 +387,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateSellMode(GameState gameState, Player currentPlayer) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-
     if (_interactionMode == BoardInteractionMode.sell) {
       _clearInteractionMode();
       return;

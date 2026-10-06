@@ -6,10 +6,14 @@ import '../../providers/game_provider.dart';
 import '../../ui/theme/theme_provider.dart';
 import '../../models/property.dart';
 import '../../models/player.dart';
+import 'package:flame/events.dart';
+import 'package:flame/input.dart';
+import '../../data/game_data.dart';
 import 'components/board_component.dart';
 import 'components/player_token_component.dart';
 
-class KuthakaGame extends FlameGame {
+// ignore: deprecated_member_use
+class KuthakaGame extends FlameGame with TapDetector {
   final WidgetRef ref;
 
   KuthakaGame(this.ref) {
@@ -37,6 +41,41 @@ class KuthakaGame extends FlameGame {
 
   // On-demand rendering management for 0% idle GPU usage
   int _idleFramesRemaining = 12;
+
+  @override
+  void onTapDown(TapDownInfo info) {
+    super.onTapDown(info);
+    wakeEngine(frames: 6);
+    handleBoardTap(Offset(info.eventPosition.widget.x, info.eventPosition.widget.y));
+  }
+
+  void handleBoardTap(Offset canvasPos) {
+    final b = board;
+    if (b == null) return;
+    final boardPos = Offset(b.position.x, b.position.y);
+    final localPos = canvasPos - boardPos;
+    if (localPos.dx < 0 || localPos.dx > b.size.x || localPos.dy < 0 || localPos.dy > b.size.y) {
+      return;
+    }
+
+    for (int i = 0; i < 40; i++) {
+      final r = b.getSpaceRect(i);
+      if (r.contains(localPos)) {
+        final space = GameData.spaces[i];
+        if (space.propertyId != null) {
+          final prop = b.properties[space.propertyId];
+          if (prop != null) {
+            if (onPropertyTappedCustom != null) {
+              onPropertyTappedCustom!(prop);
+            } else {
+              ref.read(gameProvider.notifier).inspectProperty(prop);
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
 
   void wakeEngine({int frames = 6}) {
     _idleFramesRemaining = max(_idleFramesRemaining, frames);
@@ -242,6 +281,11 @@ class KuthakaGame extends FlameGame {
   @override
   void update(double dt) {
     super.update(dt);
+
+    if (board != null && !board!.isMounted) {
+      _idleFramesRemaining = 12;
+      return;
+    }
 
     if (isAnyTokenMoving) {
       _idleFramesRemaining = 6;

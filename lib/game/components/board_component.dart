@@ -24,14 +24,18 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
   Set<String> get highlightedPropertyIds => _highlightedPropertyIds;
   set highlightedPropertyIds(Set<String> value) {
     _highlightedPropertyIds = value;
-    _boardNeedsRepaint = true;
+    try {
+      game.wakeEngine(frames: 6);
+    } catch (_) {}
   }
 
   Color? _highlightColor;
   Color? get highlightColor => _highlightColor;
   set highlightColor(Color? value) {
     _highlightColor = value;
-    _boardNeedsRepaint = true;
+    try {
+      game.wakeEngine(frames: 6);
+    } catch (_) {}
   }
 
   // Display-List Caching for 60+ FPS zero-overhead board rendering
@@ -151,6 +155,14 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
     _cachedBoardPicture?.dispose();
     _cachedBoardPicture = null;
     super.onRemove();
+  }
+
+  @override
+  void onMount() {
+    super.onMount();
+    try {
+      game.wakeEngine(frames: 12);
+    } catch (_) {}
   }
 
   @override
@@ -282,13 +294,18 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
         );
       }
 
-      // 2. Dynamic ownership banners, houses/hotels, mortgaged states, and highlights
+      // 2. Dynamic ownership banners, houses/hotels, and mortgaged states
       _drawDynamicOverlays(recordingCanvas);
 
       _cachedBoardPicture = recorder.endRecording();
       _boardNeedsRepaint = false;
     }
     canvas.drawPicture(_cachedBoardPicture!);
+
+    // 3. Lightweight dynamic highlight layer rendered over pre-rendered board
+    if (highlightedPropertyIds.isNotEmpty) {
+      _drawHighlightsLayer(canvas);
+    }
   }
 
   void _drawDynamicOverlays(Canvas canvas) {
@@ -314,13 +331,17 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
           if (prop.isMortgaged) {
             _drawMortgagedOverlay(canvas, rect);
           }
-
-          // Highlight overlay
-          final isHighlighted = highlightedPropertyIds.contains(prop.id);
-          if (isHighlighted) {
-            _drawHighlight(canvas, rect);
-          }
         }
+      }
+    }
+  }
+
+  void _drawHighlightsLayer(Canvas canvas) {
+    for (int i = 0; i < 40; i++) {
+      final space = GameData.spaces[i];
+      if (space.propertyId != null && highlightedPropertyIds.contains(space.propertyId)) {
+        final rect = getSpaceRect(i);
+        _drawHighlight(canvas, rect);
       }
     }
   }
