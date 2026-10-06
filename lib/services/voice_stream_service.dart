@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class VoiceParticipant {
   final String id;
@@ -239,6 +240,11 @@ class VoiceStreamNotifier extends Notifier<VoiceStreamState> {
 
   Future<void> _initLocalStream() async {
     try {
+      final status = await Permission.microphone.request();
+      if (status != PermissionStatus.granted) {
+        state = state.copyWith(statusMessage: 'Mic Access Denied');
+        return;
+      }
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': {
           'echoCancellation': true,

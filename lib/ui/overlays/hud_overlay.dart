@@ -467,7 +467,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final double diceTop = board != null ? (board.position.y + board.size.y * 0.52) : 360.0;
     final double diceLeft = board != null ? (board.position.x + board.size.x * 0.14) : 24.0;
     final double diceWidth = board != null ? (board.size.x * 0.72) : 300.0;
-    final double dockTop = board != null ? (board.position.y + 4.0) : 138.0;
 
     ref.listen(gameProvider, (prev, next) {
       if (prev?.currentPlayerIndex != next.currentPlayerIndex || next.gameLogs.length <= 1) {
@@ -513,11 +512,12 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: Center(child: EmojiFloatingDisplay()),
               ),
 
-              // ==================== RIGHT ACTION DOCK ====================
+              // ==================== BOTTOM ACTION DOCK ====================
               Positioned(
-                right: 6,
-                top: dockTop,
-                child: _buildRightActionDock(context, gameState, currentPlayer, isMyTurn),
+                bottom: 74,
+                left: 10,
+                right: 10,
+                child: Center(child: _buildBottomActionDock(context, gameState, currentPlayer, isMyTurn)),
               ),
 
               // ==================== BOARD CENTER CONTROLS & DICE ====================
@@ -950,81 +950,141 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildRightActionDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
+  Widget _buildBottomActionDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
     final isDark = context.isDark;
     final isDebtPhase = gameState.phase == GamePhase.debtResolution;
     
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.94) : Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
         boxShadow: context.cardShadow,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildRightDockButton(
-            context,
-            Icons.lock_open_rounded,
-            'Redeem',
-            isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF10B981),
-            () => _activateRedeemMode(gameState, currentPlayer),
-            highlight: _interactionMode == BoardInteractionMode.redeem,
-          ),
-          _buildRightDockButton(
-            context,
-            Icons.swap_horiz_rounded,
-            'Trade',
-            isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF2563EB),
-            () {
-              if (isDebtPhase) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Trading is paused during debt resolution. Please mortgage or sell buildings to resolve debt.',
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildBottomDockActionButton(
+              context,
+              Icons.swap_horiz_rounded,
+              'Trade',
+              isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF2563EB),
+              () {
+                if (isDebtPhase) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Trading is paused during debt resolution. Please mortgage or sell buildings to resolve debt.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFFEF4444),
+                      duration: const Duration(seconds: 3),
                     ),
-                    backgroundColor: const Color(0xFFEF4444),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-                return;
-              }
-              if (isMyTurn) showDialog(context: context, builder: (_) => const TradeDialog());
-            },
-          ),
-          _buildRightDockButton(
-            context,
-            Icons.apartment_rounded,
-            'Build',
-            isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF7C3AED),
-            () => _activateBuildMode(gameState, currentPlayer),
-            highlight: _interactionMode == BoardInteractionMode.build,
-          ),
-          _buildRightDockButton(
-            context,
-            Icons.home_work_rounded,
-            'Mortgage',
-            const Color(0xFFEA580C),
-            () => _activateMortgageMode(gameState, currentPlayer),
-            highlight: _interactionMode == BoardInteractionMode.mortgage,
-          ),
-          _buildRightDockButton(
-            context,
-            Icons.sell_rounded,
-            'Sell',
-            const Color(0xFFE11D48),
-            () => _activateSellMode(gameState, currentPlayer),
-            highlight: _interactionMode == BoardInteractionMode.sell,
-          ),
-        ],
+                  );
+                  return;
+                }
+                if (isMyTurn) {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const TradeDialog(),
+                  );
+                }
+              },
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.lock_open_rounded,
+              'Redeem',
+              isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF10B981),
+              () {
+                if (isDebtPhase) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Redeeming (unmortgaging) is disallowed while in debt. You must mortgage or sell to raise cash.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFFEF4444),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                  return;
+                }
+                _activateRedeemMode(gameState, currentPlayer);
+              },
+              highlight: _interactionMode == BoardInteractionMode.redeem,
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.home_work_rounded,
+              'Mortgage',
+              const Color(0xFFEA580C),
+              () => _activateMortgageMode(gameState, currentPlayer),
+              highlight: _interactionMode == BoardInteractionMode.mortgage,
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.apartment_rounded,
+              'Build',
+              isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF7C3AED),
+              () {
+                if (isDebtPhase) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Building houses/hotels is disallowed while in debt. You must mortgage or sell to raise cash.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFFEF4444),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                  return;
+                }
+                _activateBuildMode(gameState, currentPlayer);
+              },
+              highlight: _interactionMode == BoardInteractionMode.build,
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.sell_rounded,
+              'Sell',
+              const Color(0xFFE11D48),
+              () => _activateSellMode(gameState, currentPlayer),
+              highlight: _interactionMode == BoardInteractionMode.sell,
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.info_outline_rounded,
+              'Details',
+              const Color(0xFF475569),
+              () {
+                final space = currentPlayer.position < GameData.spaces.length ? GameData.spaces[currentPlayer.position] : null;
+                final p = space?.propertyId != null ? gameState.properties[space!.propertyId] : null;
+                if (p != null) {
+                  ref.read(gameProvider.notifier).inspectProperty(p);
+                } else {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const PortfolioSheet(),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildRightDockButton(
+  Widget _buildBottomDockActionButton(
     BuildContext context,
     IconData icon,
     String label,
@@ -1035,14 +1095,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final isDark = context.isDark;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 3),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          width: 44,
-          padding: const EdgeInsets.symmetric(vertical: 5),
+          width: 52,
+          padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
             color: highlight
                 ? color.withValues(alpha: isDark ? 0.35 : 0.20)
@@ -1065,14 +1125,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 18, color: highlight ? color : color),
+              Icon(icon, size: 20, color: color),
               const SizedBox(height: 2),
               Text(
                 label,
                 style: GoogleFonts.outfit(
                   color: isDark ? const Color(0xFFF1F5F9) : (highlight ? color : color),
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                  fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
                 ),
               ),
             ],

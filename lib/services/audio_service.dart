@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -35,8 +37,6 @@ class AudioState {
 }
 
 class AudioNotifier extends Notifier<AudioState> {
-  Timer? _loFiPulseTimer;
-
   @override
   AudioState build() {
     Future.microtask(() {
@@ -60,31 +60,45 @@ class AudioNotifier extends Notifier<AudioState> {
 
   void setMusicVolume(double volume) {
     state = state.copyWith(musicVolume: volume.clamp(0.0, 1.0));
+    _bgmPlayer?.setVolume(state.musicVolume);
   }
 
   void setSfxVolume(double volume) {
     state = state.copyWith(sfxVolume: volume.clamp(0.0, 1.0));
   }
 
-  void startLoFiAmbient() {
-    _loFiPulseTimer?.cancel();
-    state = state.copyWith(isLoFiAmbientPlaying: true);
+  AudioPlayer? _bgmPlayer;
 
-    _loFiPulseTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (!state.isMusicEnabled || !state.isLoFiAmbientPlaying) return;
-    });
+  static bool get _isTesting {
+    if (!kIsWeb) {
+      try {
+        if (Platform.environment.containsKey('FLUTTER_TEST')) return true;
+      } catch (_) {}
+    }
+    return false;
   }
 
-  void stopLoFiAmbient() {
-    _loFiPulseTimer?.cancel();
-    _loFiPulseTimer = null;
+  void startLoFiAmbient() async {
+    state = state.copyWith(isLoFiAmbientPlaying: true);
+    if (!state.isMusicEnabled || _isTesting) return;
+
+    _bgmPlayer ??= AudioPlayer();
+    _bgmPlayer!.setReleaseMode(ReleaseMode.loop);
+    _bgmPlayer!.setVolume(state.musicVolume);
+    try {
+      await _bgmPlayer!.play(AssetSource('audio/bgm.mp3'));
+    } catch (_) {}
+  }
+
+  void stopLoFiAmbient() async {
     state = state.copyWith(isLoFiAmbientPlaying: false);
+    await _bgmPlayer?.stop();
   }
 
   // ==================== SOUND EFFECTS (SFX) ====================
 
   void _playSound(String fileName) async {
-    if (!state.isSfxEnabled) return;
+    if (!state.isSfxEnabled || _isTesting) return;
     try {
       final player = AudioPlayer();
       await player.setVolume(state.sfxVolume);
@@ -127,6 +141,12 @@ class AudioNotifier extends Notifier<AudioState> {
     _playSound('jail.wav');
   }
 
+  void playPoliceSiren() {
+    if (!state.isSfxEnabled) return;
+    HapticFeedback.heavyImpact();
+    _playSound('police_siren.wav');
+  }
+
   void playCardDraw() {
     if (!state.isSfxEnabled) return;
     HapticFeedback.lightImpact();
@@ -137,6 +157,12 @@ class AudioNotifier extends Notifier<AudioState> {
     if (!state.isSfxEnabled) return;
     HapticFeedback.lightImpact();
     _playSound('click.wav');
+  }
+
+  void playPawnMove() {
+    if (!state.isSfxEnabled) return;
+    HapticFeedback.selectionClick();
+    _playSound('pawn_move.mp3');
   }
 
   void playVictory() {

@@ -14,7 +14,7 @@ class GameData {
     const BoardSpace(index: 7, name: "Monsoon", type: SpaceType.chance),
     const BoardSpace(index: 8, name: "Payyanur", type: SpaceType.property, propertyId: "prop_04"),
     const BoardSpace(index: 9, name: "Fort Kochi", type: SpaceType.property, propertyId: "prop_05"),
-    const BoardSpace(index: 10, name: "Hospital", type: SpaceType.jail),
+    const BoardSpace(index: 10, name: "Central Lockup", type: SpaceType.jail),
     const BoardSpace(index: 11, name: "Marine Drive", type: SpaceType.property, propertyId: "prop_06"),
     const BoardSpace(index: 12, name: "KSEB", type: SpaceType.utility, propertyId: "util_01"),
     const BoardSpace(index: 13, name: "Mattancherry", type: SpaceType.property, propertyId: "prop_07"),
