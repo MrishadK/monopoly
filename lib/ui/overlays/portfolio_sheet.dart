@@ -403,12 +403,7 @@ class PortfolioSheet extends ConsumerWidget {
         return 'Kerala Transports (Bus/Metro/Ferry/Air)';
       case PropertyGroup.utility:
         return 'State Utilities (KSEB / Water)';
-      case PropertyGroup.brown:
-        // TODO: Handle this case.
-        throw UnimplementedError();
-      case PropertyGroup.lightBlue:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+
     }
   }
 
@@ -434,12 +429,7 @@ class PortfolioSheet extends ConsumerWidget {
         return const Color(0xFF546E7A);
       case PropertyGroup.utility:
         return const Color(0xFF78909C);
-      case PropertyGroup.brown:
-        // TODO: Handle this case.
-        throw UnimplementedError();
-      case PropertyGroup.lightBlue:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+
     }
   }
 }

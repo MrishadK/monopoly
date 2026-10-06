@@ -76,12 +76,7 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
         return const Color(0xFF90A4AE);
       case PropertyGroup.utility:
         return const Color(0xFF26A69A);
-      case PropertyGroup.brown:
-        // TODO: Handle this case.
-        throw UnimplementedError();
-      case PropertyGroup.lightBlue:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+
     }
   }
 

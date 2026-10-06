@@ -609,12 +609,7 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
         return const Color(0xFF546E7A);
       case PropertyGroup.utility:
         return const Color(0xFF78909C);
-      case PropertyGroup.brown:
-        // TODO: Handle this case.
-        throw UnimplementedError();
-      case PropertyGroup.lightBlue:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+
     }
   }
 }

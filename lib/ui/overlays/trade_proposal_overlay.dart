@@ -492,12 +492,7 @@ class _TradeProposalOverlayContent extends ConsumerWidget {
         return const Color(0xFF546E7A);
       case PropertyGroup.utility:
         return const Color(0xFF00897B);
-      case PropertyGroup.brown:
-        // TODO: Handle this case.
-        throw UnimplementedError();
-      case PropertyGroup.lightBlue:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+
     }
   }
 }
