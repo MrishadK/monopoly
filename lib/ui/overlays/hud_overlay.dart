@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,15 +43,19 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateRedeemMode(GameState gameState, Player currentPlayer) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
     if (gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Redeeming properties is not allowed during debt resolution.',
+            'Redeeming (unmortgaging) is disallowed while in debt. You must mortgage or sell to raise cash.',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           ),
           backgroundColor: const Color(0xFFEF4444),
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         ),
       );
       return;
@@ -71,36 +74,18 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'No mortgaged properties available to redeem.',
+            'You have no mortgaged properties to redeem.',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           ),
           backgroundColor: const Color(0xFFEF4444),
           duration: const Duration(seconds: 3),
         ),
       );
+      _clearInteractionMode();
       return;
     }
 
-    final affordableProps = mortgagedProps
-        .where((p) => currentPlayer.cash >= p.unmortgageCost)
-        .toList();
-
-    if (affordableProps.isEmpty) {
-      final minCost = mortgagedProps.map((p) => p.unmortgageCost).reduce(min);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Insufficient funds: You need at least ₹$minCost to redeem any mortgaged property.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFEF4444),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    final eligibleIds = affordableProps.map((p) => p.id).toSet();
+    final eligibleIds = mortgagedProps.map((p) => p.id).toSet();
 
     setState(() => _interactionMode = BoardInteractionMode.redeem);
     widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF10B981));
@@ -157,7 +142,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final updatedGs = ref.read(gameProvider);
       final updatedP = updatedGs.currentPlayer;
       final newEligible = updatedGs.properties.values
-          .where((p) => p.ownerId == updatedP.id && p.isMortgaged && updatedP.cash >= p.unmortgageCost)
+          .where((p) => p.ownerId == updatedP.id && p.isMortgaged)
           .map((p) => p.id)
           .toSet();
 
@@ -170,15 +155,19 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }
 
   void _activateBuildMode(GameState gameState, Player currentPlayer) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
     if (gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Building is not allowed during debt resolution.',
+            'Building houses/hotels is disallowed while in debt. You must mortgage or sell to raise cash.',
             style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           ),
           backgroundColor: const Color(0xFFEF4444),
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         ),
       );
       return;
@@ -204,6 +193,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           duration: const Duration(seconds: 3),
         ),
       );
+      _clearInteractionMode();
       return;
     }
 
@@ -212,65 +202,40 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         .map((p) => p.id)
         .toSet();
 
-    setState(() => _interactionMode = BoardInteractionMode.build);
-    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF7C3AED));
-    widget.game.onPropertyTappedCustom = (Property prop) {
-      if (prop.ownerId == currentPlayer.id && prop.canUpgrade(ref.read(gameProvider).properties, currentPlayer.cash)) {
-        ref.read(gameProvider.notifier).upgradeProperty(prop.id);
-        final updated = ref.read(gameProvider);
-        final newEligible = updated.properties.values
-            .where((p) => p.ownerId == currentPlayer.id && p.canUpgrade(updated.properties, currentPlayer.cash))
-            .map((p) => p.id)
-            .toSet();
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFF7C3AED));
-      }
-    };
-  }
-
-  void _activateMortgageMode(GameState gameState, Player currentPlayer) {
-    if (_interactionMode == BoardInteractionMode.mortgage) {
+    if (eligibleIds.isEmpty) {
+      final monopolyProps = gameState.properties.values
+          .where((p) => p.ownerId == currentPlayer.id && p.isMonopoly(gameState.properties))
+          .toList();
+      final allMaxLevel = monopolyProps.every((p) => p.currentLevel >= 5);
+      final msg = allMaxLevel
+          ? 'All your monopoly properties are already fully upgraded with hotels.'
+          : 'You do not have enough cash to upgrade any properties.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            msg,
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFD97706),
+          duration: const Duration(seconds: 3),
+        ),
+      );
       _clearInteractionMode();
       return;
     }
 
-    final bool isIndebted = gameState.phase == GamePhase.debtResolution || currentPlayer.cash < 0;
-
-    final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && (
-            p.canMortgage(gameState.properties) ||
-            (!isIndebted && p.canUnmortgage(currentPlayer.cash))
-        ))
-        .map((p) => p.id)
-        .toSet();
-
-    if (eligibleIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isIndebted
-                ? 'You have no properties available to mortgage.'
-                : 'You have no properties available to mortgage or unmortgage.',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: const Color(0xFFEA580C),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _interactionMode = BoardInteractionMode.mortgage);
-    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFEA580C));
+    setState(() => _interactionMode = BoardInteractionMode.build);
+    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFF7C3AED));
     widget.game.onPropertyTappedCustom = (Property prop) {
       final currentGs = ref.read(gameProvider);
       final currentP = currentGs.currentPlayer;
-      final bool nowIndebted = currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
+      final currentProp = currentGs.properties[prop.id] ?? prop;
 
-      if (prop.isMortgaged && nowIndebted) {
+      if (currentProp.ownerId != currentP.id) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Unmortgaging is not allowed during debt resolution.',
+              'You can only build on properties that you own.',
               style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
             ),
             backgroundColor: const Color(0xFFEF4444),
@@ -280,37 +245,164 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         return;
       }
 
-      if (prop.ownerId == currentP.id && (prop.canMortgage(currentGs.properties) || (!nowIndebted && prop.canUnmortgage(currentP.cash)))) {
-        ref.read(gameProvider.notifier).toggleMortgage(prop.id);
-        final updated = ref.read(gameProvider);
-        if (updated.phase != GamePhase.debtResolution && updated.currentPlayer.cash >= 0 && nowIndebted) {
-          _clearInteractionMode();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Debt resolved! You may now roll the dice.',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-              ),
-              backgroundColor: const Color(0xFF10B981),
-              duration: const Duration(seconds: 3),
+      if (!currentProp.canUpgrade(currentGs.properties, currentP.cash)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot build on ${currentProp.name}. Check monopoly ownership, even building rules, or funds.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
             ),
-          );
-          return;
-        }
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
 
-        final newEligible = updated.properties.values
-            .where((p) => p.ownerId == currentP.id && (
-                p.canMortgage(updated.properties) ||
-                (updated.phase != GamePhase.debtResolution && p.canUnmortgage(updated.currentPlayer.cash))
-            ))
-            .map((p) => p.id)
-            .toSet();
+      ref.read(gameProvider.notifier).upgradeProperty(currentProp.id);
+
+      final updatedGs = ref.read(gameProvider);
+      final updatedP = updatedGs.currentPlayer;
+      final newEligible = updatedGs.properties.values
+          .where((p) => p.ownerId == updatedP.id && p.canUpgrade(updatedGs.properties, updatedP.cash))
+          .map((p) => p.id)
+          .toSet();
+
+      if (newEligible.isEmpty) {
+        _clearInteractionMode();
+      } else {
+        widget.game.setHighlightedProperties(newEligible, const Color(0xFF7C3AED));
+      }
+    };
+  }
+
+  void _activateMortgageMode(GameState gameState, Player currentPlayer) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    if (_interactionMode == BoardInteractionMode.mortgage) {
+      _clearInteractionMode();
+      return;
+    }
+
+    final eligibleIds = gameState.properties.values
+        .where((p) => p.ownerId == currentPlayer.id && !p.isMortgaged && p.canMortgage(gameState.properties))
+        .map((p) => p.id)
+        .toSet();
+
+    if (eligibleIds.isEmpty) {
+      final ownedProps = gameState.properties.values.where((p) => p.ownerId == currentPlayer.id).toList();
+      String message;
+      if (ownedProps.isEmpty) {
+        message = 'You do not own any properties to mortgage.';
+      } else if (ownedProps.every((p) => p.isMortgaged)) {
+        message = 'All your properties are already mortgaged. Use Redeem to unmortgage.';
+      } else {
+        message = 'Cannot mortgage properties while buildings exist in their color group. Sell buildings first.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFFEA580C),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      _clearInteractionMode();
+      return;
+    }
+
+    setState(() => _interactionMode = BoardInteractionMode.mortgage);
+    widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFEA580C));
+    widget.game.onPropertyTappedCustom = (Property prop) {
+      final currentGs = ref.read(gameProvider);
+      final currentP = currentGs.currentPlayer;
+      final currentProp = currentGs.properties[prop.id] ?? prop;
+      final wasIndebted = currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
+
+      if (currentProp.ownerId != currentP.id) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'You can only mortgage properties that you own.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      if (currentProp.isMortgaged) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${currentProp.name} is already mortgaged. Use Redeem to unmortgage.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEA580C),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      if (!currentProp.canMortgage(currentGs.properties)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot mortgage ${currentProp.name}. Sell all buildings in this color group first.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      ref.read(gameProvider.notifier).toggleMortgage(currentProp.id);
+
+      final updatedGs = ref.read(gameProvider);
+      final updatedP = updatedGs.currentPlayer;
+
+      if (wasIndebted && updatedGs.phase != GamePhase.debtResolution && updatedP.cash >= 0) {
+        _clearInteractionMode();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Debt resolved! You may now roll the dice.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      final newEligible = updatedGs.properties.values
+          .where((p) => p.ownerId == updatedP.id && !p.isMortgaged && p.canMortgage(updatedGs.properties))
+          .map((p) => p.id)
+          .toSet();
+
+      if (newEligible.isEmpty) {
+        _clearInteractionMode();
+      } else {
         widget.game.setHighlightedProperties(newEligible, const Color(0xFFEA580C));
       }
     };
   }
 
   void _activateSellMode(GameState gameState, Player currentPlayer) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
     if (_interactionMode == BoardInteractionMode.sell) {
       _clearInteractionMode();
       return;
@@ -332,35 +424,74 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           duration: const Duration(seconds: 3),
         ),
       );
+      _clearInteractionMode();
       return;
     }
 
     setState(() => _interactionMode = BoardInteractionMode.sell);
     widget.game.setHighlightedProperties(eligibleIds, const Color(0xFFE11D48));
     widget.game.onPropertyTappedCustom = (Property prop) {
-      final wasIndebted = ref.read(gameProvider).phase == GamePhase.debtResolution;
-      if (prop.ownerId == currentPlayer.id && prop.canDowngrade(ref.read(gameProvider).properties)) {
-        ref.read(gameProvider.notifier).sellBuilding(prop.id);
-        final updated = ref.read(gameProvider);
-        if (updated.phase != GamePhase.debtResolution && updated.currentPlayer.cash >= 0 && wasIndebted) {
-          _clearInteractionMode();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Debt resolved! You may now roll the dice.',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-              ),
-              backgroundColor: const Color(0xFF10B981),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
+      final currentGs = ref.read(gameProvider);
+      final currentP = currentGs.currentPlayer;
+      final currentProp = currentGs.properties[prop.id] ?? prop;
+      final wasIndebted = currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
 
-        final newEligible = updated.properties.values
-            .where((p) => p.ownerId == currentPlayer.id && p.canDowngrade(updated.properties))
-            .map((p) => p.id)
-            .toSet();
+      if (currentProp.ownerId != currentP.id) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'You can only sell buildings on properties you own.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      if (!currentProp.canDowngrade(currentGs.properties)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot sell from ${currentProp.name}. Must sell evenly across the color group.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      ref.read(gameProvider.notifier).sellBuilding(currentProp.id);
+
+      final updatedGs = ref.read(gameProvider);
+      final updatedP = updatedGs.currentPlayer;
+
+      if (wasIndebted && updatedGs.phase != GamePhase.debtResolution && updatedP.cash >= 0) {
+        _clearInteractionMode();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Debt resolved! You may now roll the dice.',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      final newEligible = updatedGs.properties.values
+          .where((p) => p.ownerId == updatedP.id && p.canDowngrade(updatedGs.properties))
+          .map((p) => p.id)
+          .toSet();
+
+      if (newEligible.isEmpty) {
+        _clearInteractionMode();
+      } else {
         widget.game.setHighlightedProperties(newEligible, const Color(0xFFE11D48));
       }
     };
@@ -469,7 +600,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final double diceWidth = board != null ? (board.size.x * 0.72) : 300.0;
 
     ref.listen(gameProvider, (prev, next) {
-      if (prev?.currentPlayerIndex != next.currentPlayerIndex || next.gameLogs.length <= 1) {
+      final isRestart = prev != null && prev.gameLogs.length > next.gameLogs.length && next.gameLogs.length <= 1;
+      final isTurnChange = prev != null && prev.currentPlayerIndex != next.currentPlayerIndex;
+      final isGameOver = next.phase == GamePhase.gameOver;
+      if (isTurnChange || isRestart || isGameOver) {
         if (_interactionMode != BoardInteractionMode.none) {
           _clearInteractionMode();
         }
@@ -969,6 +1103,98 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           children: [
             _buildBottomDockActionButton(
               context,
+              Icons.lock_open_rounded,
+              'Redeem',
+              isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF10B981),
+              () {
+                if (!isMyTurn) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'You can only redeem properties during your turn.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFF64748B),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                _activateRedeemMode(gameState, currentPlayer);
+              },
+              highlight: _interactionMode == BoardInteractionMode.redeem,
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.apartment_rounded,
+              'Build',
+              isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF7C3AED),
+              () {
+                if (!isMyTurn) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'You can only build properties during your turn.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFF64748B),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                _activateBuildMode(gameState, currentPlayer);
+              },
+              highlight: _interactionMode == BoardInteractionMode.build,
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.home_work_rounded,
+              'Mortgage',
+              const Color(0xFFEA580C),
+              () {
+                if (!isMyTurn) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'You can only mortgage properties during your turn.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFF64748B),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                _activateMortgageMode(gameState, currentPlayer);
+              },
+              highlight: _interactionMode == BoardInteractionMode.mortgage,
+            ),
+            _buildBottomDockActionButton(
+              context,
+              Icons.sell_rounded,
+              'Sell',
+              const Color(0xFFE11D48),
+              () {
+                if (!isMyTurn) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'You can only sell buildings during your turn.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFF64748B),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                _activateSellMode(gameState, currentPlayer);
+              },
+              highlight: _interactionMode == BoardInteractionMode.sell,
+            ),
+            _buildBottomDockActionButton(
+              context,
               Icons.swap_horiz_rounded,
               'Trade',
               isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF2563EB),
@@ -993,87 +1219,16 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                     backgroundColor: Colors.transparent,
                     builder: (_) => const TradeDialog(),
                   );
-                }
-              },
-            ),
-            _buildBottomDockActionButton(
-              context,
-              Icons.lock_open_rounded,
-              'Redeem',
-              isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF10B981),
-              () {
-                if (isDebtPhase) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Redeeming (unmortgaging) is disallowed while in debt. You must mortgage or sell to raise cash.',
-                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-                      ),
-                      backgroundColor: const Color(0xFFEF4444),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                  return;
-                }
-                _activateRedeemMode(gameState, currentPlayer);
-              },
-              highlight: _interactionMode == BoardInteractionMode.redeem,
-            ),
-            _buildBottomDockActionButton(
-              context,
-              Icons.home_work_rounded,
-              'Mortgage',
-              const Color(0xFFEA580C),
-              () => _activateMortgageMode(gameState, currentPlayer),
-              highlight: _interactionMode == BoardInteractionMode.mortgage,
-            ),
-            _buildBottomDockActionButton(
-              context,
-              Icons.apartment_rounded,
-              'Build',
-              isDebtPhase ? const Color(0xFF64748B) : const Color(0xFF7C3AED),
-              () {
-                if (isDebtPhase) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Building houses/hotels is disallowed while in debt. You must mortgage or sell to raise cash.',
-                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-                      ),
-                      backgroundColor: const Color(0xFFEF4444),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                  return;
-                }
-                _activateBuildMode(gameState, currentPlayer);
-              },
-              highlight: _interactionMode == BoardInteractionMode.build,
-            ),
-            _buildBottomDockActionButton(
-              context,
-              Icons.sell_rounded,
-              'Sell',
-              const Color(0xFFE11D48),
-              () => _activateSellMode(gameState, currentPlayer),
-              highlight: _interactionMode == BoardInteractionMode.sell,
-            ),
-            _buildBottomDockActionButton(
-              context,
-              Icons.info_outline_rounded,
-              'Details',
-              const Color(0xFF475569),
-              () {
-                final space = currentPlayer.position < GameData.spaces.length ? GameData.spaces[currentPlayer.position] : null;
-                final p = space?.propertyId != null ? gameState.properties[space!.propertyId] : null;
-                if (p != null) {
-                  ref.read(gameProvider.notifier).inspectProperty(p);
                 } else {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => const PortfolioSheet(),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'You can only propose trades during your turn.',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: const Color(0xFF64748B),
+                      duration: const Duration(seconds: 2),
+                    ),
                   );
                 }
               },
@@ -1646,25 +1801,25 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         title = 'REDEEM MODE';
         icon = Icons.lock_open_rounded;
         accentColor = const Color(0xFF10B981);
-        description = 'Select a mortgaged property to redeem it. Redeeming a property removes its mortgage after paying the mortgage value plus 10% interest.';
+        description = 'Select a highlighted mortgaged property to redeem. Redeeming removes its mortgage after paying mortgage value plus 10% interest.';
         break;
       case BoardInteractionMode.build:
         title = 'BUILD MODE';
         icon = Icons.apartment_rounded;
         accentColor = const Color(0xFF7C3AED);
-        description = 'Tap highlighted properties to construct houses/hotels. Official Monopoly rules require building evenly across a monopoly group.';
+        description = 'Select a highlighted property to build houses or hotels. Official Monopoly rules require building evenly across a monopoly group.';
         break;
       case BoardInteractionMode.mortgage:
         title = 'MORTGAGE MODE';
         icon = Icons.home_work_rounded;
         accentColor = const Color(0xFFEA580C);
-        description = 'Tap highlighted properties to mortgage (receive 50% value) or unmortgage (+10% interest). No buildings may exist on any property in the group.';
+        description = 'Select a highlighted property to mortgage and receive 50% of its value as cash. No buildings may exist on any property in its color group.';
         break;
       case BoardInteractionMode.sell:
         title = 'SELL BUILDINGS';
         icon = Icons.sell_rounded;
         accentColor = const Color(0xFFE11D48);
-        description = 'Tap highlighted properties to sell houses/hotels back to the bank for 50% of purchase price. Must sell evenly across group.';
+        description = 'Select a highlighted property to sell houses or hotels back to bank for 50% refund. Must sell evenly across the color group.';
         break;
       case BoardInteractionMode.none:
         return const SizedBox.shrink();

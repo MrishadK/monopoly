@@ -236,9 +236,7 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
       if (highlightedProperties != null) {
         _highlightedPropertyIds = highlightedProperties;
       }
-      if (customHighlightColor != null) {
-        _highlightColor = customHighlightColor;
-      }
+      _highlightColor = customHighlightColor;
       needsRepaint = true;
     }
     if (_havePropertiesChanged(newProperties)) {
