@@ -56,16 +56,32 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
 
   Color _getGroupColor(PropertyGroup group) {
     switch (group) {
-      case PropertyGroup.malabar: return const Color(0xFFC97B4B);
-      case PropertyGroup.thrissur: return const Color(0xFF3DAEF2);
-      case PropertyGroup.kochi: return const Color(0xFFF06292);
-      case PropertyGroup.backwaters: return const Color(0xFFFFB74D);
-      case PropertyGroup.highlands: return const Color(0xFFEF5350);
-      case PropertyGroup.southKerala: return const Color(0xFFFFEE58);
-      case PropertyGroup.premium: return const Color(0xFF66BB6A);
-      case PropertyGroup.luxury: return const Color(0xFF42A5F5);
-      case PropertyGroup.transport: return const Color(0xFF90A4AE);
-      case PropertyGroup.utility: return const Color(0xFF26A69A);
+      case PropertyGroup.malabar:
+        return const Color(0xFFC97B4B);
+      case PropertyGroup.thrissur:
+        return const Color(0xFF3DAEF2);
+      case PropertyGroup.kochi:
+        return const Color(0xFFF06292);
+      case PropertyGroup.backwaters:
+        return const Color(0xFFFFB74D);
+      case PropertyGroup.highlands:
+        return const Color(0xFFEF5350);
+      case PropertyGroup.southKerala:
+        return const Color(0xFFFFEE58);
+      case PropertyGroup.premium:
+        return const Color(0xFF66BB6A);
+      case PropertyGroup.luxury:
+        return const Color(0xFF42A5F5);
+      case PropertyGroup.transport:
+        return const Color(0xFF90A4AE);
+      case PropertyGroup.utility:
+        return const Color(0xFF26A69A);
+      case PropertyGroup.brown:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case PropertyGroup.lightBlue:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -75,11 +91,14 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
     final currentPlayer = gameState.currentPlayer;
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
-    final isOnline = multiplayer.isConnected || multiplayer.activeRoomId != null;
-    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final isOnline =
+        multiplayer.isConnected || multiplayer.activeRoomId != null;
+    final myLocalId =
+        ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
 
     // Strict validation: Only the currently active player can propose trades
-    final isCurrentlyPlaying = currentPlayer.type == PlayerType.human &&
+    final isCurrentlyPlaying =
+        currentPlayer.type == PlayerType.human &&
         (!isOnline || currentPlayer.id == myLocalId);
 
     if (!isCurrentlyPlaying) {
@@ -87,7 +106,9 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
     }
 
     final myPlayer = currentPlayer;
-    final otherPlayers = gameState.players.where((p) => p.id != myPlayer.id && !p.isBankrupt).toList();
+    final otherPlayers = gameState.players
+        .where((p) => p.id != myPlayer.id && !p.isBankrupt)
+        .toList();
 
     _selectedTarget ??= otherPlayers.isNotEmpty ? otherPlayers.first : null;
 
@@ -96,7 +117,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
     }
 
     // Ensure selected target is still valid
-    final target = otherPlayers.firstWhere((p) => p.id == _selectedTarget!.id, orElse: () => otherPlayers.first);
+    final target = otherPlayers.firstWhere(
+      (p) => p.id == _selectedTarget!.id,
+      orElse: () => otherPlayers.first,
+    );
     if (_selectedTarget!.id != target.id) {
       _selectedTarget = target;
     }
@@ -117,15 +141,22 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
     // Clean up selections that are no longer owned or no longer tradeable
     _offeredProps.removeWhere((id) {
       final p = gameState.properties[id];
-      return p == null || p.ownerId != myPlayer.id || !p.isTradeable(gameState.properties);
+      return p == null ||
+          p.ownerId != myPlayer.id ||
+          !p.isTradeable(gameState.properties);
     });
     _requestedProps.removeWhere((id) {
       final p = gameState.properties[id];
-      return p == null || p.ownerId != target.id || !p.isTradeable(gameState.properties);
+      return p == null ||
+          p.ownerId != target.id ||
+          !p.isTradeable(gameState.properties);
     });
 
-    final hasTradeContent = _offeredCash > 0 || _requestedCash > 0 ||
-        _offeredProps.isNotEmpty || _requestedProps.isNotEmpty;
+    final hasTradeContent =
+        _offeredCash > 0 ||
+        _requestedCash > 0 ||
+        _offeredProps.isNotEmpty ||
+        _requestedProps.isNotEmpty;
 
     // Bottom sheet height: leave space for the bottom nav dock (~72px from bottom)
     final screenHeight = MediaQuery.of(context).size.height;
@@ -188,12 +219,15 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                       glowColor: _accentGiveGlow,
                       cashBalance: myPlayer.cash,
                       selectedCash: _offeredCash,
-                      onCashChanged: (val) => setState(() => _offeredCash = val),
+                      onCashChanged: (val) =>
+                          setState(() => _offeredCash = val),
                       properties: myProps,
                       selectedPropertyIds: _offeredProps,
                       onPropertyToggled: (pId, checked) {
                         setState(() {
-                          checked ? _offeredProps.add(pId) : _offeredProps.remove(pId);
+                          checked
+                              ? _offeredProps.add(pId)
+                              : _offeredProps.remove(pId);
                         });
                       },
                       allProperties: gameState.properties,
@@ -212,12 +246,15 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                       glowColor: _accentReceiveGlow,
                       cashBalance: target.cash,
                       selectedCash: _requestedCash,
-                      onCashChanged: (val) => setState(() => _requestedCash = val),
+                      onCashChanged: (val) =>
+                          setState(() => _requestedCash = val),
                       properties: targetProps,
                       selectedPropertyIds: _requestedProps,
                       onPropertyToggled: (pId, checked) {
                         setState(() {
-                          checked ? _requestedProps.add(pId) : _requestedProps.remove(pId);
+                          checked
+                              ? _requestedProps.add(pId)
+                              : _requestedProps.remove(pId);
                         });
                       },
                       allProperties: gameState.properties,
@@ -256,7 +293,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                 end: Alignment.bottomRight,
               ),
             ),
-            child: const Icon(Icons.swap_horiz_rounded, color: Colors.white, size: 18),
+            child: const Icon(
+              Icons.swap_horiz_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -296,7 +337,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                   color: _surfaceDark,
                   border: Border.all(color: _borderSubtle),
                 ),
-                child: const Icon(Icons.close_rounded, color: _textSecondary, size: 16),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: _textSecondary,
+                  size: 16,
+                ),
               ),
             ),
           ),
@@ -326,7 +371,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: target.color.withValues(alpha: 0.15),
-                border: Border.all(color: target.color.withValues(alpha: 0.4), width: 1.5),
+                border: Border.all(
+                  color: target.color.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
               ),
               child: Icon(target.tokenIcon, size: 11, color: target.color),
             ),
@@ -337,8 +385,16 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                   value: target.id,
                   dropdownColor: _cardDark,
                   isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _textSecondary, size: 18),
-                  style: GoogleFonts.outfit(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: _textSecondary,
+                    size: 18,
+                  ),
+                  style: GoogleFonts.outfit(
+                    color: _textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                   items: otherPlayers.map((p) {
                     return DropdownMenuItem(
                       value: p.id,
@@ -349,13 +405,20 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                           Flexible(
                             child: Text(
                               p.name,
-                              style: GoogleFonts.outfit(color: _textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                              style: GoogleFonts.outfit(
+                                color: _textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
                             decoration: BoxDecoration(
                               color: _surfaceDark,
                               borderRadius: BorderRadius.circular(4),
@@ -372,7 +435,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                           const SizedBox(width: 4),
                           Text(
                             '₹${p.cash}',
-                            style: GoogleFonts.outfit(color: _accentReceive, fontSize: 11, fontWeight: FontWeight.w700),
+                            style: GoogleFonts.outfit(
+                              color: _accentReceive,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -381,7 +448,9 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                   onChanged: (newId) {
                     if (newId != null) {
                       setState(() {
-                        _selectedTarget = otherPlayers.firstWhere((p) => p.id == newId);
+                        _selectedTarget = otherPlayers.firstWhere(
+                          (p) => p.id == newId,
+                        );
                         _requestedProps.clear();
                         _requestedCash = 0;
                       });
@@ -438,15 +507,24 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: myPlayer.color.withValues(alpha: 0.2),
-                    border: Border.all(color: myPlayer.color.withValues(alpha: 0.5), width: 1),
+                    border: Border.all(
+                      color: myPlayer.color.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
                   ),
-                  child: Icon(myPlayer.tokenIcon, size: 9, color: myPlayer.color),
+                  child: Icon(
+                    myPlayer.tokenIcon,
+                    size: 9,
+                    color: myPlayer.color,
+                  ),
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'YOU GIVE',
                   style: GoogleFonts.outfit(
-                    color: _tabController.index == 0 ? _accentGive : _textSecondary,
+                    color: _tabController.index == 0
+                        ? _accentGive
+                        : _textSecondary,
                     fontWeight: FontWeight.w800,
                     fontSize: 11,
                     letterSpacing: 0.5,
@@ -455,7 +533,8 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                 if (_offeredProps.isNotEmpty || _offeredCash > 0) ...[
                   const SizedBox(width: 5),
                   Container(
-                    width: 6, height: 6,
+                    width: 6,
+                    height: 6,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: _accentGive,
@@ -476,7 +555,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: target.color.withValues(alpha: 0.2),
-                    border: Border.all(color: target.color.withValues(alpha: 0.5), width: 1),
+                    border: Border.all(
+                      color: target.color.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
                   ),
                   child: Icon(target.tokenIcon, size: 9, color: target.color),
                 ),
@@ -484,7 +566,9 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                 Text(
                   'THEY GIVE',
                   style: GoogleFonts.outfit(
-                    color: _tabController.index == 1 ? _accentReceive : _textSecondary,
+                    color: _tabController.index == 1
+                        ? _accentReceive
+                        : _textSecondary,
                     fontWeight: FontWeight.w800,
                     fontSize: 11,
                     letterSpacing: 0.5,
@@ -493,7 +577,8 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                 if (_requestedProps.isNotEmpty || _requestedCash > 0) ...[
                   const SizedBox(width: 5),
                   Container(
-                    width: 6, height: 6,
+                    width: 6,
+                    height: 6,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: _accentReceive,
@@ -522,7 +607,8 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
     required ValueChanged<int> onCashChanged,
     required List<Property> properties,
     required Set<String> selectedPropertyIds,
-    required void Function(String propertyId, bool isSelected) onPropertyToggled,
+    required void Function(String propertyId, bool isSelected)
+    onPropertyToggled,
     required Map<String, Property> allProperties,
     required IconData playerToken,
     required Color playerColor,
@@ -533,7 +619,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: accentColor.withValues(alpha: 0.2), width: 1),
         boxShadow: [
-          BoxShadow(color: glowColor, blurRadius: 16, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: glowColor,
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -544,8 +634,12 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: accentColor.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              border: Border(bottom: BorderSide(color: accentColor.withValues(alpha: 0.15))),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
+              border: Border(
+                bottom: BorderSide(color: accentColor.withValues(alpha: 0.15)),
+              ),
             ),
             child: Row(
               children: [
@@ -555,7 +649,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: playerColor.withValues(alpha: 0.15),
-                    border: Border.all(color: playerColor.withValues(alpha: 0.5), width: 1.5),
+                    border: Border.all(
+                      color: playerColor.withValues(alpha: 0.5),
+                      width: 1.5,
+                    ),
                   ),
                   child: Icon(playerToken, size: 10, color: playerColor),
                 ),
@@ -600,13 +697,18 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.account_balance_wallet_rounded,
-                              color: accentColor, size: 14),
+                          Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: accentColor,
+                            size: 14,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             '₹$selectedCash',
                             style: GoogleFonts.outfit(
-                              color: selectedCash > 0 ? accentColor : _textSecondary,
+                              color: selectedCash > 0
+                                  ? accentColor
+                                  : _textSecondary,
                               fontWeight: FontWeight.w800,
                               fontSize: 16,
                             ),
@@ -614,7 +716,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: _bgDark,
                           borderRadius: BorderRadius.circular(6),
@@ -638,13 +743,17 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                       inactiveTrackColor: accentColor.withValues(alpha: 0.12),
                       overlayColor: accentColor.withValues(alpha: 0.1),
                       trackHeight: 4,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
                     ),
                     child: Slider(
                       value: selectedCash.clamp(0, cashBalance).toDouble(),
                       min: 0,
                       max: cashBalance > 0 ? cashBalance.toDouble() : 1.0,
-                      divisions: cashBalance > 0 ? (cashBalance >= 50 ? 50 : cashBalance) : 1,
+                      divisions: cashBalance > 0
+                          ? (cashBalance >= 50 ? 50 : cashBalance)
+                          : 1,
                       onChanged: cashBalance > 0
                           ? (val) => onCashChanged(val.toInt())
                           : null,
@@ -660,15 +769,19 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                         final labelText = fraction == 0
                             ? '₹0'
                             : fraction == 1
-                                ? 'MAX'
-                                : '${(fraction * 100).toInt()}%';
+                            ? 'MAX'
+                            : '${(fraction * 100).toInt()}%';
                         return Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 1.5,
+                            ),
                             child: GestureDetector(
                               onTap: () => onCashChanged(amount),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
                                   color: isActive
                                       ? accentColor.withValues(alpha: 0.2)
@@ -684,7 +797,9 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                                 child: Text(
                                   labelText,
                                   style: GoogleFonts.outfit(
-                                    color: isActive ? accentColor : _textSecondary,
+                                    color: isActive
+                                        ? accentColor
+                                        : _textSecondary,
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -708,7 +823,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
               children: [
                 Row(
                   children: [
-                    Icon(Icons.location_city_rounded, color: _textSecondary, size: 12),
+                    Icon(
+                      Icons.location_city_rounded,
+                      color: _textSecondary,
+                      size: 12,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'PROPERTIES',
@@ -721,7 +840,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                     ),
                     const SizedBox(width: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: _surfaceDark,
                         borderRadius: BorderRadius.circular(5),
@@ -739,7 +861,10 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                 ),
                 if (selectedPropertyIds.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: accentColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
@@ -764,7 +889,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.inventory_2_outlined, color: _borderSubtle, size: 26),
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          color: _borderSubtle,
+                          size: 26,
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           'No properties owned yet',
@@ -794,7 +923,8 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                         isSelected: isSelected,
                         accentColor: accentColor,
                         onChanged: isTradeable
-                            ? (checked) => onPropertyToggled(p.id, checked ?? false)
+                            ? (checked) =>
+                                  onPropertyToggled(p.id, checked ?? false)
                             : null,
                       );
                     },
@@ -822,17 +952,15 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: isTradeable
-              ? () => onChanged?.call(!isSelected)
-              : null,
+          onTap: isTradeable ? () => onChanged?.call(!isSelected) : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               color: isSelected
                   ? accentColor.withValues(alpha: 0.08)
                   : isTradeable
-                      ? _surfaceDark
-                      : _surfaceDark.withValues(alpha: 0.5),
+                  ? _surfaceDark
+                  : _surfaceDark.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
@@ -848,14 +976,21 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                   width: 5,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: isTradeable ? groupColor : groupColor.withValues(alpha: 0.3),
-                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(9)),
+                    color: isTradeable
+                        ? groupColor
+                        : groupColor.withValues(alpha: 0.3),
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(9),
+                    ),
                   ),
                 ),
                 // Content
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -865,7 +1000,9 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                               child: Text(
                                 property.name,
                                 style: GoogleFonts.outfit(
-                                  color: isTradeable ? _textPrimary : _textSecondary.withValues(alpha: 0.5),
+                                  color: isTradeable
+                                      ? _textPrimary
+                                      : _textSecondary.withValues(alpha: 0.5),
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -887,19 +1024,39 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                         Row(
                           children: [
                             if (property.isMortgaged)
-                              _buildStatusChip('MORTGAGED', const Color(0xFFEF4444), Icons.warning_amber_rounded)
+                              _buildStatusChip(
+                                'MORTGAGED',
+                                const Color(0xFFEF4444),
+                                Icons.warning_amber_rounded,
+                              )
                             else if (!isTradeable)
-                              _buildStatusChip('LOCKED', const Color(0xFFEF4444), Icons.lock_rounded)
+                              _buildStatusChip(
+                                'LOCKED',
+                                const Color(0xFFEF4444),
+                                Icons.lock_rounded,
+                              )
                             else if (isSelected)
-                              _buildStatusChip('SELECTED', accentColor, Icons.check_circle_rounded)
+                              _buildStatusChip(
+                                'SELECTED',
+                                accentColor,
+                                Icons.check_circle_rounded,
+                              )
                             else
-                              _buildStatusChip('AVAILABLE', const Color(0xFF6B7280), null),
+                              _buildStatusChip(
+                                'AVAILABLE',
+                                const Color(0xFF6B7280),
+                                null,
+                              ),
                             if (property.currentLevel > 0) ...[
                               const SizedBox(width: 4),
                               _buildStatusChip(
-                                property.currentLevel == 5 ? 'HOTEL' : 'LVL ${property.currentLevel}',
+                                property.currentLevel == 5
+                                    ? 'HOTEL'
+                                    : 'LVL ${property.currentLevel}',
                                 const Color(0xFF60A5FA),
-                                property.currentLevel == 5 ? Icons.apartment_rounded : Icons.home_rounded,
+                                property.currentLevel == 5
+                                    ? Icons.apartment_rounded
+                                    : Icons.home_rounded,
                               ),
                             ],
                           ],
@@ -920,8 +1077,13 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                         onChanged: onChanged,
                         activeColor: accentColor,
                         checkColor: _bgDark,
-                        side: const BorderSide(color: _borderSubtle, width: 1.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        side: const BorderSide(
+                          color: _borderSubtle,
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
@@ -965,7 +1127,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
   // ═══════════════════════════════════════════════════════════════
   // ─── Submit Button ────────────────────────────────────────────
   // ═══════════════════════════════════════════════════════════════
-  Widget _buildSubmitButton(bool hasTradeContent, Player myPlayer, Player target) {
+  Widget _buildSubmitButton(
+    bool hasTradeContent,
+    Player myPlayer,
+    Player target,
+  ) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
       decoration: const BoxDecoration(
@@ -979,7 +1145,9 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
             backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
             shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             padding: EdgeInsets.zero,
           ),
           onPressed: hasTradeContent
@@ -1016,13 +1184,17 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    hasTradeContent ? Icons.handshake_rounded : Icons.touch_app_rounded,
+                    hasTradeContent
+                        ? Icons.handshake_rounded
+                        : Icons.touch_app_rounded,
                     size: 18,
                     color: hasTradeContent ? Colors.white : _textSecondary,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    hasTradeContent ? 'PROPOSE TRADE' : 'SELECT CASH OR PROPERTIES',
+                    hasTradeContent
+                        ? 'PROPOSE TRADE'
+                        : 'SELECT CASH OR PROPERTIES',
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
@@ -1071,7 +1243,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
               shape: BoxShape.circle,
               color: const Color(0xFFEF4444).withValues(alpha: 0.12),
             ),
-            child: const Icon(Icons.block_rounded, color: Color(0xFFEF4444), size: 24),
+            child: const Icon(
+              Icons.block_rounded,
+              color: Color(0xFFEF4444),
+              size: 24,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -1098,11 +1274,16 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
               style: ElevatedButton.styleFrom(
                 backgroundColor: _surfaceDark,
                 foregroundColor: _textPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
               onPressed: () => Navigator.pop(context),
-              child: Text('CLOSE', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
+              child: Text(
+                'CLOSE',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ],
@@ -1139,7 +1320,11 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
               shape: BoxShape.circle,
               color: _accentGive.withValues(alpha: 0.12),
             ),
-            child: const Icon(Icons.person_off_rounded, color: _accentGive, size: 24),
+            child: const Icon(
+              Icons.person_off_rounded,
+              color: _accentGive,
+              size: 24,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -1164,11 +1349,16 @@ class _TradeDialogState extends ConsumerState<TradeDialog>
               style: ElevatedButton.styleFrom(
                 backgroundColor: _surfaceDark,
                 foregroundColor: _textPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
               onPressed: () => Navigator.pop(context),
-              child: Text('OK', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
+              child: Text(
+                'OK',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ],

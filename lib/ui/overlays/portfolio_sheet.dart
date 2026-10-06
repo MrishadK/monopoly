@@ -16,7 +16,8 @@ class PortfolioSheet extends ConsumerWidget {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
-    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final myLocalId =
+        ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
     final isMyTurn = !isOnline || current.id == myLocalId;
 
     // Group properties by PropertyGroup
@@ -55,7 +56,9 @@ class PortfolioSheet extends ConsumerWidget {
                     Text(
                       'Cash: ${current.cash < 0 ? "-₹${-current.cash}" : "₹${current.cash}"}  •  Net Worth: ₹${current.calculateNetWorth(gameState.properties)}',
                       style: GoogleFonts.outfit(
-                        color: current.cash < 0 ? const Color(0xFFEF4444) : const Color(0xFF475569),
+                        color: current.cash < 0
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFF475569),
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                       ),
@@ -63,7 +66,10 @@ class PortfolioSheet extends ConsumerWidget {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF0F172A)),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFF0F172A),
+                  ),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -82,13 +88,21 @@ class PortfolioSheet extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.visibility_rounded, size: 14, color: Color(0xFF64748B)),
+                  const Icon(
+                    Icons.visibility_rounded,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
                       'SPECTATOR VIEW • WAITING FOR ${current.name.toUpperCase()}\'S MOVE (45S)',
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.outfit(fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFF64748B)),
+                      style: GoogleFonts.outfit(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF64748B),
+                      ),
                     ),
                   ),
                 ],
@@ -103,7 +117,9 @@ class PortfolioSheet extends ConsumerWidget {
               children: grouped.entries.map((entry) {
                 final group = entry.key;
                 final props = entry.value;
-                final isMyMonopoly = props.every((p) => p.ownerId == current.id);
+                final isMyMonopoly = props.every(
+                  (p) => p.ownerId == current.id,
+                );
                 final groupColor = _getGroupColor(group);
 
                 return Container(
@@ -112,7 +128,9 @@ class PortfolioSheet extends ConsumerWidget {
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isMyMonopoly ? const Color(0xFFD97706) : const Color(0xFFE2E8F0),
+                      color: isMyMonopoly
+                          ? const Color(0xFFD97706)
+                          : const Color(0xFFE2E8F0),
                       width: isMyMonopoly ? 2 : 1,
                     ),
                   ),
@@ -121,11 +139,18 @@ class PortfolioSheet extends ConsumerWidget {
                     children: [
                       // Group Title Bar
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: groupColor.withValues(alpha: 0.15),
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                          border: Border(bottom: BorderSide(color: groupColor, width: 2)),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(15),
+                          ),
+                          border: Border(
+                            bottom: BorderSide(color: groupColor, width: 2),
+                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -141,7 +166,10 @@ class PortfolioSheet extends ConsumerWidget {
                             ),
                             if (isMyMonopoly)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFD97706),
                                   borderRadius: BorderRadius.circular(8),
@@ -163,13 +191,24 @@ class PortfolioSheet extends ConsumerWidget {
                       ...props.map((prop) {
                         final isOwnedByMe = prop.ownerId == current.id;
                         final owner = prop.ownerId != null
-                            ? gameState.players.firstWhere((p) => p.id == prop.ownerId, orElse: () => current)
+                            ? gameState.players.firstWhere(
+                                (p) => p.id == prop.ownerId,
+                                orElse: () => current,
+                              )
                             : null;
 
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           decoration: const BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 0.5)),
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 0.5,
+                              ),
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -184,14 +223,20 @@ class PortfolioSheet extends ConsumerWidget {
                                       : const Color(0xFFE2E8F0),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: isOwnedByMe ? current.color : const Color(0xFFCBD5E1),
+                                    color: isOwnedByMe
+                                        ? current.color
+                                        : const Color(0xFFCBD5E1),
                                   ),
                                 ),
                                 child: Icon(
                                   prop.currentLevel == 5
                                       ? Icons.hotel_rounded
-                                      : (prop.currentLevel > 0 ? Icons.home_rounded : Icons.location_on_rounded),
-                                  color: isOwnedByMe ? current.color : const Color(0xFF64748B),
+                                      : (prop.currentLevel > 0
+                                            ? Icons.home_rounded
+                                            : Icons.location_on_rounded),
+                                  color: isOwnedByMe
+                                      ? current.color
+                                      : const Color(0xFF64748B),
                                   size: 18,
                                 ),
                               ),
@@ -213,13 +258,15 @@ class PortfolioSheet extends ConsumerWidget {
                                     Text(
                                       owner != null
                                           ? (isOwnedByMe
-                                              ? 'Rent: ₹${prop.getRent(gameState.properties, 7)}'
-                                              : 'Owned by ${owner.name}')
+                                                ? 'Rent: ₹${prop.getRent(gameState.properties, 7)}'
+                                                : 'Owned by ${owner.name}')
                                           : 'Unowned • Cost: ₹${prop.price}',
                                       style: GoogleFonts.outfit(
                                         color: isOwnedByMe
                                             ? const Color(0xFF047857)
-                                            : (owner != null ? const Color(0xFFDC2626) : const Color(0xFF64748B)),
+                                            : (owner != null
+                                                  ? const Color(0xFFDC2626)
+                                                  : const Color(0xFF64748B)),
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -239,47 +286,83 @@ class PortfolioSheet extends ConsumerWidget {
 
                               // Upgrade / Mortgage Controls - only allowed during active player's turn!
                               if (isOwnedByMe && isMyTurn) ...[
-                                if (prop.canUpgrade(gameState.properties, current.cash))
+                                if (prop.canUpgrade(
+                                  gameState.properties,
+                                  current.cash,
+                                ))
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF047857),
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
                                       minimumSize: Size.zero,
                                     ),
-                                    onPressed: () => ref.read(gameProvider.notifier).upgradeProperty(prop.id),
+                                    onPressed: () => ref
+                                        .read(gameProvider.notifier)
+                                        .upgradeProperty(prop.id),
                                     child: Text(
-                                      prop.currentLevel == 4 ? '+RESORT (₹${prop.upgradeCost})' : '+HOUSE (₹${prop.upgradeCost})',
-                                      style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold),
+                                      prop.currentLevel == 4
+                                          ? '+RESORT (₹${prop.upgradeCost})'
+                                          : '+HOUSE (₹${prop.upgradeCost})',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 const SizedBox(width: 6),
                                 OutlinedButton(
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: prop.isMortgaged ? const Color(0xFF047857) : const Color(0xFFD97706),
+                                    foregroundColor: prop.isMortgaged
+                                        ? const Color(0xFF047857)
+                                        : const Color(0xFFD97706),
                                     side: BorderSide(
-                                      color: prop.isMortgaged ? const Color(0xFF047857) : const Color(0xFFD97706),
+                                      color: prop.isMortgaged
+                                          ? const Color(0xFF047857)
+                                          : const Color(0xFFD97706),
                                     ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 6,
+                                    ),
                                     minimumSize: Size.zero,
                                   ),
-                                  onPressed: () => ref.read(gameProvider.notifier).toggleMortgage(prop.id),
+                                  onPressed: () => ref
+                                      .read(gameProvider.notifier)
+                                      .toggleMortgage(prop.id),
                                   child: Text(
-                                    prop.isMortgaged ? 'UNMORTGAGE' : 'MORTGAGE',
-                                    style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold),
+                                    prop.isMortgaged
+                                        ? 'UNMORTGAGE'
+                                        : 'MORTGAGE',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ] else if (isOwnedByMe && !isMyTurn) ...[
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   child: Text(
                                     'LOCKED',
-                                    style: GoogleFonts.outfit(fontSize: 9.5, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8)),
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF94A3B8),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -300,31 +383,63 @@ class PortfolioSheet extends ConsumerWidget {
 
   String _getGroupName(PropertyGroup group) {
     switch (group) {
-      case PropertyGroup.malabar: return 'Malabar Heritage (Brown)';
-      case PropertyGroup.thrissur: return 'Thrissur Cultural (Sky Blue)';
-      case PropertyGroup.kochi: return 'Kochi Urban (Coral Pink)';
-      case PropertyGroup.backwaters: return 'Backwaters (Sunset Orange)';
-      case PropertyGroup.highlands: return 'Highlands & Tea (Highlands Red)';
-      case PropertyGroup.southKerala: return 'South Kerala Coast (Golden Yellow)';
-      case PropertyGroup.premium: return 'Premium Eco Resorts (Emerald Green)';
-      case PropertyGroup.luxury: return 'Kovalam Luxury (Royal Sapphire)';
-      case PropertyGroup.transport: return 'Kerala Transports (Bus/Metro/Ferry/Air)';
-      case PropertyGroup.utility: return 'State Utilities (KSEB / Water)';
+      case PropertyGroup.malabar:
+        return 'Malabar Heritage (Brown)';
+      case PropertyGroup.thrissur:
+        return 'Thrissur Cultural (Sky Blue)';
+      case PropertyGroup.kochi:
+        return 'Kochi Urban (Coral Pink)';
+      case PropertyGroup.backwaters:
+        return 'Backwaters (Sunset Orange)';
+      case PropertyGroup.highlands:
+        return 'Highlands & Tea (Highlands Red)';
+      case PropertyGroup.southKerala:
+        return 'South Kerala Coast (Golden Yellow)';
+      case PropertyGroup.premium:
+        return 'Premium Eco Resorts (Emerald Green)';
+      case PropertyGroup.luxury:
+        return 'Kovalam Luxury (Royal Sapphire)';
+      case PropertyGroup.transport:
+        return 'Kerala Transports (Bus/Metro/Ferry/Air)';
+      case PropertyGroup.utility:
+        return 'State Utilities (KSEB / Water)';
+      case PropertyGroup.brown:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case PropertyGroup.lightBlue:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
   Color _getGroupColor(PropertyGroup group) {
     switch (group) {
-      case PropertyGroup.malabar: return const Color(0xFF8D5524);
-      case PropertyGroup.thrissur: return const Color(0xFF0288D1);
-      case PropertyGroup.kochi: return const Color(0xFFD81B60);
-      case PropertyGroup.backwaters: return const Color(0xFFF57C00);
-      case PropertyGroup.highlands: return const Color(0xFFD32F2F);
-      case PropertyGroup.southKerala: return const Color(0xFFFBC02D);
-      case PropertyGroup.premium: return const Color(0xFF2E7D32);
-      case PropertyGroup.luxury: return const Color(0xFF1565C0);
-      case PropertyGroup.transport: return const Color(0xFF546E7A);
-      case PropertyGroup.utility: return const Color(0xFF78909C);
+      case PropertyGroup.malabar:
+        return const Color(0xFF8D5524);
+      case PropertyGroup.thrissur:
+        return const Color(0xFF0288D1);
+      case PropertyGroup.kochi:
+        return const Color(0xFFD81B60);
+      case PropertyGroup.backwaters:
+        return const Color(0xFFF57C00);
+      case PropertyGroup.highlands:
+        return const Color(0xFFD32F2F);
+      case PropertyGroup.southKerala:
+        return const Color(0xFFFBC02D);
+      case PropertyGroup.premium:
+        return const Color(0xFF2E7D32);
+      case PropertyGroup.luxury:
+        return const Color(0xFF1565C0);
+      case PropertyGroup.transport:
+        return const Color(0xFF546E7A);
+      case PropertyGroup.utility:
+        return const Color(0xFF78909C);
+      case PropertyGroup.brown:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case PropertyGroup.lightBlue:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 }

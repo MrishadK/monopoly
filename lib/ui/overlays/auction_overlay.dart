@@ -12,12 +12,12 @@ class AuctionOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hasAuction = ref.watch(gameProvider.select((s) => s.activeAuction != null));
+    final hasAuction = ref.watch(
+      gameProvider.select((s) => s.activeAuction != null),
+    );
     if (!hasAuction) return const SizedBox.shrink();
 
-    return const RepaintBoundary(
-      child: _AuctionOverlayModal(),
-    );
+    return const RepaintBoundary(child: _AuctionOverlayModal());
   }
 }
 
@@ -25,7 +25,8 @@ class _AuctionOverlayModal extends ConsumerStatefulWidget {
   const _AuctionOverlayModal();
 
   @override
-  ConsumerState<_AuctionOverlayModal> createState() => _AuctionOverlayModalState();
+  ConsumerState<_AuctionOverlayModal> createState() =>
+      _AuctionOverlayModalState();
 }
 
 class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
@@ -44,7 +45,10 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
 
     if (auction == null) return const SizedBox.shrink();
 
-    ref.listen(gameProvider.select((s) => s.activeAuction?.isCompleted), (prev, isCompleted) {
+    ref.listen(gameProvider.select((s) => s.activeAuction?.isCompleted), (
+      prev,
+      isCompleted,
+    ) {
       if (isCompleted == true) {
         Future.delayed(const Duration(milliseconds: 1800), () {
           if (mounted) {
@@ -60,7 +64,8 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
-    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final myLocalId =
+        ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
 
     final currentBidderId = auction.currentBidderId;
     final currentBidder = gameState.players.firstWhere(
@@ -75,7 +80,8 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
           )
         : null;
 
-    final isMyTurnToBid = (!isOnline || currentBidder.id == myLocalId) &&
+    final isMyTurnToBid =
+        (!isOnline || currentBidder.id == myLocalId) &&
         currentBidder.type == PlayerType.human &&
         !auction.isCompleted;
 
@@ -109,14 +115,20 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
                   color: groupColor,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(22),
+                  ),
                 ),
                 child: Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.gavel_rounded, color: Colors.white, size: 16),
+                        const Icon(
+                          Icons.gavel_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'PROPERTY AUCTION',
@@ -168,7 +180,9 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                       child: Column(
                         children: [
                           Text(
-                            auction.highestBid > 0 ? 'CURRENT HIGHEST BID' : 'STARTING BID',
+                            auction.highestBid > 0
+                                ? 'CURRENT HIGHEST BID'
+                                : 'STARTING BID',
                             style: GoogleFonts.outfit(
                               color: const Color(0xFF92400E),
                               fontSize: 10.5,
@@ -178,7 +192,9 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            auction.highestBid > 0 ? '₹${auction.highestBid}' : '₹0',
+                            auction.highestBid > 0
+                                ? '₹${auction.highestBid}'
+                                : '₹0',
                             style: GoogleFonts.outfit(
                               color: const Color(0xFFB45309),
                               fontSize: 28,
@@ -193,7 +209,11 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                                 CircleAvatar(
                                   radius: 9,
                                   backgroundColor: highestBidder.color,
-                                  child: Icon(highestBidder.tokenIcon, size: 10, color: Colors.white),
+                                  child: Icon(
+                                    highestBidder.tokenIcon,
+                                    size: 10,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
@@ -224,7 +244,10 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                     // Active Turn or Completed Status
                     if (auction.isCompleted) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFECFDF5),
                           borderRadius: BorderRadius.circular(12),
@@ -233,7 +256,11 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.emoji_events_rounded, color: Color(0xFF047857), size: 18),
+                            const Icon(
+                              Icons.emoji_events_rounded,
+                              color: Color(0xFF047857),
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               auction.winnerId != null
@@ -250,7 +277,10 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                       ),
                     ] else ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(12),
@@ -270,13 +300,15 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                               const SizedBox(width: 8),
                             ],
                             Flexible(
-                                child: Text(
-                                  isMyTurnToBid
-                                      ? 'YOUR TURN TO BID (${currentBidder.name}, Cash: ₹${currentBidder.cash}) - ${auction.timeRemaining}s'
-                                      : 'Waiting for ${currentBidder.name} to bid... (${auction.timeRemaining}s)',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.outfit(
-                                  color: isMyTurnToBid ? const Color(0xFF047857) : const Color(0xFF475569),
+                              child: Text(
+                                isMyTurnToBid
+                                    ? 'YOUR TURN TO BID (${currentBidder.name}, Cash: ₹${currentBidder.cash}) - ${auction.timeRemaining}s'
+                                    : 'Waiting for ${currentBidder.name} to bid... (${auction.timeRemaining}s)',
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  color: isMyTurnToBid
+                                      ? const Color(0xFF047857)
+                                      : const Color(0xFF475569),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -293,7 +325,10 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                     if (auction.bidHistory.isNotEmpty)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(10),
@@ -304,13 +339,24 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                           children: [
                             Text(
                               'AUCTION LOG',
-                              style: GoogleFonts.outfit(fontSize: 8.5, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8)),
+                              style: GoogleFonts.outfit(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                              ),
                             ),
                             const SizedBox(height: 2),
-                            ...auction.bidHistory.reversed.take(2).map((log) => Text(
-                              '• $log',
-                              style: GoogleFonts.outfit(fontSize: 10.5, color: const Color(0xFF334155)),
-                            )),
+                            ...auction.bidHistory.reversed
+                                .take(2)
+                                .map(
+                                  (log) => Text(
+                                    '• $log',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 10.5,
+                                      color: const Color(0xFF334155),
+                                    ),
+                                  ),
+                                ),
                           ],
                         ),
                       ),
@@ -326,15 +372,24 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF047857),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               onPressed: currentBidder.cash >= minNextBid
-                                  ? () => ref.read(gameProvider.notifier).placeBid(currentBidder.id, minNextBid)
+                                  ? () => ref
+                                        .read(gameProvider.notifier)
+                                        .placeBid(currentBidder.id, minNextBid)
                                   : null,
                               child: Text(
                                 'BID ₹$minNextBid',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ),
@@ -344,15 +399,27 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF059669),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               onPressed: currentBidder.cash >= minNextBid + 20
-                                  ? () => ref.read(gameProvider.notifier).placeBid(currentBidder.id, minNextBid + 20)
+                                  ? () => ref
+                                        .read(gameProvider.notifier)
+                                        .placeBid(
+                                          currentBidder.id,
+                                          minNextBid + 20,
+                                        )
                                   : null,
                               child: Text(
                                 '+ ₹20',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ),
@@ -361,14 +428,27 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFFDC2626),
-                                side: const BorderSide(color: Color(0xFFFCA5A5), width: 1.5),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                side: const BorderSide(
+                                  color: Color(0xFFFCA5A5),
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              onPressed: () => ref.read(gameProvider.notifier).passBid(currentBidder.id),
+                              onPressed: () => ref
+                                  .read(gameProvider.notifier)
+                                  .passBid(currentBidder.id),
                               child: Text(
                                 'FOLD',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                                style: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                             ),
                           ),
@@ -377,7 +457,11 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                       const SizedBox(height: 6),
                       // Custom Bid Trigger
                       InkWell(
-                        onTap: () => _showCustomBidDialog(context, currentBidder, minNextBid),
+                        onTap: () => _showCustomBidDialog(
+                          context,
+                          currentBidder,
+                          minNextBid,
+                        ),
                         child: Text(
                           'Enter Custom Bid Amount',
                           style: GoogleFonts.outfit(
@@ -397,14 +481,23 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF047857),
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          icon: const Icon(Icons.check_circle_rounded, size: 18),
+                          icon: const Icon(
+                            Icons.check_circle_rounded,
+                            size: 18,
+                          ),
                           label: Text(
                             'BID FINALIZED • CLOSING...',
-                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
-                          onPressed: () => ref.read(gameProvider.notifier).closeAuction(),
+                          onPressed: () =>
+                              ref.read(gameProvider.notifier).closeAuction(),
                         ),
                       ),
                     ] else ...[
@@ -412,7 +505,9 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF64748B),
                           side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: () {
                           // Allow passive viewing
@@ -439,7 +534,10 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Place Custom Bid',
-          style: GoogleFonts.outfit(color: const Color(0xFF0F172A), fontWeight: FontWeight.bold),
+          style: GoogleFonts.outfit(
+            color: const Color(0xFF0F172A),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -447,7 +545,10 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
           children: [
             Text(
               'Your Cash: ₹${player.cash}\nMinimum Bid: ₹$minBid',
-              style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 12),
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF64748B),
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -488,16 +589,32 @@ class _AuctionOverlayModalState extends ConsumerState<_AuctionOverlayModal> {
 
   Color _getGroupColor(PropertyGroup group) {
     switch (group) {
-      case PropertyGroup.malabar: return const Color(0xFF8D5524);
-      case PropertyGroup.thrissur: return const Color(0xFF0288D1);
-      case PropertyGroup.kochi: return const Color(0xFFD81B60);
-      case PropertyGroup.backwaters: return const Color(0xFFF57C00);
-      case PropertyGroup.highlands: return const Color(0xFFD32F2F);
-      case PropertyGroup.southKerala: return const Color(0xFFFBC02D);
-      case PropertyGroup.premium: return const Color(0xFF2E7D32);
-      case PropertyGroup.luxury: return const Color(0xFF1565C0);
-      case PropertyGroup.transport: return const Color(0xFF546E7A);
-      case PropertyGroup.utility: return const Color(0xFF78909C);
+      case PropertyGroup.malabar:
+        return const Color(0xFF8D5524);
+      case PropertyGroup.thrissur:
+        return const Color(0xFF0288D1);
+      case PropertyGroup.kochi:
+        return const Color(0xFFD81B60);
+      case PropertyGroup.backwaters:
+        return const Color(0xFFF57C00);
+      case PropertyGroup.highlands:
+        return const Color(0xFFD32F2F);
+      case PropertyGroup.southKerala:
+        return const Color(0xFFFBC02D);
+      case PropertyGroup.premium:
+        return const Color(0xFF2E7D32);
+      case PropertyGroup.luxury:
+        return const Color(0xFF1565C0);
+      case PropertyGroup.transport:
+        return const Color(0xFF546E7A);
+      case PropertyGroup.utility:
+        return const Color(0xFF78909C);
+      case PropertyGroup.brown:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case PropertyGroup.lightBlue:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 }

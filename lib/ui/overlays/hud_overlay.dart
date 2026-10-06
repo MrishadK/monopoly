@@ -1885,7 +1885,6 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     bool isMyTurn,
   ) {
     final isDark = context.isDark;
-    final timerRemaining = ref.watch(turnTimerRemainingProvider);
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 320),
@@ -1926,13 +1925,18 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   color: const Color(0xFFE11D48).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
-                  '⏱️ ${timerRemaining}s',
-                  style: GoogleFonts.outfit(
-                    color: const Color(0xFFE11D48),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final timerRemaining = ref.watch(turnTimerRemainingProvider);
+                    return Text(
+                      '⏱️ ${timerRemaining}s',
+                      style: GoogleFonts.outfit(
+                        color: const Color(0xFFE11D48),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
