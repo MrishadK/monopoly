@@ -22,9 +22,11 @@
   <meta name="google-adsense-account" content="ca-pub-8355736208842576">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8355736208842576" crossorigin="anonymous"></script>
 
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="kuthaka">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -33,6 +35,29 @@
 
   <title>kuthaka</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #090E17;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #flutter_container, flutter-view {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
+  </style>
 </head>
 <body>
   <!--
