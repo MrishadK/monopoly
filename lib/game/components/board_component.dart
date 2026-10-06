@@ -29,6 +29,10 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
 
   ui.Image? dayCenterImage;
   ui.Image? nightCenterImage;
+  ui.Image? tileBgHills;
+  ui.Image? tileBgBackwaters;
+  ui.Image? tileBgCity;
+  ui.Image? tileBgBeach;
 
   Set<String> _highlightedPropertyIds = {};
   Set<String> get highlightedPropertyIds => _highlightedPropertyIds;
@@ -173,33 +177,32 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
     super.onRemove();
   }
 
+  Future<ui.Image?> _loadImageSafe(String name) async {
+    try {
+      return await Flame.images.load(name);
+    } catch (e) {
+      try {
+        final byteData = await rootBundle.load('assets/images/$name');
+        final codec = await ui.instantiateImageCodec(byteData.buffer.asUint8List());
+        final frame = await codec.getNextFrame();
+        return frame.image;
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
     _recomputeCachedGeometry();
 
-    // Center artwork loader (with Flame cache + rootBundle fallback)
-    try {
-      dayCenterImage = await Flame.images.load('board_center_day.jpg');
-    } catch (e) {
-      try {
-        final byteData = await rootBundle.load('assets/images/board_center_day.jpg');
-        final codec = await ui.instantiateImageCodec(byteData.buffer.asUint8List());
-        final frame = await codec.getNextFrame();
-        dayCenterImage = frame.image;
-      } catch (_) {}
-    }
-
-    try {
-      nightCenterImage = await Flame.images.load('board_center_night.jpg');
-    } catch (e) {
-      try {
-        final byteData = await rootBundle.load('assets/images/board_center_night.jpg');
-        final codec = await ui.instantiateImageCodec(byteData.buffer.asUint8List());
-        final frame = await codec.getNextFrame();
-        nightCenterImage = frame.image;
-      } catch (_) {}
-    }
+    dayCenterImage = await _loadImageSafe('board_center_day.jpg');
+    nightCenterImage = await _loadImageSafe('board_center_night.jpg');
+    tileBgHills = await _loadImageSafe('tile_bg_hills.jpg');
+    tileBgBackwaters = await _loadImageSafe('tile_bg_backwaters.jpg');
+    tileBgCity = await _loadImageSafe('tile_bg_city.jpg');
+    tileBgBeach = await _loadImageSafe('tile_bg_beach.jpg');
 
     _boardNeedsRepaint = true;
     try {
@@ -316,6 +319,9 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
       // 4. Inward luxury owner seal extensions
       _drawOwnershipInwardExtensions(recordingCanvas);
 
+      // 4.5. Thick physical board wrapping edge over everything
+      _drawPhysicalRim(recordingCanvas, rect);
+
       _cachedBoardPicture = recorder.endRecording();
       _boardNeedsRepaint = false;
     }
@@ -332,21 +338,49 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
   // ==================== FRAME ====================
 
   void _drawFrame(Canvas canvas, Rect rect) {
-    // Soft ambient drop shadow
-    final shadowPaint = Paint()
-      ..color = isDark ? Colors.black.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.16);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect.shift(const Offset(0, 4)), const Radius.circular(16)), shadowPaint);
+    // Realistic multi-layered drop shadow for a 3D physical board feel
+    final shadowPaint1 = Paint()
+      ..color = Colors.black.withValues(alpha: 0.65)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect.shift(const Offset(0, 16)), const Radius.circular(8)), shadowPaint1);
+
+    final shadowPaint2 = Paint()
+      ..color = Colors.black.withValues(alpha: 0.45)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect.shift(const Offset(0, 6)), const Radius.circular(8)), shadowPaint2);
 
     // Board table surface
     final surfacePaint = Paint()..color = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)), surfacePaint);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), surfacePaint);
+  }
 
-    // Board outer border
-    final borderPaint = Paint()
-      ..color = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)
+  // ==================== PHYSICAL RIM ====================
+
+  void _drawPhysicalRim(Canvas canvas, Rect rect) {
+    // Outer dark wrapping
+    final outerEdgePaint = Paint()
+      ..color = const Color(0xFF1A1A1A)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)), borderPaint);
+      ..strokeWidth = 6.0;
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), outerEdgePaint);
+
+    // Inner gold accent
+    final goldAccent = Paint()
+      ..color = const Color(0xFFD4AF37)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRRect(RRect.fromRectAndRadius(rect.deflate(3.0), const Radius.circular(5)), goldAccent);
+    
+    // Highlight top-left for 3D bevel lighting
+    final highlight = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.white38, Colors.transparent, Colors.black54],
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6.0;
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), highlight);
   }
 
   // ==================== CENTER ARTWORK ====================
@@ -439,6 +473,7 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
           ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
           : Color.alphaBlend(owner.color.withValues(alpha: isDark ? 0.35 : 0.22), bgColor);
     }
+    
     canvas.drawRect(rect, Paint()..color = bgColor);
 
     // 2. Grid dividing borders

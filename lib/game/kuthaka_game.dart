@@ -213,12 +213,12 @@ class KuthakaGame extends FlameGame with TapDetector {
     // Calculate optimal board size to maximize gameplay area while clearing HUD overlay
     final bool isPortrait = size.y > size.x;
     // Top bar is at y=8..50, player cards at y=54..104 (or up to ~156 with 4 players in portrait).
-    // Bottom dock is at bottom: 74, nav dock is at bottom: 2.
+    // Bottom dock is at bottom: 74, nav dock is at bottom: 2. Action dock height is ~80px, total ~154px.
     final double topPadding = isPortrait ? 158.0 : 96.0;
-    final double bottomPadding = isPortrait ? 124.0 : 108.0; 
+    final double bottomPadding = isPortrait ? 164.0 : 160.0; 
 
-    // Board is horizontally centered with slim padding to maximize scale
-    double availableWidth = size.x - (isPortrait ? 8.0 : 12.0); 
+    // Board is horizontally centered with breathing room to show the premium table texture
+    double availableWidth = size.x - 48.0; 
     double availableHeight = size.y - (topPadding + bottomPadding);
     double boardSize = min(availableWidth, availableHeight);
     boardSize = max(boardSize, 260); // Minimum sensible size

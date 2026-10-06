@@ -170,7 +170,7 @@ class GameMenuDialog extends ConsumerWidget {
                           style: TextStyle(fontSize: 11, color: voiceService.isMicMuted ? const Color(0xFFDC2626) : const Color(0xFF059669)),
                         ),
                         value: !voiceService.isMicMuted,
-                        activeColor: const Color(0xFF047857),
+                        activeThumbColor: const Color(0xFF047857),
                         onChanged: (_) => ref.read(voiceStreamServiceProvider.notifier).toggleMic(),
                       ),
                       SwitchListTile(
@@ -181,7 +181,7 @@ class GameMenuDialog extends ConsumerWidget {
                           style: TextStyle(fontSize: 11, color: voiceService.isSpeakerMuted ? const Color(0xFFDC2626) : const Color(0xFF059669)),
                         ),
                         value: !voiceService.isSpeakerMuted,
-                        activeColor: const Color(0xFF047857),
+                        activeThumbColor: const Color(0xFF047857),
                         onChanged: (_) => ref.read(voiceStreamServiceProvider.notifier).toggleSpeaker(),
                       ),
                     ],
