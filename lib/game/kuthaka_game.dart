@@ -35,11 +35,22 @@ class KuthakaGame extends FlameGame {
   Color? highlightColor;
   void Function(Property prop)? onPropertyTappedCustom;
 
+  // On-demand rendering management for 0% idle GPU usage
+  int _idleFramesRemaining = 12;
+
+  void wakeEngine({int frames = 6}) {
+    _idleFramesRemaining = max(_idleFramesRemaining, frames);
+    if (paused) {
+      resumeEngine();
+    }
+  }
+
   void setHighlightedProperties(Set<String> ids, [Color? color]) {
     highlightedPropertyIds = ids;
     highlightColor = color;
     board?.highlightedPropertyIds = ids;
     board?.highlightColor = color;
+    wakeEngine(frames: 6);
   }
 
   bool get isAnyTokenMoving => tokens.any((t) => t.isMoving);
@@ -48,12 +59,14 @@ class KuthakaGame extends FlameGame {
     final token = tokens.where((t) => t.player.id == updated.id).firstOrNull;
     if (token != null) {
       token.updatePlayer(updated);
+      wakeEngine(frames: 6);
     }
   }
 
   Future<void> waitForPlayerMovement(String playerId) async {
     final token = tokens.where((t) => t.player.id == playerId).firstOrNull;
     if (token != null) {
+      wakeEngine(frames: 6);
       await token.waitForMovement();
     }
   }
@@ -61,6 +74,7 @@ class KuthakaGame extends FlameGame {
   Future<void> waitForAllMovements() async {
     final movingTokens = tokens.where((t) => t.isMoving).toList();
     if (movingTokens.isNotEmpty) {
+      wakeEngine(frames: 6);
       await Future.wait(movingTokens.map((t) => t.waitForMovement()));
     }
   }
@@ -74,6 +88,63 @@ class KuthakaGame extends FlameGame {
     highlightColor = null;
     board?.highlightedPropertyIds.clear();
     board?.highlightColor = null;
+    wakeEngine(frames: 8);
+  }
+
+  void onGameStateChanged(GameState gameState) {
+    if (board == null) return;
+
+    // 1. Ensure token count matches player count
+    if (tokens.length != gameState.players.length) {
+      for (final t in tokens) {
+        board!.remove(t);
+      }
+      tokens.clear();
+      for (int i = 0; i < gameState.players.length; i++) {
+        var player = gameState.players[i];
+        var token = PlayerTokenComponent(
+          player: player,
+          playerIndex: i,
+          boardWidth: board!.size.x,
+          boardHeight: board!.size.y,
+        );
+        board!.add(token);
+        tokens.add(token);
+      }
+    }
+
+    // 2. Sync token data
+    for (int i = 0; i < tokens.length && i < gameState.players.length; i++) {
+      tokens[i].updatePlayer(gameState.players[i]);
+    }
+
+    // 3. Sync board properties
+    final isDark = ref.read(themeModeProvider.notifier).isDark;
+    board?.updateData(
+      newProperties: gameState.properties,
+      newPlayers: gameState.players,
+      dice: gameState.lastDiceRoll,
+      doubles: gameState.isDoubles,
+      isDark: isDark,
+      highlightedProperties: highlightedPropertyIds,
+      customHighlightColor: highlightColor,
+    );
+
+    wakeEngine(frames: 6);
+  }
+
+  void onThemeChanged(bool isDark) {
+    if (board == null) return;
+    board?.updateData(
+      newProperties: board!.properties,
+      newPlayers: board!.players,
+      dice: board!.lastDiceRoll,
+      doubles: board!.isDoubles,
+      isDark: isDark,
+      highlightedProperties: highlightedPropertyIds,
+      customHighlightColor: highlightColor,
+    );
+    wakeEngine(frames: 6);
   }
 
   @override
@@ -83,6 +154,7 @@ class KuthakaGame extends FlameGame {
   Future<void> onLoad() async {
     await super.onLoad();
     _layoutBoard();
+    wakeEngine(frames: 12);
   }
 
   @override
@@ -90,6 +162,7 @@ class KuthakaGame extends FlameGame {
     super.onGameResize(size);
     if (size.x > 0 && size.y > 0 && (size.x != _lastWidth || size.y != _lastHeight)) {
       _layoutBoard();
+      wakeEngine(frames: 6);
     }
   }
 
@@ -122,8 +195,8 @@ class KuthakaGame extends FlameGame {
 
     // If board already exists, update its dimensions and existing tokens in-place
     if (board != null) {
-      board!.size = Vector2(boardSize, boardSize);
-      board!.position = Vector2(posX, posY);
+      board!.size.setValues(boardSize, boardSize);
+      board!.position.setValues(posX, posY);
       for (final token in tokens) {
         token.updateBoardDimensions(boardSize, boardSize);
       }
@@ -139,6 +212,7 @@ class KuthakaGame extends FlameGame {
       highlightedPropertyIds: highlightedPropertyIds,
       highlightColor: highlightColor,
       onPropertyTapped: (prop) {
+        wakeEngine(frames: 4);
         if (onPropertyTappedCustom != null) {
           onPropertyTappedCustom!(prop);
         } else {
@@ -168,42 +242,12 @@ class KuthakaGame extends FlameGame {
   void update(double dt) {
     super.update(dt);
 
-    final gameState = ref.read(gameProvider);
-    final isDark = ref.read(themeModeProvider.notifier).isDark;
-
-    // Ensure all players have tokens if player list changed or loaded after initial layout
-    if (board != null && tokens.length != gameState.players.length) {
-      for (final t in tokens) {
-        board!.remove(t);
-      }
-      tokens.clear();
-      for (int i = 0; i < gameState.players.length; i++) {
-        var player = gameState.players[i];
-        var token = PlayerTokenComponent(
-          player: player,
-          playerIndex: i,
-          boardWidth: board!.size.x,
-          boardHeight: board!.size.y,
-        );
-        board!.add(token);
-        tokens.add(token);
-      }
-    }
-
-    // Sync board properties, players, and dice state
-    board?.updateData(
-      newProperties: gameState.properties,
-      newPlayers: gameState.players,
-      dice: gameState.lastDiceRoll,
-      doubles: gameState.isDoubles,
-      isDark: isDark,
-      highlightedProperties: highlightedPropertyIds,
-      customHighlightColor: highlightColor,
-    );
-
-    // Sync tokens with state
-    for (int i = 0; i < tokens.length && i < gameState.players.length; i++) {
-      tokens[i].updatePlayer(gameState.players[i]);
+    if (isAnyTokenMoving) {
+      _idleFramesRemaining = 6;
+    } else if (_idleFramesRemaining > 0) {
+      _idleFramesRemaining--;
+    } else if (!paused) {
+      pauseEngine();
     }
   }
 }

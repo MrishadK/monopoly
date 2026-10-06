@@ -21,6 +21,12 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   double _cachedPW = 0.0;
   double _cachedPH = 0.0;
 
+  // Cached resting shadow to eliminate GPU shader recreation on every frame
+  Paint? _cachedRestingShadowPaint;
+  Rect? _cachedRestingShadowRect;
+  double _cachedShadowPW = 0.0;
+  double _cachedShadowPH = 0.0;
+
   // Waypoint path animation
   int _currentPosIndex = 0;
   final List<int> _movementPath = [];
@@ -49,6 +55,9 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
       _movementCompleter = null;
     }
     _updatePositionOnBoard();
+    try {
+      game.wakeEngine(frames: 6);
+    } catch (_) {}
   }
 
   PlayerTokenComponent({
@@ -65,6 +74,8 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
   void onRemove() {
     _cachedPawnPicture?.dispose();
     _cachedPawnPicture = null;
+    _cachedRestingShadowPaint = null;
+    _cachedRestingShadowRect = null;
     super.onRemove();
   }
 
@@ -111,6 +122,9 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
         }
         _isMoving = true;
         _stepProgress = 0.0;
+        try {
+          game.wakeEngine();
+        } catch (_) {}
       } else if (oldPos != newPos) {
         // Clockwise forward steps
         int forwardSteps = (newPos - oldPos) % 40;
@@ -121,6 +135,9 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
         }
         _isMoving = true;
         _stepProgress = 0.0;
+        try {
+          game.wakeEngine();
+        } catch (_) {}
       }
     }
     player = updated;
@@ -241,10 +258,10 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
 
     double pawnWidth = (spaceW * 0.52).clamp(13.0, 32.0);
     double pawnHeight = pawnWidth * 1.38;
-    size = Vector2(pawnWidth, pawnHeight + 20);
+    size.setValues(pawnWidth, pawnHeight + 20);
 
     // Position component so bottom-center is at (curX + offX, curY + offY - _hopAltitude)
-    position = Vector2(
+    position.setValues(
       curX + offX - pawnWidth / 2,
       curY + offY - pawnHeight - _hopAltitude,
     );
@@ -261,25 +278,49 @@ class PlayerTokenComponent extends PositionComponent with HasGameReference<Kutha
     final groundY = pH + _hopAltitude; // Ground level for shadow
 
     // ==================== 1. DYNAMIC GROUND SHADOW ====================
-    final double shadowScale = max(0.5, 1.0 - (_hopAltitude / 30.0));
-    final double shadowAlpha = max(0.15, 0.45 - (_hopAltitude / 50.0));
+    if (_hopAltitude == 0.0) {
+      // Zero-allocation pre-cached resting shadow
+      if (_cachedRestingShadowPaint == null || _cachedShadowPW != pW || _cachedShadowPH != pH) {
+        _cachedShadowPW = pW;
+        _cachedShadowPH = pH;
+        _cachedRestingShadowRect = Rect.fromCenter(
+          center: Offset(centerX, groundY),
+          width: pW * 0.9,
+          height: pW * 0.35,
+        );
+        _cachedRestingShadowPaint = Paint()
+          ..shader = ui.Gradient.radial(
+            Offset(centerX, groundY),
+            pW * 0.45,
+            const [
+              Color(0x73000000), // alpha 0.45
+              Color(0x00000000),
+            ],
+          );
+      }
+      canvas.drawOval(_cachedRestingShadowRect!, _cachedRestingShadowPaint!);
+    } else {
+      // Dynamic scaling shadow while airborne hopping
+      final double shadowScale = max(0.5, 1.0 - (_hopAltitude / 30.0));
+      final double shadowAlpha = max(0.15, 0.45 - (_hopAltitude / 50.0));
 
-    final shadowRect = Rect.fromCenter(
-      center: Offset(centerX, groundY),
-      width: pW * 0.9 * shadowScale,
-      height: pW * 0.35 * shadowScale,
-    );
-    final shadowPaint = Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(centerX, groundY),
-        pW * 0.45 * shadowScale, // radius
-        [
-          Colors.black.withValues(alpha: shadowAlpha),
-          Colors.black.withValues(alpha: 0.0),
-        ],
+      final shadowRect = Rect.fromCenter(
+        center: Offset(centerX, groundY),
+        width: pW * 0.9 * shadowScale,
+        height: pW * 0.35 * shadowScale,
       );
+      final shadowPaint = Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(centerX, groundY),
+          pW * 0.45 * shadowScale,
+          [
+            Colors.black.withValues(alpha: shadowAlpha),
+            Colors.black.withValues(alpha: 0.0),
+          ],
+        );
 
-    canvas.drawOval(shadowRect, shadowPaint);
+      canvas.drawOval(shadowRect, shadowPaint);
+    }
 
     // ==================== 2. 3D SCULPTED PAWN FIGURINE ====================
     if (_cachedPawnPicture == null ||

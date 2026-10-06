@@ -8,8 +8,9 @@ import '../../models/board_space.dart';
 import '../../models/property.dart';
 import '../../models/player.dart';
 import '../../data/game_data.dart';
+import '../kuthaka_game.dart';
 
-class BoardComponent extends PositionComponent with TapCallbacks {
+class BoardComponent extends PositionComponent with TapCallbacks, HasGameReference<KuthakaGame> {
   Map<String, Property> properties;
   List<Player> players;
   List<int> lastDiceRoll;
@@ -127,12 +128,18 @@ class BoardComponent extends PositionComponent with TapCallbacks {
     try {
       dayCenterImage = await Flame.images.load('board_center_day.jpg');
       _boardNeedsRepaint = true;
+      try {
+        game.wakeEngine(frames: 6);
+      } catch (_) {}
     } catch (e) {
       debugPrint('Could not load board_center_day.jpg: $e');
     }
     try {
       nightCenterImage = await Flame.images.load('board_center_night.jpg');
       _boardNeedsRepaint = true;
+      try {
+        game.wakeEngine(frames: 6);
+      } catch (_) {}
     } catch (e) {
       debugPrint('Could not load board_center_night.jpg: $e');
     }
@@ -270,7 +277,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       canvas.save();
       canvas.clipRRect(innerRRect);
       final src = Rect.fromLTWH(0, 0, currentImg.width.toDouble(), currentImg.height.toDouble());
-      canvas.drawImageRect(currentImg, src, inner, Paint()..filterQuality = FilterQuality.high);
+      canvas.drawImageRect(currentImg, src, inner, Paint()..filterQuality = FilterQuality.medium);
       canvas.restore();
     } else {
       // Elegant fallback gradient if image is still loading
@@ -1314,6 +1321,9 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   @override
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
+    try {
+      game.wakeEngine(frames: 4);
+    } catch (_) {}
     final localPos = event.localPosition;
 
     for (int i = 0; i < 40; i++) {

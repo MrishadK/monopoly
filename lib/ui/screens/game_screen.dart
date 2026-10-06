@@ -8,6 +8,7 @@ import '../../services/voice_stream_service.dart';
 import '../../services/user_profile_service.dart';
 import '../../providers/game_provider.dart';
 import '../../ui/theme/app_theme.dart';
+import '../../ui/theme/theme_provider.dart';
 import 'home_screen.dart';
 import '../overlays/hud_overlay.dart';
 import '../overlays/property_card_overlay.dart';
@@ -100,6 +101,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<GameState>(gameProvider, (prev, next) {
+      _game.onGameStateChanged(next);
+    });
+    ref.listen<ThemeMode>(themeModeProvider, (prev, next) {
+      _game.onThemeChanged(next == ThemeMode.dark);
+    });
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {

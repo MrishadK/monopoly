@@ -71,21 +71,30 @@ class _DicePipPainter extends CustomPainter {
 
   _DicePipPainter({required this.value});
 
+  static final Paint _aceDotPaint = Paint()
+    ..color = const Color(0xFFC62828)
+    ..style = PaintingStyle.fill;
+
+  static final Paint _aceBorderPaint = Paint()
+    ..color = const Color(0xFF8E0000)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.8;
+
+  static final Paint _slateDotPaint = Paint()
+    ..color = const Color(0xFF1E293B)
+    ..style = PaintingStyle.fill;
+
+  static final Paint _slateBorderPaint = Paint()
+    ..color = const Color(0xFF0F172A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.8;
+
   @override
   void paint(Canvas canvas, Size size) {
     // Traditional Indian / Kasavu dice: "1" has a large crimson dot, others have deep slate pips
     final isAce = value == 1;
-    final dotColor = isAce ? const Color(0xFFC62828) : const Color(0xFF1E293B);
-
-    final dotPaint = Paint()
-      ..color = dotColor
-      ..style = PaintingStyle.fill;
-
-    // Subtle inner bevel on dots
-    final dotBorderPaint = Paint()
-      ..color = isAce ? const Color(0xFF8E0000) : const Color(0xFF0F172A)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
+    final dotPaint = isAce ? _aceDotPaint : _slateDotPaint;
+    final dotBorderPaint = isAce ? _aceBorderPaint : _slateBorderPaint;
 
     final dotRadius = isAce ? size.width * 0.22 : size.width * 0.13;
     final cx = size.width / 2;
@@ -221,23 +230,27 @@ class _TumblingDicePairWidgetState extends State<TumblingDicePairWidget>
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Transform.translate(
-                  offset: Offset(0, bounce1),
-                  child: DiceFaceWidget(
-                    value: _displayD1,
-                    size: widget.diceSize,
-                    rotation: rot1,
-                    elevation: widget.isRolling ? 8.0 : 4.0,
+                RepaintBoundary(
+                  child: Transform.translate(
+                    offset: Offset(0, bounce1),
+                    child: DiceFaceWidget(
+                      value: _displayD1,
+                      size: widget.diceSize,
+                      rotation: rot1,
+                      elevation: widget.isRolling ? 8.0 : 4.0,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
-                Transform.translate(
-                  offset: Offset(0, bounce2),
-                  child: DiceFaceWidget(
-                    value: _displayD2,
-                    size: widget.diceSize,
-                    rotation: rot2,
-                    elevation: widget.isRolling ? 8.0 : 4.0,
+                RepaintBoundary(
+                  child: Transform.translate(
+                    offset: Offset(0, bounce2),
+                    child: DiceFaceWidget(
+                      value: _displayD2,
+                      size: widget.diceSize,
+                      rotation: rot2,
+                      elevation: widget.isRolling ? 8.0 : 4.0,
+                    ),
                   ),
                 ),
               ],
