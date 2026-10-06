@@ -210,15 +210,15 @@ class KuthakaGame extends FlameGame with TapDetector {
     _lastWidth = size.x;
     _lastHeight = size.y;
 
-    // Calculate optimal board size to guarantee zero overlap with top header, player cards, and bottom docks
+    // Calculate optimal board size to maximize gameplay area while clearing HUD overlay
     final bool isPortrait = size.y > size.x;
-    // Top bar is at y=8..50, player cards are at y=54..108 (or up to ~168 on portrait with 4 players).
-    // Ensuring generous clearance so the Monopoly board NEVER overlaps player cards or headers under any aspect ratio.
-    final double topPadding = isPortrait ? 180.0 : 125.0;
-    final double bottomPadding = isPortrait ? 144.0 : 135.0; 
+    // Top bar is at y=8..50, player cards at y=54..104 (or up to ~156 with 4 players in portrait).
+    // Bottom dock is at bottom: 74, nav dock is at bottom: 2.
+    final double topPadding = isPortrait ? 158.0 : 96.0;
+    final double bottomPadding = isPortrait ? 124.0 : 108.0; 
 
-    // Board is horizontally centered with slight padding
-    double availableWidth = size.x - 16.0; 
+    // Board is horizontally centered with slim padding to maximize scale
+    double availableWidth = size.x - (isPortrait ? 8.0 : 12.0); 
     double availableHeight = size.y - (topPadding + bottomPadding);
     double boardSize = min(availableWidth, availableHeight);
     boardSize = max(boardSize, 260); // Minimum sensible size

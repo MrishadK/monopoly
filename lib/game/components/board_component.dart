@@ -316,14 +316,11 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
       if (space.propertyId != null) {
         final prop = properties[space.propertyId];
         if (prop != null) {
-          // Check ownership
+          // Check ownership & buildings
           if (prop.ownerId != null) {
             final owner = players.where((p) => p.id == prop.ownerId).firstOrNull;
-            if (owner != null) {
-              _drawOwnerIndicator(canvas, i, rect, owner, prop);
-              if (prop.currentLevel > 0) {
-                _drawBuildings(canvas, i, rect, prop.currentLevel);
-              }
+            if (owner != null && prop.currentLevel > 0) {
+              _drawBuildings(canvas, i, rect, prop.currentLevel);
             }
           }
 
@@ -345,50 +342,6 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameReferen
       }
     }
   }
-
-  void _drawOwnerIndicator(Canvas canvas, int index, Rect rect, Player owner, Property prop) {
-    Rect cardRect;
-    final double bezelX = size.x * 0.024;
-    final double bezelY = size.y * 0.024;
-
-    if (index > 0 && index < 10) {
-      // Bottom row (Fort Kochi ... Vengeri)
-      cardRect = Rect.fromLTWH(rect.left + 1.2, rect.top + 1.2, rect.width - 2.4, rect.height - bezelY - 2.4);
-    } else if (index > 10 && index < 20) {
-      // Left column (Marine Drive ... Athirappilly)
-      cardRect = Rect.fromLTWH(rect.left + bezelX + 1.2, rect.top + 1.2, rect.width - bezelX - 2.4, rect.height - 2.4);
-    } else if (index > 20 && index < 30) {
-      // Top row (Guruvayur ... Munnar)
-      cardRect = Rect.fromLTWH(rect.left + 1.2, rect.top + bezelY + 1.2, rect.width - 2.4, rect.height - bezelY - 2.4);
-    } else if (index > 30) {
-      // Right column (Wayanad ... Kovalam)
-      cardRect = Rect.fromLTWH(rect.left + 1.2, rect.top + 1.2, rect.width - bezelX - 2.4, rect.height - 2.4);
-    } else {
-      return;
-    }
-
-    final color = prop.isMortgaged ? const Color(0xFF64748B) : owner.color;
-    final rrect = RRect.fromRectAndRadius(cardRect, const Radius.circular(5.0));
-
-    // Crisp owner outline framing the property card
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..color = color.withValues(alpha: 0.92)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2,
-    );
-
-    // Subtle inner gold luxury accent
-    canvas.drawRRect(
-      rrect.deflate(1.2),
-      Paint()
-        ..color = const Color(0xFFD4AF37).withValues(alpha: 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
-    );
-  }
-
   void _drawBuildings(Canvas canvas, int index, Rect rect, int level) {
     // Locate the property color band facing inward
     Rect bandRect;
