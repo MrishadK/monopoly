@@ -171,7 +171,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     }
 
     final hasMonopoly = gameState.properties.values.any(
-      (p) => p.ownerId == currentPlayer.id && p.isMonopoly(gameState.properties),
+      (p) =>
+          p.ownerId == currentPlayer.id && p.isMonopoly(gameState.properties),
     );
 
     if (!hasMonopoly) {
@@ -190,13 +191,21 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     }
 
     final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && p.canUpgrade(gameState.properties, currentPlayer.cash))
+        .where(
+          (p) =>
+              p.ownerId == currentPlayer.id &&
+              p.canUpgrade(gameState.properties, currentPlayer.cash),
+        )
         .map((p) => p.id)
         .toSet();
 
     if (eligibleIds.isEmpty) {
       final monopolyProps = gameState.properties.values
-          .where((p) => p.ownerId == currentPlayer.id && p.isMonopoly(gameState.properties))
+          .where(
+            (p) =>
+                p.ownerId == currentPlayer.id &&
+                p.isMonopoly(gameState.properties),
+          )
           .toList();
       final allMaxLevel = monopolyProps.every((p) => p.currentLevel >= 5);
       final msg = allMaxLevel
@@ -256,14 +265,21 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final updatedGs = ref.read(gameProvider);
       final updatedP = updatedGs.currentPlayer;
       final newEligible = updatedGs.properties.values
-          .where((p) => p.ownerId == updatedP.id && p.canUpgrade(updatedGs.properties, updatedP.cash))
+          .where(
+            (p) =>
+                p.ownerId == updatedP.id &&
+                p.canUpgrade(updatedGs.properties, updatedP.cash),
+          )
           .map((p) => p.id)
           .toSet();
 
       if (newEligible.isEmpty) {
         _clearInteractionMode();
       } else {
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFF7C3AED));
+        widget.game.setHighlightedProperties(
+          newEligible,
+          const Color(0xFF7C3AED),
+        );
       }
     };
   }
@@ -275,19 +291,28 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     }
 
     final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && !p.isMortgaged && p.canMortgage(gameState.properties))
+        .where(
+          (p) =>
+              p.ownerId == currentPlayer.id &&
+              !p.isMortgaged &&
+              p.canMortgage(gameState.properties),
+        )
         .map((p) => p.id)
         .toSet();
 
     if (eligibleIds.isEmpty) {
-      final ownedProps = gameState.properties.values.where((p) => p.ownerId == currentPlayer.id).toList();
+      final ownedProps = gameState.properties.values
+          .where((p) => p.ownerId == currentPlayer.id)
+          .toList();
       String message;
       if (ownedProps.isEmpty) {
         message = 'You do not own any properties to mortgage.';
       } else if (ownedProps.every((p) => p.isMortgaged)) {
-        message = 'All your properties are already mortgaged. Use Redeem to unmortgage.';
+        message =
+            'All your properties are already mortgaged. Use Redeem to unmortgage.';
       } else {
-        message = 'Cannot mortgage properties while buildings exist in their color group. Sell buildings first.';
+        message =
+            'Cannot mortgage properties while buildings exist in their color group. Sell buildings first.';
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -309,7 +334,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final currentGs = ref.read(gameProvider);
       final currentP = currentGs.currentPlayer;
       final currentProp = currentGs.properties[prop.id] ?? prop;
-      final wasIndebted = currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
+      final wasIndebted =
+          currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
 
       if (currentProp.ownerId != currentP.id) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -358,7 +384,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final updatedGs = ref.read(gameProvider);
       final updatedP = updatedGs.currentPlayer;
 
-      if (wasIndebted && updatedGs.phase != GamePhase.debtResolution && updatedP.cash >= 0) {
+      if (wasIndebted &&
+          updatedGs.phase != GamePhase.debtResolution &&
+          updatedP.cash >= 0) {
         _clearInteractionMode();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -374,14 +402,22 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       }
 
       final newEligible = updatedGs.properties.values
-          .where((p) => p.ownerId == updatedP.id && !p.isMortgaged && p.canMortgage(updatedGs.properties))
+          .where(
+            (p) =>
+                p.ownerId == updatedP.id &&
+                !p.isMortgaged &&
+                p.canMortgage(updatedGs.properties),
+          )
           .map((p) => p.id)
           .toSet();
 
       if (newEligible.isEmpty) {
         _clearInteractionMode();
       } else {
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFFEA580C));
+        widget.game.setHighlightedProperties(
+          newEligible,
+          const Color(0xFFEA580C),
+        );
       }
     };
   }
@@ -393,7 +429,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     }
 
     final eligibleIds = gameState.properties.values
-        .where((p) => p.ownerId == currentPlayer.id && p.canDowngrade(gameState.properties))
+        .where(
+          (p) =>
+              p.ownerId == currentPlayer.id &&
+              p.canDowngrade(gameState.properties),
+        )
         .map((p) => p.id)
         .toSet();
 
@@ -418,7 +458,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final currentGs = ref.read(gameProvider);
       final currentP = currentGs.currentPlayer;
       final currentProp = currentGs.properties[prop.id] ?? prop;
-      final wasIndebted = currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
+      final wasIndebted =
+          currentGs.phase == GamePhase.debtResolution || currentP.cash < 0;
 
       if (currentProp.ownerId != currentP.id) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -453,7 +494,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final updatedGs = ref.read(gameProvider);
       final updatedP = updatedGs.currentPlayer;
 
-      if (wasIndebted && updatedGs.phase != GamePhase.debtResolution && updatedP.cash >= 0) {
+      if (wasIndebted &&
+          updatedGs.phase != GamePhase.debtResolution &&
+          updatedP.cash >= 0) {
         _clearInteractionMode();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -469,14 +512,21 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       }
 
       final newEligible = updatedGs.properties.values
-          .where((p) => p.ownerId == updatedP.id && p.canDowngrade(updatedGs.properties))
+          .where(
+            (p) =>
+                p.ownerId == updatedP.id &&
+                p.canDowngrade(updatedGs.properties),
+          )
           .map((p) => p.id)
           .toSet();
 
       if (newEligible.isEmpty) {
         _clearInteractionMode();
       } else {
-        widget.game.setHighlightedProperties(newEligible, const Color(0xFFE11D48));
+        widget.game.setHighlightedProperties(
+          newEligible,
+          const Color(0xFFE11D48),
+        );
       }
     };
   }
@@ -489,13 +539,15 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       final mp = ref.read(multiplayerServiceProvider);
       if (mp.activeRoomId != null) {
         final isHost = ref.read(gameProvider.notifier).isHost;
-        ref.read(voiceStreamServiceProvider.notifier).connectToVoiceRoom(
-          mp.activeRoomId!,
-          profile.id,
-          profile.name,
-          isHost: isHost,
-          autoStartMic: true,
-        );
+        ref
+            .read(voiceStreamServiceProvider.notifier)
+            .connectToVoiceRoom(
+              mp.activeRoomId!,
+              profile.id,
+              profile.name,
+              isHost: isHost,
+              autoStartMic: true,
+            );
       }
 
       ref.read(multiplayerServiceProvider).onHostLeftReceived = (payload) {
@@ -507,12 +559,23 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
             backgroundColor: ctx.cardColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             title: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: KuthakaColors.crimson),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: KuthakaColors.crimson,
+                ),
                 const SizedBox(width: 8),
-                Text('Host Left', style: TextStyle(fontWeight: FontWeight.bold, color: ctx.textPrimary)),
+                Text(
+                  'Host Left',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: ctx.textPrimary,
+                  ),
+                ),
               ],
             ),
             content: Text(
@@ -540,7 +603,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         );
       };
 
-      ref.read(multiplayerServiceProvider).onPlayerLeftReceived = (playerId, playerName) {
+      ref
+          .read(multiplayerServiceProvider)
+          .onPlayerLeftReceived = (playerId, playerName) {
         if (!mounted) return;
         final notifier = ref.read(gameProvider.notifier);
         if (notifier.isHost) {
@@ -550,14 +615,23 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.person_remove_rounded, color: Colors.white, size: 18),
+                const Icon(
+                  Icons.person_remove_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
-                Text('$playerName left the match.', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  '$playerName left the match.',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             backgroundColor: KuthakaColors.goldDark,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       };
@@ -572,20 +646,31 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     final voiceService = ref.watch(voiceStreamServiceProvider);
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
-    final isOnline = multiplayer.isConnected || multiplayer.activeRoomId != null;
-    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final isOnline =
+        multiplayer.isConnected || multiplayer.activeRoomId != null;
+    final myLocalId =
+        ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
     final isHumanTurn = currentPlayer.type == PlayerType.human;
-    final isMyTurn = isHumanTurn && (!isOnline || currentPlayer.id == myLocalId);
+    final isMyTurn =
+        isHumanTurn && (!isOnline || currentPlayer.id == myLocalId);
 
     // Calculate dynamic anchor coordinates from the Flame game board
     final board = widget.game.board;
-    final double diceTop = board != null ? (board.position.y + board.size.y * 0.52) : 360.0;
-    final double diceLeft = board != null ? (board.position.x + board.size.x * 0.14) : 24.0;
+    final double diceTop = board != null
+        ? (board.position.y + board.size.y * 0.52)
+        : 360.0;
+    final double diceLeft = board != null
+        ? (board.position.x + board.size.x * 0.14)
+        : 24.0;
     final double diceWidth = board != null ? (board.size.x * 0.72) : 300.0;
 
     ref.listen(gameProvider, (prev, next) {
-      final isRestart = prev != null && prev.gameLogs.length > next.gameLogs.length && next.gameLogs.length <= 1;
-      final isTurnChange = prev != null && prev.currentPlayerIndex != next.currentPlayerIndex;
+      final isRestart =
+          prev != null &&
+          prev.gameLogs.length > next.gameLogs.length &&
+          next.gameLogs.length <= 1;
+      final isTurnChange =
+          prev != null && prev.currentPlayerIndex != next.currentPlayerIndex;
       final isGameOver = next.phase == GamePhase.gameOver;
       if (isTurnChange || isRestart || isGameOver) {
         if (_interactionMode != BoardInteractionMode.none) {
@@ -597,100 +682,141 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     return RepaintBoundary(
       child: LayoutBuilder(
         builder: (context, constraints) {
-        return SizedBox.expand(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // ==================== TOP BAR ====================
-              Positioned(
-                top: 8,
-                left: 10,
-                right: 10,
-                child: _buildTopBar(context, gameState, isOnline, multiplayer.activeRoomId),
-              ),
-
-              // ==================== PLAYER CARDS ====================
-              Positioned(
-                top: 54,
-                left: 10,
-                right: constraints.maxWidth < 600 ? 10 : null,
-                child: _buildPlayerCardsSection(
-                  context,
-                  gameState,
-                  voiceService,
-                  constraints.maxWidth,
+          return SizedBox.expand(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // ==================== TOP BAR ====================
+                Positioned(
+                  top: 8,
+                  left: 10,
+                  right: 10,
+                  child: _buildTopBar(
+                    context,
+                    gameState,
+                    isOnline,
+                    multiplayer.activeRoomId,
+                  ),
                 ),
-              ),
 
-              // ==================== FLOATING EMOJI ====================
-              const Positioned(
-                top: 200,
-                left: 0,
-                right: 0,
-                child: Center(child: EmojiFloatingDisplay()),
-              ),
+                // ==================== PLAYER CARDS ====================
+                Positioned(
+                  top: 54,
+                  left: 10,
+                  right: constraints.maxWidth < 600 ? 10 : null,
+                  child: _buildPlayerCardsSection(
+                    context,
+                    gameState,
+                    voiceService,
+                    constraints.maxWidth,
+                  ),
+                ),
 
-              // ==================== BOTTOM ACTION DOCK ====================
-              Positioned(
-                bottom: 74,
-                left: 10,
-                right: 10,
-                child: Center(child: _buildBottomActionDock(context, gameState, currentPlayer, isMyTurn)),
-              ),
+                // ==================== FLOATING EMOJI ====================
+                const Positioned(
+                  top: 200,
+                  left: 0,
+                  right: 0,
+                  child: Center(child: EmojiFloatingDisplay()),
+                ),
 
-              // ==================== BOARD CENTER CONTROLS & DICE ====================
-              Positioned(
-                top: diceTop,
-                left: diceLeft,
-                width: diceWidth,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_interactionMode != BoardInteractionMode.none)
-                      _buildInteractionModeCard(context, isDark)
-                    else if (gameState.phase == GamePhase.debtResolution)
-                      _buildDebtResolutionCard(context, gameState, currentPlayer, isMyTurn)
-                    else ...[
-                      _buildDiceTray(context, gameState, currentPlayer, isMyTurn),
-                      if (gameState.phase == GamePhase.turnEnd && isMyTurn) ...[
-                        const SizedBox(height: 6),
-                        _buildMainActionButton(context, gameState, currentPlayer),
+                // ==================== BOTTOM ACTION DOCK ====================
+                Positioned(
+                  bottom: 74,
+                  left: 10,
+                  right: 10,
+                  child: Center(
+                    child: _buildBottomActionDock(
+                      context,
+                      gameState,
+                      currentPlayer,
+                      isMyTurn,
+                    ),
+                  ),
+                ),
+
+                // ==================== BOARD CENTER CONTROLS & DICE ====================
+                Positioned(
+                  top: diceTop,
+                  left: diceLeft,
+                  width: diceWidth,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_interactionMode != BoardInteractionMode.none)
+                        _buildInteractionModeCard(context, isDark)
+                      else if (gameState.phase == GamePhase.debtResolution)
+                        _buildDebtResolutionCard(
+                          context,
+                          gameState,
+                          currentPlayer,
+                          isMyTurn,
+                        )
+                      else ...[
+                        _buildDiceTray(
+                          context,
+                          gameState,
+                          currentPlayer,
+                          isMyTurn,
+                        ),
+                        if (gameState.phase == GamePhase.turnEnd &&
+                            isMyTurn) ...[
+                          const SizedBox(height: 6),
+                          _buildMainActionButton(
+                            context,
+                            gameState,
+                            currentPlayer,
+                          ),
+                        ],
                       ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
 
-              // ==================== BOTTOM NAVIGATION DOCK ====================
-              Positioned(
-                bottom: 2,
-                left: 10,
-                right: 10,
-                child: SafeArea(
-                  top: false,
-                  bottom: true,
-                  child: _buildBottomNavDock(context, gameState, currentPlayer, isMyTurn),
+                // ==================== BOTTOM NAVIGATION DOCK ====================
+                Positioned(
+                  bottom: 2,
+                  left: 10,
+                  right: 10,
+                  child: SafeArea(
+                    top: false,
+                    bottom: true,
+                    child: _buildBottomNavDock(
+                      context,
+                      gameState,
+                      currentPlayer,
+                      isMyTurn,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    ),
-  );
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
-  Widget _buildTopBar(BuildContext context, GameState gameState, bool isOnline, String? roomId) {
+  Widget _buildTopBar(
+    BuildContext context,
+    GameState gameState,
+    bool isOnline,
+    String? roomId,
+  ) {
     final isDark = context.isDark;
     final displayCode = roomId ?? "867548";
-    
+
     return Container(
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
+        color: isDark
+            ? const Color(0xFF131B2A).withValues(alpha: 0.95)
+            : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1),
+        ),
         boxShadow: context.subtleShadow,
       ),
       child: FittedBox(
@@ -702,32 +828,46 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             children: [
               // Menu button
               IconButton(
-                icon: Icon(Icons.menu_rounded, size: 20, color: context.textPrimary),
+                icon: Icon(
+                  Icons.menu_rounded,
+                  size: 20,
+                  color: context.textPrimary,
+                ),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 onPressed: () {
-                  showDialog(context: context, builder: (_) => const GameMenuDialog());
+                  showDialog(
+                    context: context,
+                    builder: (_) => const GameMenuDialog(),
+                  );
                 },
               ),
-              
+
               // Room ID pill with copy icon
               InkWell(
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: displayCode));
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Room code $displayCode copied to clipboard!'),
+                      content: Text(
+                        'Room code $displayCode copied to clipboard!',
+                      ),
                       duration: const Duration(seconds: 1),
                     ),
                   );
                 },
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: context.cardAltColor,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: context.borderColor.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: context.borderColor.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -741,14 +881,18 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                         ),
                       ),
                       const SizedBox(width: 3),
-                      Icon(Icons.copy_rounded, size: 11, color: context.textSecondary),
+                      Icon(
+                        Icons.copy_rounded,
+                        size: 11,
+                        color: context.textSecondary,
+                      ),
                     ],
                   ),
                 ),
               ),
-              
+
               const Spacer(),
-              
+
               // Players indicator (e.g. 2/4)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
@@ -759,35 +903,48 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.people_rounded, size: 12, color: context.textPrimary),
+                    Icon(
+                      Icons.people_rounded,
+                      size: 12,
+                      color: context.textPrimary,
+                    ),
                     const SizedBox(width: 3),
                     Text(
                       '${gameState.players.where((p) => !p.isBankrupt).length}/${gameState.players.length}',
-                      style: GoogleFonts.outfit(color: context.textPrimary, fontSize: 10.5, fontWeight: FontWeight.bold),
+                      style: GoogleFonts.outfit(
+                        color: context.textPrimary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 4),
-              
+
               // Turn Timer (e.g. 🟢 39s)
               const _HudTurnTimerBadge(),
-              
+
               const SizedBox(width: 4),
-              
+
               // Connection status
               Container(
                 padding: const EdgeInsets.all(4.5),
-                decoration: BoxDecoration(color: context.cardAltColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: context.cardAltColor,
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(
                   Icons.wifi_rounded,
                   size: 12,
-                  color: isOnline ? const Color(0xFF10B981) : context.textSecondary,
+                  color: isOnline
+                      ? const Color(0xFF10B981)
+                      : context.textSecondary,
                 ),
               ),
-              
+
               const SizedBox(width: 4),
-              
+
               // Theme Toggle (Icon button with zero overflow)
               InkWell(
                 onTap: () => ref.read(themeModeProvider.notifier).toggle(),
@@ -795,17 +952,23 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF242C3D) : const Color(0xFFFEF3C7),
+                    color: isDark
+                        ? const Color(0xFF242C3D)
+                        : const Color(0xFFFEF3C7),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isDark ? const Color(0xFF475569) : const Color(0xFFF59E0B),
+                      color: isDark
+                          ? const Color(0xFF475569)
+                          : const Color(0xFFF59E0B),
                       width: 0.8,
                     ),
                   ),
                   child: Icon(
                     isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
                     size: 13,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFD97706),
+                    color: isDark
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFFD97706),
                   ),
                 ),
               ),
@@ -836,7 +999,13 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             children: [
               for (int i = 0; i < players.length; i++) ...[
                 if (i > 0) const SizedBox(width: 8),
-                _buildPlayerCard(players[i], i, gameState, voiceService, width: 155),
+                _buildPlayerCard(
+                  players[i],
+                  i,
+                  gameState,
+                  voiceService,
+                  width: 155,
+                ),
               ],
             ],
           ),
@@ -872,7 +1041,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }) {
     final isTurn = index == gameState.currentPlayerIndex;
     final isDark = context.isDark;
-    final activeBorderColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488);
+    final activeBorderColor = isDark
+        ? const Color(0xFF00E5FF)
+        : const Color(0xFF0D9488);
 
     // Calculate houses and hotels
     int houses = 0;
@@ -906,16 +1077,22 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       width: width,
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
+        color: isDark
+            ? const Color(0xFF131B2A).withValues(alpha: 0.95)
+            : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isTurn ? activeBorderColor : (isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+          color: isTurn
+              ? activeBorderColor
+              : (isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
           width: isTurn ? 1.8 : 1.0,
         ),
         boxShadow: isTurn
             ? [
                 BoxShadow(
-                  color: activeBorderColor.withValues(alpha: isDark ? 0.35 : 0.22),
+                  color: activeBorderColor.withValues(
+                    alpha: isDark ? 0.35 : 0.22,
+                  ),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -938,10 +1115,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 ),
               ],
             ),
-            child: CircleAvatar(
-              radius: 13,
-              backgroundImage: avatarImage,
-            ),
+            child: CircleAvatar(radius: 13, backgroundImage: avatarImage),
           ),
           const SizedBox(width: 6),
 
@@ -969,13 +1143,22 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                     if (player.consecutiveSkippedTurns > 0) ...[
                       const SizedBox(width: 3),
                       Tooltip(
-                        message: '${player.consecutiveSkippedTurns} consecutive turn${player.consecutiveSkippedTurns > 1 ? "s" : ""} skipped',
+                        message:
+                            '${player.consecutiveSkippedTurns} consecutive turn${player.consecutiveSkippedTurns > 1 ? "s" : ""} skipped',
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.16),
+                            color: const Color(
+                              0xFFEF4444,
+                            ).withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFFEF4444), width: 0.8),
+                            border: Border.all(
+                              color: const Color(0xFFEF4444),
+                              width: 0.8,
+                            ),
                           ),
                           child: Text(
                             '[${player.consecutiveSkippedTurns}]',
@@ -990,16 +1173,26 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                     ],
                     if (index == 0) ...[
                       const SizedBox(width: 2),
-                      const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD4AF37), size: 11),
+                      const Icon(
+                        Icons.workspace_premium_rounded,
+                        color: Color(0xFFD4AF37),
+                        size: 11,
+                      ),
                     ],
                     if (player.type == PlayerType.ai) ...[
                       const SizedBox(width: 3),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
                           color: context.cardAltColor,
                           borderRadius: BorderRadius.circular(3),
-                          border: Border.all(color: context.borderColor, width: 0.6),
+                          border: Border.all(
+                            color: context.borderColor,
+                            width: 0.6,
+                          ),
                         ),
                         child: Text(
                           'BOT',
@@ -1017,7 +1210,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 Text(
                   _formatCurrency(player.cash),
                   style: GoogleFonts.outfit(
-                    color: player.cash < 0 ? const Color(0xFFEF4444) : context.textPrimary,
+                    color: player.cash < 0
+                        ? const Color(0xFFEF4444)
+                        : context.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1025,13 +1220,35 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 // Property stats (houses, hotels)
                 Row(
                   children: [
-                    const Icon(Icons.home_rounded, size: 9, color: Color(0xFF10B981)),
+                    const Icon(
+                      Icons.home_rounded,
+                      size: 9,
+                      color: Color(0xFF10B981),
+                    ),
                     const SizedBox(width: 1),
-                    Text('$houses', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 8, fontWeight: FontWeight.bold)),
+                    Text(
+                      '$houses',
+                      style: GoogleFonts.outfit(
+                        color: context.textSecondary,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.location_city_rounded, size: 9, color: Color(0xFF0284C7)),
+                    const Icon(
+                      Icons.location_city_rounded,
+                      size: 9,
+                      color: Color(0xFF0284C7),
+                    ),
                     const SizedBox(width: 1),
-                    Text('$hotels', style: GoogleFonts.outfit(color: context.textSecondary, fontSize: 8, fontWeight: FontWeight.bold)),
+                    Text(
+                      '$hotels',
+                      style: GoogleFonts.outfit(
+                        color: context.textSecondary,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1044,11 +1261,17 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               margin: const EdgeInsets.only(left: 3),
               padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 2),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488),
+                color: isDark
+                    ? const Color(0xFF00E5FF)
+                    : const Color(0xFF0D9488),
                 borderRadius: BorderRadius.circular(6),
                 boxShadow: [
                   BoxShadow(
-                    color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488)).withValues(alpha: 0.45),
+                    color:
+                        (isDark
+                                ? const Color(0xFF00E5FF)
+                                : const Color(0xFF0D9488))
+                            .withValues(alpha: 0.45),
                     blurRadius: 4,
                   ),
                 ],
@@ -1068,16 +1291,25 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildBottomActionDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
+  Widget _buildBottomActionDock(
+    BuildContext context,
+    GameState gameState,
+    Player currentPlayer,
+    bool isMyTurn,
+  ) {
     final isDark = context.isDark;
     final isDebtPhase = gameState.phase == GamePhase.debtResolution;
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.94) : Colors.white.withValues(alpha: 0.95),
+        color: isDark
+            ? const Color(0xFF131B2A).withValues(alpha: 0.94)
+            : Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1),
+        ),
         boxShadow: context.cardShadow,
       ),
       child: SingleChildScrollView(
@@ -1232,7 +1464,7 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     bool highlight = false,
   }) {
     final isDark = context.isDark;
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: InkWell(
@@ -1269,7 +1501,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               Text(
                 label,
                 style: GoogleFonts.outfit(
-                  color: isDark ? const Color(0xFFF1F5F9) : (highlight ? color : color),
+                  color: isDark
+                      ? const Color(0xFFF1F5F9)
+                      : (highlight ? color : color),
                   fontSize: 9,
                   fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
                 ),
@@ -1281,16 +1515,25 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildBottomNavDock(BuildContext context, GameState gameState, Player currentPlayer, bool isMyTurn) {
+  Widget _buildBottomNavDock(
+    BuildContext context,
+    GameState gameState,
+    Player currentPlayer,
+    bool isMyTurn,
+  ) {
     final isDark = context.isDark;
-    
+
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.96),
+        color: isDark
+            ? const Color(0xFF131B2A).withValues(alpha: 0.95)
+            : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1),
+        ),
         boxShadow: context.cardShadow,
       ),
       child: Row(
@@ -1343,7 +1586,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             label: 'Settings',
             onTap: () {
               setState(() => _activeNavIndex = 3);
-              showDialog(context: context, builder: (_) => const GameMenuDialog());
+              showDialog(
+                context: context,
+                builder: (_) => const GameMenuDialog(),
+              );
             },
           ),
         ],
@@ -1361,7 +1607,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
   }) {
     final isDark = context.isDark;
     final isActive = _activeNavIndex == index;
-    final activeColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488);
+    final activeColor = isDark
+        ? const Color(0xFF00E5FF)
+        : const Color(0xFF0D9488);
     final activeBg = isDark ? const Color(0xFF0D3B3E) : const Color(0xFFE0F2F1);
 
     return InkWell(
@@ -1369,7 +1617,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(horizontal: isActive ? 12 : 7, vertical: 4),
+        padding: EdgeInsets.symmetric(
+          horizontal: isActive ? 12 : 7,
+          vertical: 4,
+        ),
         decoration: BoxDecoration(
           color: isActive ? activeBg : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
@@ -1416,14 +1667,32 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildDiceTray(BuildContext context, GameState gameState, Player current, bool isMyTurn) {
-    final canRoll = gameState.phase == GamePhase.roll && isMyTurn && !gameState.isRollingDice && !widget.game.isAnyTokenMoving && current.type == PlayerType.human && current.cash >= 0;
+  Widget _buildDiceTray(
+    BuildContext context,
+    GameState gameState,
+    Player current,
+    bool isMyTurn,
+  ) {
+    final canRoll =
+        gameState.phase == GamePhase.roll &&
+        isMyTurn &&
+        !gameState.isRollingDice &&
+        !widget.game.isAnyTokenMoving &&
+        current.type == PlayerType.human &&
+        current.cash >= 0;
     final isDark = context.isDark;
 
     // Detect if current player landed on an unowned property during space action
-    final space = current.position < GameData.spaces.length ? GameData.spaces[current.position] : null;
-    final prop = (space != null && space.propertyId != null) ? gameState.properties[space.propertyId] : null;
-    final isUnownedProperty = prop != null && prop.ownerId == null && gameState.phase == GamePhase.spaceAction;
+    final space = current.position < GameData.spaces.length
+        ? GameData.spaces[current.position]
+        : null;
+    final prop = (space != null && space.propertyId != null)
+        ? gameState.properties[space.propertyId]
+        : null;
+    final isUnownedProperty =
+        prop != null &&
+        prop.ownerId == null &&
+        gameState.phase == GamePhase.spaceAction;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1444,7 +1713,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             GestureDetector(
               onTap: () => ref.read(gameProvider.notifier).rollDice(),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 26,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: isDark
@@ -1454,7 +1726,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0D9488)).withValues(alpha: isDark ? 0.50 : 0.40),
+                      color:
+                          (isDark
+                                  ? const Color(0xFF00E5FF)
+                                  : const Color(0xFF0D9488))
+                              .withValues(alpha: isDark ? 0.50 : 0.40),
                       blurRadius: 16,
                       offset: const Offset(0, 3),
                     ),
@@ -1463,7 +1739,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.casino_rounded, color: Colors.white, size: 20),
+                    const Icon(
+                      Icons.casino_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'ROLL DICE',
@@ -1478,11 +1758,16 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 ),
               ),
             )
-
         // Case 2: Landed on unowned property -> show sleek in-board action panel!
         else if (isUnownedProperty)
-          _buildSpaceActionTray(context, gameState, current, prop, isDark, isMyTurn)
-
+          _buildSpaceActionTray(
+            context,
+            gameState,
+            current,
+            prop,
+            isDark,
+            isMyTurn,
+          )
         // Case 3: Other phases / waiting on AI or move
         else if (gameState.phase != GamePhase.turnEnd)
           if (current.isInJail)
@@ -1491,17 +1776,22 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
-                color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.88),
+                color: (isDark ? const Color(0xFF101826) : Colors.white)
+                    .withValues(alpha: 0.88),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF2A364F) : const Color(0xFFCBD5E1),
+                  color: isDark
+                      ? const Color(0xFF2A364F)
+                      : const Color(0xFFCBD5E1),
                   width: 0.8,
                 ),
               ),
               child: Text(
                 gameState.isRollingDice
                     ? '${current.name} is rolling...'
-                    : (isMyTurn ? 'Your turn to roll' : '${current.name}\'s turn'),
+                    : (isMyTurn
+                          ? 'Your turn to roll'
+                          : '${current.name}\'s turn'),
                 style: GoogleFonts.outfit(
                   color: context.textPrimary,
                   fontSize: 11.5,
@@ -1525,8 +1815,15 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
         // In-tray Transaction Notice (subtle, non-intrusive notification badge)
         if (gameState.activeTransaction != null)
-          _buildInlineTransactionBadge(context, gameState.activeTransaction!, isDark)
-        else if (gameState.message != null && gameState.phase != GamePhase.spaceAction && !canRoll && !widget.game.isAnyTokenMoving)
+          _buildInlineTransactionBadge(
+            context,
+            gameState.activeTransaction!,
+            isDark,
+          )
+        else if (gameState.message != null &&
+            gameState.phase != GamePhase.spaceAction &&
+            !canRoll &&
+            !widget.game.isAnyTokenMoving)
           _buildInlineMessageBadge(context, gameState.message!, isDark),
       ],
     );
@@ -1548,7 +1845,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.90),
+          color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(
+            alpha: 0.90,
+          ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: groupColor.withValues(alpha: 0.5)),
         ),
@@ -1567,7 +1866,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       constraints: const BoxConstraints(maxWidth: 310),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF131B2A) : Colors.white).withValues(alpha: 0.96),
+        color: (isDark ? const Color(0xFF131B2A) : Colors.white).withValues(
+          alpha: 0.96,
+        ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: groupColor.withValues(alpha: 0.7),
@@ -1613,15 +1914,22 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               ),
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 1.5,
+                ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F291E) : const Color(0xFFE8F5E9),
+                  color: isDark
+                      ? const Color(0xFF0F291E)
+                      : const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '₹${prop.price}',
                   style: GoogleFonts.outfit(
-                    color: isDark ? KuthakaColors.emerald : KuthakaColors.emeraldDark,
+                    color: isDark
+                        ? KuthakaColors.emerald
+                        : KuthakaColors.emeraldDark,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1639,15 +1947,20 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: canAfford
-                        ? (isDark ? KuthakaColors.emerald : KuthakaColors.emeraldDark)
+                        ? (isDark
+                              ? KuthakaColors.emerald
+                              : KuthakaColors.emeraldDark)
                         : Colors.grey.shade600,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     elevation: canAfford ? 4 : 0,
                   ),
                   onPressed: canAfford
-                      ? () => ref.read(gameProvider.notifier).buyProperty(prop.id)
+                      ? () =>
+                            ref.read(gameProvider.notifier).buyProperty(prop.id)
                       : null,
                   icon: const Icon(Icons.shopping_cart_rounded, size: 14),
                   label: Text(
@@ -1668,10 +1981,13 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                     backgroundColor: KuthakaColors.goldDark,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     elevation: 3,
                   ),
-                  onPressed: () => ref.read(gameProvider.notifier).startAuction(prop.id),
+                  onPressed: () =>
+                      ref.read(gameProvider.notifier).startAuction(prop.id),
                   icon: const Icon(Icons.gavel_rounded, size: 13),
                   label: Text(
                     'AUCTION',
@@ -1685,7 +2001,8 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
               const SizedBox(width: 5),
               // DEED inspection button
               InkWell(
-                onTap: () => ref.read(gameProvider.notifier).inspectProperty(prop),
+                onTap: () =>
+                    ref.read(gameProvider.notifier).inspectProperty(prop),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
                   padding: const EdgeInsets.all(7),
@@ -1708,12 +2025,18 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildInlineTransactionBadge(BuildContext context, TransactionNotice notice, bool isDark) {
+  Widget _buildInlineTransactionBadge(
+    BuildContext context,
+    TransactionNotice notice,
+    bool isDark,
+  ) {
     return Container(
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF131B2A) : Colors.white).withValues(alpha: 0.94),
+        color: (isDark ? const Color(0xFF131B2A) : Colors.white).withValues(
+          alpha: 0.94,
+        ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: notice.color, width: 1.2),
         boxShadow: [
@@ -1746,13 +2069,22 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     );
   }
 
-  Widget _buildInlineMessageBadge(BuildContext context, String message, bool isDark) {
-    final isWarning = message.contains('Jail') || message.contains('Tax') || message.contains('bankrupt');
+  Widget _buildInlineMessageBadge(
+    BuildContext context,
+    String message,
+    bool isDark,
+  ) {
+    final isWarning =
+        message.contains('Jail') ||
+        message.contains('Tax') ||
+        message.contains('bankrupt');
     return Container(
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.88),
+        color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(
+          alpha: 0.88,
+        ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isWarning
@@ -1785,25 +2117,29 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         title = 'REDEEM MODE';
         icon = Icons.lock_open_rounded;
         accentColor = const Color(0xFF10B981);
-        description = 'Select a highlighted mortgaged property to redeem. Redeeming removes its mortgage after paying mortgage value plus 10% interest.';
+        description =
+            'Select a highlighted mortgaged property to redeem. Redeeming removes its mortgage after paying mortgage value plus 10% interest.';
         break;
       case BoardInteractionMode.build:
         title = 'BUILD MODE';
         icon = Icons.apartment_rounded;
         accentColor = const Color(0xFF7C3AED);
-        description = 'Select a highlighted property to build houses or hotels. Official Monopoly rules require building evenly across a monopoly group.';
+        description =
+            'Select a highlighted property to build houses or hotels. Official Monopoly rules require building evenly across a monopoly group.';
         break;
       case BoardInteractionMode.mortgage:
         title = 'MORTGAGE MODE';
         icon = Icons.home_work_rounded;
         accentColor = const Color(0xFFEA580C);
-        description = 'Select a highlighted property to mortgage and receive 50% of its value as cash. No buildings may exist on any property in its color group.';
+        description =
+            'Select a highlighted property to mortgage and receive 50% of its value as cash. No buildings may exist on any property in its color group.';
         break;
       case BoardInteractionMode.sell:
         title = 'SELL BUILDINGS';
         icon = Icons.sell_rounded;
         accentColor = const Color(0xFFE11D48);
-        description = 'Select a highlighted property to sell houses or hotels back to bank for 50% refund. Must sell evenly across the color group.';
+        description =
+            'Select a highlighted property to sell houses or hotels back to bank for 50% refund. Must sell evenly across the color group.';
         break;
       case BoardInteractionMode.none:
         return const SizedBox.shrink();
@@ -1813,9 +2149,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       constraints: const BoxConstraints(maxWidth: 320),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(alpha: 0.96),
+        color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(
+          alpha: 0.96,
+        ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withValues(alpha: 0.8), width: 1.5),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.8),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: accentColor.withValues(alpha: 0.25),
@@ -1885,12 +2226,14 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
     bool isMyTurn,
   ) {
     final isDark = context.isDark;
+    final timerRemaining = ref.watch(turnTimerRemainingProvider);
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 320),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF1A0B12) : const Color(0xFFFFF1F2)).withValues(alpha: 0.96),
+        color: (isDark ? const Color(0xFF1A0B12) : const Color(0xFFFFF1F2))
+            .withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE11D48), width: 1.5),
         boxShadow: [
@@ -1907,7 +2250,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFE11D48), size: 18),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFE11D48),
+                size: 18,
+              ),
               const SizedBox(width: 6),
               Text(
                 'DEBT RESOLUTION',
@@ -1925,18 +2272,13 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   color: const Color(0xFFE11D48).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Consumer(
-                  builder: (context, ref, _) {
-                    final timerRemaining = ref.watch(turnTimerRemainingProvider);
-                    return Text(
-                      '⏱️ ${timerRemaining}s',
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFFE11D48),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    );
-                  },
+                child: Text(
+                  '⏱️ ${timerRemaining}s',
+                  style: GoogleFonts.outfit(
+                    color: const Color(0xFFE11D48),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -2033,7 +2375,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             const SizedBox(width: 8),
             Text(
               'Declare Bankruptcy?',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: ctx.textPrimary),
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold,
+                color: ctx.textPrimary,
+              ),
             ),
           ],
         ),
@@ -2044,12 +2389,17 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: GoogleFonts.outfit(color: ctx.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.outfit(color: ctx.textSecondary),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () {
               Navigator.of(ctx).pop();
@@ -2057,7 +2407,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
             },
             child: Text(
               'Surrender',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white),
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -2076,7 +2429,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(alpha: 0.9),
+          color: (isDark ? const Color(0xFF101826) : Colors.white).withValues(
+            alpha: 0.9,
+          ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0xFFE11D48).withValues(alpha: 0.6),
@@ -2086,7 +2441,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.local_police_rounded, color: Color(0xFFE11D48), size: 18),
+            const Icon(
+              Icons.local_police_rounded,
+              color: Color(0xFFE11D48),
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Text(
               '${current.name} is in Lockup / Jail',
@@ -2103,17 +2462,31 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
     final turns = current.turnsInJail;
     final rollsRemaining = (3 - turns).clamp(0, 3);
-    final canPayBail = current.cash >= 100 && !gameState.isRollingDice && gameState.phase == GamePhase.roll;
-    final hasJailCard = current.getOutOfJailCards > 0 && !gameState.isRollingDice && gameState.phase == GamePhase.roll;
-    final canRoll = !gameState.isRollingDice && gameState.phase == GamePhase.roll && !widget.game.isAnyTokenMoving;
+    final canPayBail =
+        current.cash >= 100 &&
+        !gameState.isRollingDice &&
+        gameState.phase == GamePhase.roll;
+    final hasJailCard =
+        current.getOutOfJailCards > 0 &&
+        !gameState.isRollingDice &&
+        gameState.phase == GamePhase.roll;
+    final canRoll =
+        !gameState.isRollingDice &&
+        gameState.phase == GamePhase.roll &&
+        !widget.game.isAnyTokenMoving;
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 320),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(alpha: 0.96),
+        color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(
+          alpha: 0.96,
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE11D48).withValues(alpha: 0.7), width: 1.5),
+        border: Border.all(
+          color: const Color(0xFFE11D48).withValues(alpha: 0.7),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFFE11D48).withValues(alpha: 0.25),
@@ -2128,7 +2501,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.local_police_rounded, color: Color(0xFFE11D48), size: 20),
+              const Icon(
+                Icons.local_police_rounded,
+                color: Color(0xFFE11D48),
+                size: 20,
+              ),
               const SizedBox(width: 6),
               Text(
                 'IN JAIL / LOCKUP',
@@ -2167,14 +2544,21 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 backgroundColor: const Color(0xFF00E5FF),
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 elevation: 3,
               ),
-              onPressed: canRoll ? () => ref.read(gameProvider.notifier).rollDice() : null,
+              onPressed: canRoll
+                  ? () => ref.read(gameProvider.notifier).rollDice()
+                  : null,
               icon: const Icon(Icons.casino_rounded, size: 16),
               label: Text(
                 'ROLL FOR DOUBLES',
-                style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.w800),
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
@@ -2189,14 +2573,21 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 elevation: 3,
               ),
-              onPressed: canPayBail ? () => ref.read(gameProvider.notifier).payJailBail() : null,
+              onPressed: canPayBail
+                  ? () => ref.read(gameProvider.notifier).payJailBail()
+                  : null,
               icon: const Icon(Icons.payment_rounded, size: 16),
               label: Text(
                 'PAY ₹100 & GET OUT',
-                style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.w800),
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
@@ -2211,14 +2602,19 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   backgroundColor: const Color(0xFFF59E0B),
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   elevation: 3,
                 ),
                 onPressed: () => ref.read(gameProvider.notifier).useJailCard(),
                 icon: const Icon(Icons.confirmation_number_rounded, size: 16),
                 label: Text(
                   'USE GET OUT OF JAIL FREE',
-                  style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.w800),
+                  style: GoogleFonts.outfit(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
@@ -2235,7 +2631,9 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
       builder: (ctx) {
         return Dialog(
           backgroundColor: ctx.cardColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
             padding: const EdgeInsets.all(18),
@@ -2250,7 +2648,11 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                         color: KuthakaColors.goldDark.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.history_rounded, color: KuthakaColors.goldDark, size: 22),
+                      child: const Icon(
+                        Icons.history_rounded,
+                        color: KuthakaColors.goldDark,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -2284,7 +2686,10 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                       ? Center(
                           child: Text(
                             'No logs recorded yet.',
-                            style: GoogleFonts.outfit(color: ctx.textSecondary, fontSize: 13),
+                            style: GoogleFonts.outfit(
+                              color: ctx.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                         )
                       : ListView.separated(
@@ -2292,22 +2697,34 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                           itemCount: gameState.gameLogs.length,
                           separatorBuilder: (_, _) => Divider(
                             height: 1,
-                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : const Color(0xFFF1F5F9),
                           ),
                           itemBuilder: (c, i) {
                             final log = gameState.gameLogs[i];
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 4,
+                              ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Container(
-                                    margin: const EdgeInsets.only(top: 4, right: 8),
+                                    margin: const EdgeInsets.only(
+                                      top: 4,
+                                      right: 8,
+                                    ),
                                     width: 6,
                                     height: 6,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: i == 0 ? KuthakaColors.goldDark : ctx.textSecondary.withValues(alpha: 0.4),
+                                      color: i == 0
+                                          ? KuthakaColors.goldDark
+                                          : ctx.textSecondary.withValues(
+                                              alpha: 0.4,
+                                            ),
                                     ),
                                   ),
                                   Expanded(
@@ -2316,8 +2733,12 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                                       style: GoogleFonts.outfit(
                                         fontSize: 12,
                                         height: 1.35,
-                                        fontWeight: i == 0 ? FontWeight.w700 : FontWeight.w500,
-                                        color: i == 0 ? ctx.textPrimary : ctx.textSecondary,
+                                        fontWeight: i == 0
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: i == 0
+                                            ? ctx.textPrimary
+                                            : ctx.textSecondary,
                                       ),
                                     ),
                                   ),
@@ -2332,13 +2753,20 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                      backgroundColor: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFE2E8F0),
                       foregroundColor: ctx.textPrimary,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                       elevation: 0,
                     ),
                     onPressed: () => Navigator.pop(ctx),
-                    child: Text('Close', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'Close',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               ],
@@ -2351,24 +2779,45 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
 
   Color _getGroupColor(PropertyGroup group) {
     switch (group) {
-      case PropertyGroup.malabar: return const Color(0xFF8D5524);
-      case PropertyGroup.thrissur: return const Color(0xFF0288D1);
-      case PropertyGroup.kochi: return const Color(0xFFD81B60);
-      case PropertyGroup.backwaters: return const Color(0xFFF57C00);
-      case PropertyGroup.highlands: return const Color(0xFFD32F2F);
-      case PropertyGroup.southKerala: return const Color(0xFFFBC02D);
-      case PropertyGroup.premium: return const Color(0xFF2E7D32);
-      case PropertyGroup.luxury: return const Color(0xFF1565C0);
-      case PropertyGroup.transport: return const Color(0xFF546E7A);
-      case PropertyGroup.utility: return const Color(0xFF78909C);
+      case PropertyGroup.malabar:
+        return const Color(0xFF8D5524);
+      case PropertyGroup.thrissur:
+        return const Color(0xFF0288D1);
+      case PropertyGroup.kochi:
+        return const Color(0xFFD81B60);
+      case PropertyGroup.backwaters:
+        return const Color(0xFFF57C00);
+      case PropertyGroup.highlands:
+        return const Color(0xFFD32F2F);
+      case PropertyGroup.southKerala:
+        return const Color(0xFFFBC02D);
+      case PropertyGroup.premium:
+        return const Color(0xFF2E7D32);
+      case PropertyGroup.luxury:
+        return const Color(0xFF1565C0);
+      case PropertyGroup.transport:
+        return const Color(0xFF546E7A);
+      case PropertyGroup.utility:
+        return const Color(0xFF78909C);
+      case PropertyGroup.brown:
+        // TODO: Handle this case.
+        throw UnimplementedError();
+      case PropertyGroup.lightBlue:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
-  Widget _buildMainActionButton(BuildContext context, GameState gameState, Player current) {
+  Widget _buildMainActionButton(
+    BuildContext context,
+    GameState gameState,
+    Player current,
+  ) {
     final myProfile = ref.watch(userProfileProvider);
     final multiplayer = ref.watch(multiplayerServiceProvider);
     final isOnline = multiplayer.isConnected;
-    final myLocalId = ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
+    final myLocalId =
+        ref.watch(gameProvider.notifier).localPlayerId ?? myProfile.id;
     final isMyTurn = !isOnline || current.id == myLocalId;
 
     if (!isMyTurn || current.type != PlayerType.human) {
@@ -2381,14 +2830,19 @@ class _HudOverlayState extends ConsumerState<HudOverlay> {
           backgroundColor: KuthakaColors.goldDark,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
           elevation: 6,
         ),
         onPressed: () => ref.read(gameProvider.notifier).endTurn(),
-        child: Text('END TURN', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold)),
+        child: Text(
+          'END TURN',
+          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
       );
     }
-    
+
     return const SizedBox.shrink();
   }
 
@@ -2412,12 +2866,16 @@ class _HudTurnTimerBadge extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = context.isDark;
-    final isAuction = ref.watch(gameProvider.select((s) => s.activeAuction != null));
+    final isAuction = ref.watch(
+      gameProvider.select((s) => s.activeAuction != null),
+    );
     final timeRemaining = ref.watch(turnTimerRemainingProvider);
     final isWarning = !isAuction && timeRemaining <= 10;
     final timerColor = isAuction
         ? KuthakaColors.gold
-        : (isWarning ? KuthakaColors.crimson : (isDark ? const Color(0xFF10B981) : const Color(0xFF047857)));
+        : (isWarning
+              ? KuthakaColors.crimson
+              : (isDark ? const Color(0xFF10B981) : const Color(0xFF047857)));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),

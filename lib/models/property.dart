@@ -8,7 +8,7 @@ enum PropertyGroup {
   premium, // Green
   luxury, // Dark Blue
   transport, // e.g. KSRTC, Kochi Metro, Ferry, Airport
-  utility // e.g. KSEB, Water Authority
+  utility, brown, lightBlue // e.g. KSEB, Water Authority
 }
 
 class Property {
